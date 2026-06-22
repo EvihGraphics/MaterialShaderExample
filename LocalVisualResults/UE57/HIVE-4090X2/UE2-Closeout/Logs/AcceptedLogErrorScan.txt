@@ -1,0 +1,40 @@
+﻿UE2 Closeout Accepted Log Error Scan
+UTC: 2026-06-22T16:33:12Z
+Accepted logs:
+- LocalVisualResults\UE57\HIVE-4090X2\UE2-Closeout\Logs\Build-UE2-Closeout.log exists=True
+- LocalVisualResults\UE57\HIVE-4090X2\UE2-Closeout\Logs\Determinism_Mode1_A.log exists=True
+- LocalVisualResults\UE57\HIVE-4090X2\UE2-Closeout\Logs\Determinism_Mode1_B.log exists=True
+- LocalVisualResults\UE57\HIVE-4090X2\UE2-Closeout\Logs\EditorPIE_Closeout_Sync.log exists=True
+- LocalVisualResults\UE57\HIVE-4090X2\UE2-Closeout\Logs\Standalone_00_Disabled.log exists=True
+- LocalVisualResults\UE57\HIVE-4090X2\UE2-Closeout\Logs\Standalone_01_Mode1.log exists=True
+- LocalVisualResults\UE57\HIVE-4090X2\UE2-Closeout\Logs\Standalone_02_Mode2.log exists=True
+- LocalVisualResults\UE57\HIVE-4090X2\UE2-Closeout\Logs\Standalone_03_Mode3.log exists=True
+- LocalVisualResults\UE57\HIVE-4090X2\UE2-Closeout\Logs\Resize_960x540_00_Disabled.log exists=True
+- LocalVisualResults\UE57\HIVE-4090X2\UE2-Closeout\Logs\Resize_960x540_01_Mode1.log exists=True
+- LocalVisualResults\UE57\HIVE-4090X2\UE2-Closeout\Logs\Resize_960x540_02_Mode2.log exists=True
+- LocalVisualResults\UE57\HIVE-4090X2\UE2-Closeout\Logs\Resize_1280x720_00_Disabled.log exists=True
+- LocalVisualResults\UE57\HIVE-4090X2\UE2-Closeout\Logs\Resize_1280x720_01_Mode1.log exists=True
+- LocalVisualResults\UE57\HIVE-4090X2\UE2-Closeout\Logs\Resize_1280x720_02_Mode2.log exists=True
+- LocalVisualResults\UE57\HIVE-4090X2\UE2-Closeout\Logs\Resize_1920x1080_00_Disabled.log exists=True
+- LocalVisualResults\UE57\HIVE-4090X2\UE2-Closeout\Logs\Resize_1920x1080_01_Mode1.log exists=True
+- LocalVisualResults\UE57\HIVE-4090X2\UE2-Closeout\Logs\Resize_1920x1080_02_Mode2.log exists=True
+
+Rejected/superseded logs not counted as accepted PASS evidence:
+- LocalVisualResults\UE57\HIVE-4090X2\UE2-Closeout\Logs\EditorPIE_Closeout.log reason=superseded failed/screenshot-probe run
+- LocalVisualResults\UE57\HIVE-4090X2\UE2-Closeout\Logs\EditorPIE_Lifecycle.log reason=superseded failed/screenshot-probe run
+- LocalVisualResults\UE57\HIVE-4090X2\UE2-Closeout\Logs\Editor_00_Disabled.log reason=superseded failed/screenshot-probe run
+- LocalVisualResults\UE57\HIVE-4090X2\UE2-Closeout\Logs\Editor_01_Mode1.log reason=superseded failed/screenshot-probe run
+- LocalVisualResults\UE57\HIVE-4090X2\UE2-Closeout\Logs\Editor_02_Mode2.log reason=superseded failed/screenshot-probe run
+- LocalVisualResults\UE57\HIVE-4090X2\UE2-Closeout\Logs\Editor_03_Mode3.log reason=superseded failed/screenshot-probe run
+- LocalVisualResults\UE57\HIVE-4090X2\UE2-Closeout\Logs\Editor_10_OriginalRegression.log reason=superseded failed/screenshot-probe run
+- LocalVisualResults\UE57\HIVE-4090X2\UE2-Closeout\Logs\PIE_00_Disabled.log reason=superseded failed/screenshot-probe run
+- LocalVisualResults\UE57\HIVE-4090X2\UE2-Closeout\Logs\PIE_01_Mode1.log reason=superseded failed/screenshot-probe run
+- LocalVisualResults\UE57\HIVE-4090X2\UE2-Closeout\Logs\PIE_02_Mode2.log reason=superseded failed/screenshot-probe run
+- LocalVisualResults\UE57\HIVE-4090X2\UE2-Closeout\Logs\PIE_03_Mode3.log reason=superseded failed/screenshot-probe run
+
+Matches in LocalVisualResults\UE57\HIVE-4090X2\UE2-Closeout\Logs\EditorPIE_Closeout_Sync.log:
+  NOISE LocalVisualResults\UE57\HIVE-4090X2\UE2-Closeout\Logs\EditorPIE_Closeout_Sync.log:1033: [2026.06.22-16.16.56:688][  0]LogAutomationTest: Error: Condition failed
+  NOISE LocalVisualResults\UE57\HIVE-4090X2\UE2-Closeout\Logs\EditorPIE_Closeout_Sync.log:1034: [2026.06.22-16.16.56:688][  0]LogAutomationTest: Error: Condition failed
+
+Summary: blockingMatches=0 knownNoiseMatches=2 acceptedLogCount=17
+Decision: ACCEPTED_LOG_SCAN_PASS for accepted evidence logs. Known benign environment noise is documented above when present.

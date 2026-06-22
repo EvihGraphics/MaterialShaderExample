@@ -51,24 +51,31 @@ void FillCS(uint2 DispatchThreadId : SV_DispatchThreadID)
 	}
 
 	float2 ViewUV = ((float2)DispatchThreadId + 0.5f) / max((float2)ViewRectSize, 1.0f);
-	float DeviceZ = SceneTexturesStruct.SceneDepthTexture.Load(int3(Pixel, 0)).r;
-	float LinearDepth = ConvertFromDeviceZ(DeviceZ);
-	float DepthBand = saturate(1.0f - LinearDepth / 200000.0f);
 
-	float EdgeFalloff = saturate(min(min(ViewUV.x, 1.0f - ViewUV.x), min(ViewUV.y, 1.0f - ViewUV.y)) * 16.0f);
-	float Wave = 0.5f + 0.5f * sin((ViewUV.x * 17.0f + ViewUV.y * 9.0f) * 6.2831853f + View.StateFrameIndexMod8);
-	float Coverage = saturate(0.18f + 0.55f * EdgeFalloff + 0.18f * Wave);
+	float2 CheckerCell = floor(ViewUV * 16.0f);
+	float Checker = frac((CheckerCell.x + CheckerCell.y) * 0.5f) * 2.0f;
 
-	float3 Color = float3(0.12f, 0.55f, 0.95f);
+	float2 PixelInView = (float2)DispatchThreadId;
+	float EdgePixels = min(
+		min(PixelInView.x, (float)ViewRectSize.x - 1.0f - PixelInView.x),
+		min(PixelInView.y, (float)ViewRectSize.y - 1.0f - PixelInView.y));
+	float EdgeMarker = 1.0f - step(3.0f, EdgePixels);
+
+	float3 Gradient = float3(0.10f + ViewUV.x * 0.70f, 0.20f + ViewUV.y * 0.62f, 0.95f - ViewUV.x * 0.35f);
+	float3 Color = lerp(Gradient, float3(1.0f, 0.24f, 0.08f), Checker * 0.38f);
+	Color = lerp(Color, float3(0.0f, 1.0f, 0.28f), EdgeMarker);
+	float Coverage = 1.0f;
 	if (DebugMode == 2)
 	{
+		float DeviceZ = SceneTexturesStruct.SceneDepthTexture.Load(int3(Pixel, 0)).r;
+		float LinearDepth = ConvertFromDeviceZ(DeviceZ);
+		float DepthBand = saturate(1.0f - LinearDepth / 200000.0f);
+
 		Color = lerp(float3(0.0f, 0.35f, 1.0f), float3(1.0f, 0.84f, 0.12f), DepthBand);
 		Coverage = saturate(0.15f + 0.65f * DepthBand);
 	}
 	else if (DebugMode == 3)
 	{
-		float2 CheckerCell = floor(ViewUV * 16.0f);
-		float Checker = frac((CheckerCell.x + CheckerCell.y) * 0.5f) * 2.0f;
 		Color = lerp(float3(ViewUV, 1.0f), float3(1.0f, 0.2f, 0.55f), Checker);
 		Coverage = saturate(0.25f + 0.45f * Checker);
 	}

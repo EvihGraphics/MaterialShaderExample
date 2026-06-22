@@ -28,5 +28,14 @@ public class MaterialShaderExample : ModuleRules
 			Path.Combine(GetModuleDirectory("Renderer"), "Private"),
 			Path.Combine(GetModuleDirectory("Renderer"), "Internal"),
 		});
+
+		if (Target.bBuildEditor)
+		{
+			PrivateDependencyModuleNames.AddRange(new string[]
+			{
+				"LevelEditor",
+				"UnrealEd",
+			});
+		}
 	}
 }

@@ -18,9 +18,9 @@ namespace AVBOIT::Smoke
 		TEXT("r.AVBOIT.Smoke.DebugMode"),
 		1,
 		TEXT("AVBOIT smoke test debug mode.\n")
-		TEXT(" 1: coverage overlay\n")
-		TEXT(" 2: SceneDepth-derived overlay\n")
-		TEXT(" 3: UV/checker overlay"),
+		TEXT(" 1: deterministic static UV/checker overlay with ViewRect boundary marker\n")
+		TEXT(" 2: real SceneDepth DeviceZ converted with ConvertFromDeviceZ\n")
+		TEXT(" 3: UV/checker SceneColor overlay"),
 		ECVF_RenderThreadSafe);
 
 	static TAutoConsoleVariable<float> CVarOpacity(
