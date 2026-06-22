@@ -1,44 +1,37 @@
-# Current Work State
+# Guidance Package Current Mirror
 
-## Route
+This file is no longer an active recovery pointer.
 
-Primary skill: `docs/skill/avboit-learning-development-skill-v1/SKILL.md`
+The active UE worktree state is:
 
-Checkpoint skill: `docs/skill/checkpoint-archive-skill/SKILL.md`
+```text
+docs/plan/CURRENT.md
+```
 
-Current lab skill: `docs/skill/theforge-avboit-lab-skill/SKILL.md`
+in the repository root of:
 
-## Active Branch
+```text
+D:\HTC\avboit\AVBOIT开发
+```
 
-`baseline/theforge-1.58-windows-vs-dx12`
+Latest mirrored checkpoint:
 
-Base: `origin/baseline/theforge-1.58-windows-vs-dx12` @ `c2b643ae770aa3bc7fc8fd5e4a06d5e3fed6eafc`
+```text
+docs/checkpoints/archive/CHECKPOINT-0009-20260622T134419Z-UE1-2-rdg-smoke-result.md
+```
 
-## Latest Checkpoint
+Current mirrored status:
 
-`docs/checkpoints/archive/CHECKPOINT-0005-20260621T153700Z-PLAN-4-0-grayscale-resolved.md`
+```text
+implemented-with-test-gaps
+```
 
-Status: `passed-local`
+UE-1 and UE-2 standalone evidence is present under `LocalVisualResults/UE57`.
+Editor/PIE validation and external GPU capture remain open.
 
-## Latest State
+The historical The Forge state previously recorded here is reference history
+only. It must not override the root UE `CURRENT.md`.
 
-The AVBOIT grayscale rendering bug was successfully resolved. The root cause was identified as a missing `LightUniformBlock` descriptor binding in the AVBOIT forward pass, which caused the lighting calculation to output `(0, 0, 0)` for RGB colors while maintaining alpha-based extinction. The descriptor updates were corrected (4 params for splat, 5 params for forward). Mode 5 now renders full RGB colors on transparent panels, matching the Mode 0 ground truth pixel-for-pixel on the sample panels, achieving an overall SSIM of 0.955. The remaining MAE (0.028) is an expected algorithmic property of AVBOIT (lack of intra-voxel occlusion ordering).
-
-## Visual References
-
-- User AVBOIT reference: `LocalVisualResults/HIVE_4090x2/VisualResults/Screenshots/UT_15_Transparency_DX12_Mode_5.png`
-- User baseline reference: `LocalVisualResults/HIVE_4090x2/VisualResults/Screenshots/UT_15_Transparency_DX12_Mode_0.png`
-
-## Current Goal
-
-Review and refine AVBOIT performance metrics, and prepare to advance to the next planning stage defined in `ROADMAP.md` (e.g., OIT Comparative Experiments or Unreal Engine migration preparations).
-
-## Current Plan
-
-`docs/plan/theforge_avboit/PLAN-4-0.md`
-
-## Resume Entry
-
-1. Stay on branch `baseline/theforge-1.58-windows-vs-dx12`.
-2. Read `CHECKPOINT-0005-20260621T153700Z-PLAN-4-0-grayscale-resolved.md`.
-3. Validate AVBOIT performance and transition to OIT Comparison or UE migration based on user guidance.
+Machine-local UE paths are also not package-level truth. Every machine must
+rediscover `UE57_ROOT` and record `Build.version` before producing build/run
+evidence.

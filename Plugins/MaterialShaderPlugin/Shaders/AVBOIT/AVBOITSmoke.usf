@@ -1,0 +1,92 @@
+// Copyright Voxel Plugin SAS. All Rights Reserved.
+
+#include "/Engine/Private/Common.ush"
+#include "/Engine/Private/SceneTexturesCommon.ush"
+#include "/Engine/Private/ScreenPass.ush"
+
+#define AVBOIT_THREADGROUP_SIZE 8
+
+RWTexture2D<float4> OutSmoke;
+
+uint2 TextureExtent;
+uint2 ViewRectMin;
+uint2 ViewRectSize;
+int DebugMode;
+
+Texture2D SceneColor_Texture;
+SamplerState SceneColor_Sampler;
+SCREEN_PASS_TEXTURE_VIEWPORT(SceneColor)
+
+Texture2D Smoke_Texture;
+SamplerState Smoke_Sampler;
+SCREEN_PASS_TEXTURE_VIEWPORT(Smoke)
+
+FScreenTransform SvPositionToSceneColorUV;
+FScreenTransform SvPositionToSmokeUV;
+float Opacity;
+
+[numthreads(AVBOIT_THREADGROUP_SIZE, AVBOIT_THREADGROUP_SIZE, 1)]
+void ClearCS(uint2 DispatchThreadId : SV_DispatchThreadID)
+{
+	if (any(DispatchThreadId >= TextureExtent))
+	{
+		return;
+	}
+
+	OutSmoke[DispatchThreadId] = float4(0.0f, 0.0f, 0.0f, 0.0f);
+}
+
+[numthreads(AVBOIT_THREADGROUP_SIZE, AVBOIT_THREADGROUP_SIZE, 1)]
+void FillCS(uint2 DispatchThreadId : SV_DispatchThreadID)
+{
+	if (any(DispatchThreadId >= ViewRectSize))
+	{
+		return;
+	}
+
+	uint2 Pixel = DispatchThreadId + ViewRectMin;
+	if (any(Pixel >= TextureExtent))
+	{
+		return;
+	}
+
+	float2 ViewUV = ((float2)DispatchThreadId + 0.5f) / max((float2)ViewRectSize, 1.0f);
+	float DeviceZ = SceneTexturesStruct.SceneDepthTexture.Load(int3(Pixel, 0)).r;
+	float LinearDepth = ConvertFromDeviceZ(DeviceZ);
+	float DepthBand = saturate(1.0f - LinearDepth / 200000.0f);
+
+	float EdgeFalloff = saturate(min(min(ViewUV.x, 1.0f - ViewUV.x), min(ViewUV.y, 1.0f - ViewUV.y)) * 16.0f);
+	float Wave = 0.5f + 0.5f * sin((ViewUV.x * 17.0f + ViewUV.y * 9.0f) * 6.2831853f + View.StateFrameIndexMod8);
+	float Coverage = saturate(0.18f + 0.55f * EdgeFalloff + 0.18f * Wave);
+
+	float3 Color = float3(0.12f, 0.55f, 0.95f);
+	if (DebugMode == 2)
+	{
+		Color = lerp(float3(0.0f, 0.35f, 1.0f), float3(1.0f, 0.84f, 0.12f), DepthBand);
+		Coverage = saturate(0.15f + 0.65f * DepthBand);
+	}
+	else if (DebugMode == 3)
+	{
+		float2 CheckerCell = floor(ViewUV * 16.0f);
+		float Checker = frac((CheckerCell.x + CheckerCell.y) * 0.5f) * 2.0f;
+		Color = lerp(float3(ViewUV, 1.0f), float3(1.0f, 0.2f, 0.55f), Checker);
+		Coverage = saturate(0.25f + 0.45f * Checker);
+	}
+
+	OutSmoke[Pixel] = float4(Color, Coverage);
+}
+
+void CompositePS(
+	noperspective float4 UVAndScreenPos : TEXCOORD0,
+	float4 SvPosition : SV_POSITION,
+	out float4 OutColor : SV_Target0)
+{
+	float2 SceneColorUV = ApplyScreenTransform(SvPosition.xy, SvPositionToSceneColorUV);
+	float2 SmokeUV = ApplyScreenTransform(SvPosition.xy, SvPositionToSmokeUV);
+
+	float4 SceneColor = Texture2DSampleLevel(SceneColor_Texture, SceneColor_Sampler, SceneColorUV, 0);
+	float4 Smoke = Texture2DSampleLevel(Smoke_Texture, Smoke_Sampler, SmokeUV, 0);
+	float Alpha = saturate(Smoke.a * Opacity);
+
+	OutColor = float4(lerp(SceneColor.rgb, Smoke.rgb, Alpha), SceneColor.a);
+}
