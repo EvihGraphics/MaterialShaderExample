@@ -1,0 +1,18 @@
+# Egaku source: `Scripts/RenderFeatures/OIT/AVBOIT/VirtualSliceBased/RenderPasses/VolumeOccupancyCollectionPass.cs`
+
+> 自动从 `EgakuRenderPipeline.zip` 的文本源码转译。该实现是 Unity 参考，不决定 UE5 架构。
+
+```csharp
+﻿using Modules.OIT.AVBOIT.Renderer;
+using UnityEngine.Rendering;
+using UnityEngine.Rendering.Universal;
+
+namespace RenderFeatures.OIT.AVBOIT.VirtualSliceBased.RenderPasses {
+    public class VolumeOccupancyCollectionPass : ScriptableRenderPass{
+
+        public override void Execute(ScriptableRenderContext ctx, ref RenderingData data) {
+         //   AVBOITRenderer.RecordRenderCommandsVolumeOccupancyCollectionPass(ref ctx,ref data);
+        }
+    }
+}
+```

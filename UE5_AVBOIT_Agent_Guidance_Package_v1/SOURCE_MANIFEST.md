@@ -1,0 +1,66 @@
+﻿# Source Manifest
+
+Generated: 2026-06-21T05:50:06Z
+
+| Path | Bytes | SHA-256 |
+|---|---:|---|
+| `docs/checkpoints/archive/CHECKPOINT-0001-20260619T123200Z-PACKAGE-checkpoint-policy.md` | 3350 | `d5b3ac19e9664db9bb3d040d249d39f90e546213d96f7bb65bafc730db5b42aa` |
+| `docs/checkpoints/archive/CHECKPOINT-0004-20260621T055006Z-PLAN-4-0-clean-avboit-checkpoint.md` | 4353 | `3ed6c6bd876200e1160165159759cbf610027c6b8683b1a60f73d05d4e55a0a9` |
+| `docs/checkpoints/CHECKPOINT_INDEX.md` | 781 | `38f547280e5fe0792831bd8b865d00b596a73012956b027cea7852aeeef8c0dd` |
+| `docs/checkpoints/README.md` | 871 | `e2109a7b732dd6f54a37701e9337ff0b3e3965f944497c1c77553689a6f64a7b` |
+| `docs/knowledge/00_project/PROJECT_CHARTER.md` | 812 | `8377c535233ef13cdecca561f6679ac3b6d952f70b38c7de9062dd174e2b23b8` |
+| `docs/knowledge/01_algorithm/AVBOIT_READING_GUIDE.md` | 1086 | `48b2c9c2983a49a4c4685c9a5a48c232d788d6751df852e9192d59d5d5e771c3` |
+| `docs/knowledge/02_theforge/THE_FORGE_LINK_GUIDE.md` | 1012 | `bd04697afce52410faeee93ba4ced587442e7b3d47e45b2d4994641c83699470` |
+| `docs/knowledge/03_reference_implementations/EGAKU_GUIDE.md` | 804 | `b6ec3197034011da68b16d921792022e83f17492b23228591ec72b3d9d484d5d` |
+| `docs/knowledge/04_ue_rendering/UE_STAGE_READING_GUIDE.md` | 740 | `73e4b3838d90460f1ee82e7545caaa041e6e21b7befb830b566fe2fc45dd2d3d` |
+| `docs/knowledge/05_plugin_engineering/SINGLE_VOLUME_PDF_POLICY.md` | 619 | `b1c5b5b03cd51f293c1aca0113ac46deff53ecf0c63dd2b2b3e655a87ec3a7a2` |
+| `docs/knowledge/06_validation/VALIDATION_MATRIX.md` | 769 | `a4e3a8cd025101dcaff06686d540aedb94625cf5db33c1757391b7ae05b4588b` |
+| `docs/knowledge/07_performance/PERFORMANCE_PROTOCOL.md` | 597 | `99b99a6f165ec21d2fae1972699461319375b82731cda2d9acaf651726f22513` |
+| `docs/knowledge/08_future_niagara/NIAGARA_DEFERRED_GUIDE.md` | 292 | `a2b6a980cd8213241cd4eadebf70a409289e90dd0d5bda92789be67325ab4e9b` |
+| `docs/knowledge/09_future_substrate/SUBSTRATE_DEFERRED_GUIDE.md` | 299 | `467a374c2c638d12b45a96afd4eba1bcb84b3c0c2aae140bbe5d12aa88a6ea7f` |
+| `docs/knowledge/10_weather_context/WEATHER_CONTEXT.md` | 470 | `bbdd6772d0ecfcb741895a0e01da7423321694ef39a23ae3a43cda9a7e1a55ad` |
+| `docs/knowledge/11_external_links/REFERENCE_LINKS.md` | 946 | `74d8477a43c80428c9d3f639159a5de0ea2208e440590bf3ef0a5ab38b9049bb` |
+| `docs/plan/CURRENT.md` | 2506 | `6f1b4c99c403f92f2e6cf89594dafb28f5c038bdb813d8dc5c33117d8bd70f47` |
+| `docs/plan/theforge_avboit/PLAN-0-0.md` | 1092 | `7795cfbfb09319df1eef1ca3a2c1e9ca2fc9d32cfaee8ccac0b07b769d415b98` |
+| `docs/plan/theforge_avboit/PLAN-1-0.md` | 1728 | `2bd80f34cd33f071927230e26cbaf5cc2e8447b6185fd161fc4344949e5b1ebc` |
+| `docs/plan/theforge_avboit/PLAN-10-0.md` | 735 | `05bddcdd2fe08171e650fc2479b39319a9790494c5daeae10c22440cc3c77689` |
+| `docs/plan/theforge_avboit/PLAN-1-1.md` | 1306 | `968fe59c8ebaa675c820a8bcb07914ef6ea36c4b5d1a93fc3c6ce3d64aa2836c` |
+| `docs/plan/theforge_avboit/PLAN-1-2.md` | 1098 | `1dca94683bf3140b6993babd615037fcdcefbdbf9e4697495fa058f3d852a1fd` |
+| `docs/plan/theforge_avboit/PLAN-2-0.md` | 1165 | `d2fea34773e375018599fc34dee911cb2345d4fe79c62f59eaa90be0a09902e7` |
+| `docs/plan/theforge_avboit/PLAN-3-0.md` | 1324 | `2449ed4fd3ed5ecab3b21593b38b07832e8869f87b497f5ec1094c89a9f3ae14` |
+| `docs/plan/theforge_avboit/PLAN-4-0.md` | 1157 | `23affb3ee709f4541ff7c618612e16f58e3f83d76ce35be04b798cc03b8bfa2b` |
+| `docs/plan/theforge_avboit/PLAN-5-0.md` | 1008 | `187d2905044a979df7daa8cc79113fac89a8f167a806030321d3ec70e86541aa` |
+| `docs/plan/theforge_avboit/PLAN-6-0.md` | 967 | `69022884e6cb8153d0d6ebe2f1cdffa06bdf946f9ccdc1cf0c1410a9347b591c` |
+| `docs/plan/theforge_avboit/PLAN-7-0.md` | 872 | `0b86e0922d2e3c0ef3db7a376a44556b7a13212f3770d8dcfec2a90bb0eaabb7` |
+| `docs/plan/theforge_avboit/PLAN-8-0.md` | 1127 | `51939a4b67c825b6dfb863299cd0f6fdc83c877e1094882cf13516a8ae5758dc` |
+| `docs/plan/theforge_avboit/PLAN-9-0.md` | 818 | `3e7011fe4f4470ed4385520a52da1308ad19ec74a287db106e748c967903a965` |
+| `docs/plan/theforge_avboit/ROADMAP.md` | 1314 | `c28c7b5ac909a707a38f72acf9417e751ed4df4a3a32ea758542b4e67c374096` |
+| `docs/skill/avboit-learning-development-skill-v1/SKILL.md` | 3532 | `91c6467f48c54ff24e9b6094e3d790629a0717fcfdd958d71af83073efde2c22` |
+| `docs/skill/checkpoint-archive-skill/SKILL.md` | 5550 | `011312b6adafcf2540513679448648def5c0cc4e445fb953bc52218f50bcd896` |
+| `docs/skill/theforge-avboit-lab-skill/SKILL.md` | 2142 | `45033b1fd8e1665b3db98c8310a19b59430892921f71fadf54d4b354628c0dcd` |
+| `docs/skill/ue-avboit-migration-skill/SKILL.md` | 1005 | `ea90184c47f9423c596082041c407104127028eab7cf5b38b3cecc02c5a7f361` |
+| `docs/templates/CHECKPOINT_TEMPLATE.md` | 1090 | `82a8cb005ef2cccf46faa49357dfeab802d7cfd67351564b9bc61adba34e6dae` |
+| `docs/templates/DECISION_RECORD_TEMPLATE.md` | 213 | `a232d1d440bf7384788f82023ba65600c89a31f39d72d2d217971add32b0e951` |
+| `docs/templates/EXPERIMENT_RESULT_TEMPLATE.md` | 274 | `f77098585ed84c15f5cbbde7a95096eb2eaf8f9ec7fc8892203161e51c2b510a` |
+| `docs/templates/PLAN_TEMPLATE.md` | 615 | `b6e61e85c4252c63d351aa0d4da352974aa4997b1187be66c1013431b0f6d268` |
+| `docs/templates/SESSION_REPORT_TEMPLATE.md` | 609 | `018413982a22d5854c442b13732291f5e0069b4a803273713e769a1a9f6f31d9` |
+| `prompt/AGENT_PROMPT_COMPACT.md` | 1474 | `3671f77c701c4d4195e4a3c0422e723615ae487313cc3ab3f9b7ef1d8b450be0` |
+| `prompt/AGENT_PROMPT_FULL.md` | 5112 | `2fc2e3ef50b2dfb9c85ea4d7e4c213120083b28fcea2fc9821d37b2ef8991a96` |
+| `README.md` | 2319 | `4cb7c7ee38a204d7d6bc561b5a36ed29ccb396d497bc44ed41d888251a89831b` |
+| `sources/excluded/EXCLUDED_MATERIALS.md` | 485 | `81bac33f92fd4e13dc666d79097ed6a07323780036e2d276d46025f202b154d5` |
+| `sources/markdown/GDC_2023-2026_技术课程总结.md` | 48057 | `fcd21e3077163eac68e7404d868895e417eeee89ef1e6f4727b4df0a31e05107` |
+| `sources/markdown/Inside_Unreal_2024-2026_课程总结.md` | 27025 | `781d7502bad50dacca1d1900f8ee7ec49543a46b15de6cc637b2db77ed7f575a` |
+| `sources/markdown/SIGGRAPH_Advances_2023-2026_课程总结.md` | 24023 | `3701d068cd9b3a87abc3c8a600083efe1d5dcbeacba392d3b05858b3132feeb4` |
+| `sources/markdown/UE5_渲染管线教程.md` | 13766 | `57b6bf3e54d072e5c669a7f3e9f07550cd72fde36b74af96639b708559695f3c` |
+| `sources/markdown/Unity到UE5.7迁移计划.md` | 5428 | `498a11a92d3347ee38be2b05e5a6282f0d1137d5756c3dda185f08135b90395e` |
+| `sources/markdown/Unreal_Fest_2023-2025_课程总结.md` | 41571 | `cf5abf465366bb6945968aaa9783861395d8158470d0a9259d63b12822b9bb30` |
+| `sources/markdown/流体模拟与体积雾.md` | 5325 | `8019dfd35f86dedb23424a1284c769a844ea47ecf831db30b7e1c9829199b0e3` |
+| `sources/reference_code/EgakuRenderPipeline.zip` | 862527 | `e51dcdf18ee22ba8ed14febb3491999ddda1aa23e8f25f3812975ec53e163d2d` |
+| `sources/transcripts/Lessons_From_A_Plugin_Developer.txt` | 42095 | `60c527220768f43e571d9e9f23c150ada835726d8b9c5c9f84cb82c62845f0bc` |
+| `sources/transcripts/niagara/Chasing_Waterfalls_Niagara_Mobile_RTS.txt` | 40824 | `7bacd660f1acc0150bb3f90bf8b5a693fb9237e022f4754b404a5d9f324a8504` |
+| `sources/transcripts/niagara/Exploring_Niagara_Examples_Pack.txt` | 106798 | `2e9fad673acb0a54a6455a9277dbf096fe16e8275ee431fb3d57314c27d5a02d` |
+| `sources/transcripts/niagara/Interactive_Vines_PBD.txt` | 29732 | `e1d65e5ae99d66ad54b1965bbee314abb8c22e8129e647471018851ae89c3c05` |
+| `sources/transcripts/niagara/Optimizing_Niagara.txt` | 49256 | `6d825e9d2ed59b7994893892e7574bc4db2005ad450227c73cc3802f2defcb41` |
+| `sources/transcripts/substrate/Everything_About_Substrate.txt` | 33860 | `e13863fdc28636f8e0b76f96789705f12aac9d24edde0b92d3eb0e384377d3c9` |
+| `sources/transcripts/substrate/Exploring_Substrate_Materials.txt` | 31678 | `90d67e1dd71b20c8e5279620ac466ddd354abdda86c546db488abd10d98b4399` |
+| `sources/transcripts/substrate/Unreal_Materials_New_Features.txt` | 122125 | `3a7497c69f83674d297c8c97d11b8c2279e1eb56cca996dcfc4e9b736a33569a` |

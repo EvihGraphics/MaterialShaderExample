@@ -1,0 +1,12 @@
+# Egaku source: `ShaderLibrary/UnityCommon.hlsl`
+
+> 自动从 `EgakuRenderPipeline.zip` 的文本源码转译。该实现是 Unity 参考，不决定 UE5 架构。
+
+```hlsl
+﻿#pragma once
+#ifndef UNITY_COMMON_HLSL
+#define UNITY_COMMON_HLSL
+#include "Packages/com.unity.render-pipelines.core/ShaderLibrary/Common.hlsl"
+
+#endif
+```

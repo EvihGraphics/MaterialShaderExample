@@ -10,3 +10,5 @@
 .vsconfig
 .vs/
 _ReSharper.Caches/
+*.zip
+*.pdf
