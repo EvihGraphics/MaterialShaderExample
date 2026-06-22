@@ -180,6 +180,7 @@ void FExampleSceneViewExtension::ApplyMaterial(
 		///////////////////////////////////////////////////////////////////////////////////////////
 
 		Parameters.HierarchyBuffer = PassParameters.VisibleClustersSWHW;
+		Parameters.AssemblyTransforms = PassParameters.VisibleClustersSWHW;
 		Parameters.ShadingMask = PassParameters.VisBuffer64;
 		Parameters.VisBuffer64 = PassParameters.VisBuffer64;
 		Parameters.DbgBuffer64 = PassParameters.VisBuffer64;

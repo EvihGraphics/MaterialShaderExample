@@ -55,7 +55,9 @@ void Main(const uint2 DispatchThreadId : SV_DispatchThreadID)
 		InstanceDynamicData,
 		NaniteView);
 
-	const FNaniteTransformedTri Tri = FetchTransformedNaniteTriangle(
+	FNaniteTransformedVert Verts[3];
+	FReconstructedVoxelData VoxelData = (FReconstructedVoxelData)0;
+	FetchTransformedNaniteVerts<3>(
 		NaniteView,
 		PrimitiveData,
 		InstanceData,
@@ -64,15 +66,17 @@ void Main(const uint2 DispatchThreadId : SV_DispatchThreadID)
 		Cluster,
 		VisibleCluster,
 		TriIndices,
-		false);
+		VoxelData,
+		false,
+		Verts);
 
 	const float2 PixelClip = (SvPosition.xy - NaniteView.ViewRect.xy) * NaniteView.ViewSizeAndInvSize.zw * float2(2, -2) + float2(-1, 1);
 
 	const FBarycentrics Barycentrics = CalculateTriangleBarycentrics(
 		PixelClip,
-		Tri.Verts[0].PointClip,
-		Tri.Verts[1].PointClip,
-		Tri.Verts[2].PointClip,
+		Verts[0].PointClip,
+		Verts[1].PointClip,
+		Verts[2].PointClip,
 		NaniteView.ViewSizeAndInvSize.zw);
 
 	uint NewMaterialIndex = 0;
@@ -80,12 +84,13 @@ void Main(const uint2 DispatchThreadId : SV_DispatchThreadID)
 		FVertexFactoryInterpolantsVSToPS Interpolants = (FVertexFactoryInterpolantsVSToPS)0;
 
 		// Setup the pixel parameters
-		FMaterialPixelParameters Parameters = FetchNaniteMaterialPixelParameters(
+		FMaterialPixelParameters Parameters = FetchNaniteMaterialPixelParameters<3>(
 			PrimitiveData,
 			InstanceData,
 			InstanceDynamicData,
+			Transforms,
 			NaniteView,
-			Tri,
+			Verts,
 			Cluster,
 			Barycentrics,
 			Interpolants,
