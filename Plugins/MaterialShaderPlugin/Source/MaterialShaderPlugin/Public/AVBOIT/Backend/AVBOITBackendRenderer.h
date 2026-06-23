@@ -4,8 +4,15 @@
 #include "RenderGraph.h"
 #include "AVBOIT/Backend/AVBOITBackendTypes.h"
 
+struct FAVBOITBackendReadbacks
+{
+    FRHIGPUTextureReadback* Result = nullptr;
+    FRHIGPUTextureReadback* Extinction = nullptr;
+    FRHIGPUTextureReadback* Transmittance = nullptr;
+};
+
 class FAVBOITBackendRenderer
 {
 public:
-    static FRHIGPUTextureReadback* Execute(FRDGBuilder& GraphBuilder, const FAVBOITBackendSettings& Settings, const TArray<FAVBOITInjectedFragment>& InjectedFragments);
+    static FAVBOITBackendReadbacks Execute(FRDGBuilder& GraphBuilder, const FAVBOITBackendSettings& Settings, const TArray<FAVBOITInjectedFragment>& InjectedFragments);
 };

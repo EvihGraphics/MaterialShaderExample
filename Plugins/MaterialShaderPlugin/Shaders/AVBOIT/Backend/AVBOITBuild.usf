@@ -18,9 +18,9 @@ void BuildCS(uint3 DispatchThreadId : SV_DispatchThreadID)
     {
         FInjectedFragment Frag = InjectedFragments[i];
 
-        // Check rect bounds (ROI)
-        if (PixelCoord.x >= (uint)Frag.RectMin.x && PixelCoord.x <= (uint)Frag.RectMax.x &&
-            PixelCoord.y >= (uint)Frag.RectMin.y && PixelCoord.y <= (uint)Frag.RectMax.y)
+        // Check rect bounds (ROI) - Half-open interval [RectMin, RectMax)
+        if (PixelCoord.x >= (uint)Frag.RectMin.x && PixelCoord.x < (uint)Frag.RectMax.x &&
+            PixelCoord.y >= (uint)Frag.RectMin.y && PixelCoord.y < (uint)Frag.RectMax.y)
         {
             float Alpha = clamp(Frag.LinearColorAndAlpha.a, 0.0f, 0.99f);
             

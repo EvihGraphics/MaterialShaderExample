@@ -26,8 +26,8 @@ void ShadeCS(uint3 DispatchThreadId : SV_DispatchThreadID)
     {
         FInjectedFragment Frag = InjectedFragments[i];
 
-        if (PixelCoord.x >= (uint)Frag.RectMin.x && PixelCoord.x <= (uint)Frag.RectMax.x &&
-            PixelCoord.y >= (uint)Frag.RectMin.y && PixelCoord.y <= (uint)Frag.RectMax.y)
+        if (PixelCoord.x >= (uint)Frag.RectMin.x && PixelCoord.x < (uint)Frag.RectMax.x &&
+            PixelCoord.y >= (uint)Frag.RectMin.y && PixelCoord.y < (uint)Frag.RectMax.y)
         {
             float Alpha = clamp(Frag.LinearColorAndAlpha.a, 0.0f, 0.99f);
 
@@ -55,5 +55,5 @@ void ShadeCS(uint3 DispatchThreadId : SV_DispatchThreadID)
     // But since one thread handles all fragments for a pixel, we just sum them up here and write!
     // OutResultTexture contains BgColor * TotalTransmittance.
     float4 CurrentResult = OutResultTexture[PixelCoord];
-    OutResultTexture[PixelCoord] = float4(CurrentResult.rgb + AccumulatedColor, 1.0f);
+    OutResultTexture[PixelCoord] = float4(CurrentResult.rgb + AccumulatedColor, CurrentResult.a);
 }

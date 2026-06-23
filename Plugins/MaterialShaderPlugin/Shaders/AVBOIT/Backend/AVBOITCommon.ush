@@ -11,6 +11,7 @@ struct FInjectedFragment
     uint SubmissionIndex;
     int2 RectMin;
     int2 RectMax;
+    int2 Padding;
 };
 
 // Common uniforms
@@ -36,7 +37,7 @@ float MapLinearDepthToNormDepth(float LinearDepth, float ZNear, float ZFar)
 {
     // Clamp to avoid log(<=0)
     float clampedDepth = clamp(LinearDepth, ZNear, ZFar);
-    return log2(ZFar / clampedDepth) / log2(ZFar / ZNear);
+    return log2(clampedDepth / ZNear) / log2(ZFar / ZNear);
 }
 
 // Map normalized log depth to slice index

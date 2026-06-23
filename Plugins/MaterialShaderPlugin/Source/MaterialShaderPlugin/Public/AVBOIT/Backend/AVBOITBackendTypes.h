@@ -10,6 +10,7 @@ struct FAVBOITInjectedFragment
     uint32 SubmissionIndex;
     FIntPoint RectMin;
     FIntPoint RectMax;
+    FIntPoint Padding;
 };
 #pragma pack(pop)
 

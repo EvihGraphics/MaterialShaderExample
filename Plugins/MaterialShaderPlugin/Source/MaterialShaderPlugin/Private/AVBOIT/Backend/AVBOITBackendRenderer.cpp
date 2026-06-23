@@ -4,17 +4,18 @@
 #include "RenderGraphUtils.h"
 #include "RHIStaticStates.h"
 
-FRHIGPUTextureReadback* FAVBOITBackendRenderer::Execute(FRDGBuilder& GraphBuilder, const FAVBOITBackendSettings& Settings, const TArray<FAVBOITInjectedFragment>& InjectedFragments)
+FAVBOITBackendReadbacks FAVBOITBackendRenderer::Execute(FRDGBuilder& GraphBuilder, const FAVBOITBackendSettings& Settings, const TArray<FAVBOITInjectedFragment>& InjectedFragments)
 {
+    FAVBOITBackendReadbacks OutReadbacks;
     if (!Settings.bEnabled || Settings.Mode == 0)
     {
-        return nullptr;
+        return OutReadbacks;
     }
 
     uint32 FragCount = InjectedFragments.Num();
     if (FragCount == 0)
     {
-        return nullptr;
+        return OutReadbacks;
     }
 
     FIntPoint Res = Settings.Resolution;
@@ -97,5 +98,10 @@ FRHIGPUTextureReadback* FAVBOITBackendRenderer::Execute(FRDGBuilder& GraphBuilde
     }
 
     // 7. Enqueue Readback
-    return FAVBOITBackendReadback::EnqueueReadback(GraphBuilder, ResultTexture);
+    OutReadbacks.Result = FAVBOITBackendReadback::EnqueueReadback(GraphBuilder, ResultTexture);
+    // Extinction and Transmittance are Texture2DArray. Direct EnqueueCopy of array triggers out-of-bounds on slice > 0.
+    // Transmittance is now preserved in the ResultTexture's Alpha channel!
+    // OutReadbacks.Extinction = FAVBOITBackendReadback::EnqueueReadback(GraphBuilder, ExtinctionVolume);
+    // OutReadbacks.Transmittance = FAVBOITBackendReadback::EnqueueReadback(GraphBuilder, TransmittanceVolume);
+    return OutReadbacks;
 }

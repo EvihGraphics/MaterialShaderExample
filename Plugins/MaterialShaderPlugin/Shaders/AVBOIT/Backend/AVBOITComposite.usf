@@ -23,5 +23,5 @@ void CompositeCS(uint3 DispatchThreadId : SV_DispatchThreadID)
     // OutResultTexture was cleared to 0,0,0,0. 
     // Here we technically would initialize it with BgColor * TotalTransmittance.
     // Since BgColor is Black, the result remains 0,0,0.
-    OutResultTexture[PixelCoord] = float4(BgColor * TotalTransmittance, 1.0f);
+    OutResultTexture[PixelCoord] = float4(BgColor * TotalTransmittance, TotalTransmittance);
 }
