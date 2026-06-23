@@ -4,6 +4,7 @@
 #if WITH_EDITOR
 #include "AVBOITEditorPIEAutomation.h"
 #endif
+#include "AVBOITRGBTestAutomation.h"
 #include "HAL/IConsoleManager.h"
 
 IConsoleObject* FAVBOITEvidenceCommands::CaptureScreenshotAndExitCommand = nullptr;
@@ -11,6 +12,10 @@ IConsoleObject* FAVBOITEvidenceCommands::CaptureSmokeScreenshotAndExitCommand = 
 #if WITH_EDITOR
 IConsoleObject* FAVBOITEvidenceCommands::EditorPIECloseoutCommand = nullptr;
 #endif
+IConsoleObject* FAVBOITEvidenceCommands::TestBuildSceneCommand = nullptr;
+IConsoleObject* FAVBOITEvidenceCommands::TestCaptureCurrentCommand = nullptr;
+IConsoleObject* FAVBOITEvidenceCommands::TestCaptureRGBSuiteCommand = nullptr;
+IConsoleObject* FAVBOITEvidenceCommands::TestDumpManifestCommand = nullptr;
 
 FString FAVBOITEvidenceCommands::FindArgValue(const TArray<FString>& Args, const TCHAR* Prefix)
 {
@@ -45,6 +50,29 @@ void FAVBOITEvidenceCommands::RegisterCommands()
 		FConsoleCommandWithArgsDelegate::CreateStatic(&FAVBOITEvidenceCommands::RunEditorPIECloseout),
 		ECVF_Default);
 #endif
+	TestBuildSceneCommand = IConsoleManager::Get().RegisterConsoleCommand(
+		TEXT("AVBOIT.Test.BuildScene"),
+		TEXT("Builds the RGB test scene based on current CVars"),
+		FConsoleCommandWithArgsDelegate::CreateStatic(&FAVBOITRGBTestAutomation::BuildSceneCmd),
+		ECVF_Default);
+
+	TestCaptureCurrentCommand = IConsoleManager::Get().RegisterConsoleCommand(
+		TEXT("AVBOIT.Test.CaptureCurrent"),
+		TEXT("Captures the current test scene"),
+		FConsoleCommandWithArgsDelegate::CreateStatic(&FAVBOITRGBTestAutomation::CaptureCurrentCmd),
+		ECVF_Default);
+
+	TestCaptureRGBSuiteCommand = IConsoleManager::Get().RegisterConsoleCommand(
+		TEXT("AVBOIT.Test.CaptureRGBSuite"),
+		TEXT("Captures the whole RGB suite"),
+		FConsoleCommandWithArgsDelegate::CreateStatic(&FAVBOITRGBTestAutomation::CaptureRGBSuiteCmd),
+		ECVF_Default);
+
+	TestDumpManifestCommand = IConsoleManager::Get().RegisterConsoleCommand(
+		TEXT("AVBOIT.Test.DumpManifest"),
+		TEXT("Dumps manifest of the current test scene"),
+		FConsoleCommandWithArgsDelegate::CreateStatic(&FAVBOITRGBTestAutomation::DumpManifestCmd),
+		ECVF_Default);
 }
 
 void FAVBOITEvidenceCommands::UnregisterCommands()
@@ -66,6 +94,10 @@ void FAVBOITEvidenceCommands::UnregisterCommands()
 		EditorPIECloseoutCommand = nullptr;
 	}
 #endif
+	if (TestBuildSceneCommand) IConsoleManager::Get().UnregisterConsoleObject(TestBuildSceneCommand);
+	if (TestCaptureCurrentCommand) IConsoleManager::Get().UnregisterConsoleObject(TestCaptureCurrentCommand);
+	if (TestCaptureRGBSuiteCommand) IConsoleManager::Get().UnregisterConsoleObject(TestCaptureRGBSuiteCommand);
+	if (TestDumpManifestCommand) IConsoleManager::Get().UnregisterConsoleObject(TestDumpManifestCommand);
 }
 
 void FAVBOITEvidenceCommands::CaptureScreenshotAndExit(const TArray<FString>& Args)

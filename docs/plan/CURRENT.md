@@ -3,16 +3,16 @@
 ## Repository Pointer
 
 Primary plan:
-`docs/plan/ue5_avboit/PLAN-UE-2-2-GPU-Capture-And-Portability-Hardening.md`
+`docs/plan/ue5_avboit/PLAN-UE-3-Deterministic-RGB-Test-Content.md`
 
 Latest checkpoint:
-`docs/checkpoints/archive/CHECKPOINT-0013-20260623T120000Z-UE2-2-result.md`
+`docs/checkpoints/archive/CHECKPOINT-0014-20260623T123858Z-UE3-preflight.md`
 
-Status: `passed`
+Status: `partial`
 
 | Repository | Branch | HEAD | Stage Status |
 |---|---|---|---|
-| `MaterialShaderExample_AVBOIT` | `AVBOIT开发` tracking `origin/AVBOIT开发` | `90f9514c7744f0da343e480acc91e3a235c52220` (0011 base was `59d8c84da73b6d585629978a5e7e85c7d0845a8c`) | UE-2.2 Portability and GPU Capture completed |
+| `MaterialShaderExample_AVBOIT` | `AVBOIT开发` tracking `origin/AVBOIT开发` | `90f9514c7744f0da343e480acc91e3a235c52220` (0011 base was `59d8c84da73b6d585629978a5e7e85c7d0845a8c`) | UE-3 Test Content in progress |
 | `MaterialShaderExample` | `master` | `a80b000f589e9953fcb5efbfd3eccbf247d62c4a` | reference worktree, left unmodified |
 | `The-Forge` | `baseline/theforge-1.58-windows-vs-dx12` | `39046051cef37bff0e52e497ca7df07ba9aebe65` | reference worktree, left unmodified |
 
@@ -99,8 +99,6 @@ UE-2 has `PASSED` and generated valid evidence for `AVBOIT.Smoke.Clear`, `AVBOIT
 
 ## Resume
 
-1. Setup tools in `Private/AVBOIT/Testing` to support portability (DONE).
-2. Resolve the external GPU capture gate using RenderDoc (DONE).
-3. Export and scan the accepted GPU event list under
-   `LocalVisualResults/UE57/HIVE-4090X2/UE2-Closeout/GPUCapture` (DONE).
-4. Proceed to Phase UE-3: Architecture Restructuring & Engine Forking.
+1. Follow PLAN-UE-3 to implement `FAVBOITTestPrimitiveDesc` and the fixed test scene.
+2. Setup the fixed Camera and Black Background.
+3. Validate SingleWhite, DoubleRedBlue, and TripleRGB presets.

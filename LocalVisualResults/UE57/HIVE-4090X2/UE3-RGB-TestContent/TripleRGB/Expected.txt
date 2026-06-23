@@ -1,0 +1,1 @@
+Please refer to Manifest.json for exact linear ExpectedColor and ExpectedTransmittance.

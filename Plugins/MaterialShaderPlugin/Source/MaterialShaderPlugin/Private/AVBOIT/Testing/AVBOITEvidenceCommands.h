@@ -20,6 +20,10 @@ private:
 #if WITH_EDITOR
 	static class IConsoleObject* EditorPIECloseoutCommand;
 #endif
+	static class IConsoleObject* TestBuildSceneCommand;
+	static class IConsoleObject* TestCaptureCurrentCommand;
+	static class IConsoleObject* TestCaptureRGBSuiteCommand;
+	static class IConsoleObject* TestDumpManifestCommand;
 
 	static FString FindArgValue(const TArray<FString>& Args, const TCHAR* Prefix);
 };
