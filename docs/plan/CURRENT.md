@@ -1,8 +1,8 @@
 # Current Development Status
 
-Current Milestone: UE-4.1.2
-Current Status: PASSED
+Current Milestone: UE-4.2A
+Current Status: PREFLIGHT
 
-Expected Remote HEAD: 3213316
+Expected Remote HEAD: 819d9c2
 
-Checkpoint Reference: [`CHECKPOINT-0022-20260623T201500Z-UE4-1-2-result.md`](checkpoints/archive/CHECKPOINT-0022-20260623T201500Z-UE4-1-2-result.md)
+Checkpoint Reference: [`CHECKPOINT-0023-20260623T140000Z-UE4-2A-raster-geometry-preflight.md`](checkpoints/archive/CHECKPOINT-0023-20260623T140000Z-UE4-2A-raster-geometry-preflight.md)
