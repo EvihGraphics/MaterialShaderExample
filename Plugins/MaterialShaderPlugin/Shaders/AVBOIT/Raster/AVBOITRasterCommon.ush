@@ -1,0 +1,11 @@
+// Copyright
+
+#pragma once
+
+#include "../Backend/AVBOITCommon.ush"
+
+struct FAVBOITRasterInterpolants
+{
+	float4 Position : SV_POSITION;
+	float LinearViewDepth : TEXCOORD0;
+};

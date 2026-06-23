@@ -100,6 +100,20 @@ void FAVBOITSceneViewExtension::SubscribeToPostProcessingPass(
 	InOutPassCallbacks.Add(FPostProcessingPassDelegate::CreateRaw(this, &FAVBOITSceneViewExtension::AddSmokePass));
 }
 
+#include "AVBOIT/Raster/AVBOITRasterRenderer.h"
+
+void FAVBOITSceneViewExtension::PrePostProcessPass_RenderThread(FRDGBuilder& GraphBuilder, const FSceneView& View, const FPostProcessingInputs& Inputs)
+{
+	if (!AVBOIT::Smoke::IsEnabled())
+	{
+		return;
+	}
+
+	// Output shouldn't really matter here as we modify SceneColor in place or via Intermediate
+	FScreenPassRenderTarget Output;
+	FAVBOITRasterRenderer::AddPasses(GraphBuilder, View, Inputs, Output);
+}
+
 FScreenPassTexture FAVBOITSceneViewExtension::AddSmokePass(
 	FRDGBuilder& GraphBuilder,
 	const FSceneView& View,

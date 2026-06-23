@@ -1,0 +1,51 @@
+// Copyright
+
+#include "/Engine/Public/Platform.ush"
+#include "AVBOITRasterCommon.ush"
+
+float4x4 LocalToWorld;
+float4x4 WorldToClip;
+float4x4 WorldToView;
+float ZNear;
+float ZFar;
+float4 ColorAndAlpha;
+float ReferenceBrightnessMultiplier;
+
+Texture2DArray<float> TransmittanceVolume;
+
+void MainVS(
+	in float3 InLocalPosition : ATTRIBUTE0,
+	out FAVBOITRasterInterpolants Out)
+{
+	float4 WorldPos = mul(float4(InLocalPosition, 1.0f), LocalToWorld);
+	Out.Position = mul(WorldPos, WorldToClip);
+	
+	float4 ViewPos = mul(WorldPos, WorldToView);
+	Out.LinearViewDepth = ViewPos.z;
+}
+
+void MainPS(
+	in FAVBOITRasterInterpolants In,
+	out float4 OutColor : SV_Target0)
+{
+	float Alpha = clamp(ColorAndAlpha.a, 0.0f, 0.99f);
+	if (Alpha <= 0.01f)
+	{
+		discard;
+	}
+
+	float NormDepth = MapLinearDepthToNormDepth(In.LinearViewDepth, ZNear, ZFar);
+	uint Slice = GetSliceIndex(NormDepth);
+
+	uint2 PixelPos = uint2(In.Position.xy);
+
+	float FrontTransmittance = 1.0f;
+	if (Slice > 0)
+	{
+		FrontTransmittance = TransmittanceVolume.Load(int4(PixelPos.x, PixelPos.y, Slice - 1, 0));
+	}
+
+	float3 Contribution = ColorAndAlpha.rgb * Alpha * FrontTransmittance * ReferenceBrightnessMultiplier;
+
+	OutColor = float4(Contribution, 0.0f);
+}

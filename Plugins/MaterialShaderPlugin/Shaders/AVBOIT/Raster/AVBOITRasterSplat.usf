@@ -1,0 +1,44 @@
+// Copyright
+
+#include "/Engine/Public/Platform.ush"
+#include "AVBOITRasterCommon.ush"
+
+float4x4 LocalToWorld;
+float4x4 WorldToClip;
+float4x4 WorldToView;
+float ZNear;
+float ZFar;
+float4 ColorAndAlpha;
+
+RWTexture2DArray<uint> OutExtinctionVolume;
+
+void MainVS(
+	in float3 InLocalPosition : ATTRIBUTE0,
+	out FAVBOITRasterInterpolants Out)
+{
+	float4 WorldPos = mul(float4(InLocalPosition, 1.0f), LocalToWorld);
+	Out.Position = mul(WorldPos, WorldToClip);
+	
+	float4 ViewPos = mul(WorldPos, WorldToView);
+	// In UE, Z is forward in view space
+	Out.LinearViewDepth = ViewPos.z;
+}
+
+void MainPS(
+	in FAVBOITRasterInterpolants In)
+{
+	float Alpha = clamp(ColorAndAlpha.a, 0.0f, 0.99f);
+	if (Alpha <= 0.01f)
+	{
+		discard;
+	}
+
+	float NormDepth = MapLinearDepthToNormDepth(In.LinearViewDepth, ZNear, ZFar);
+	uint Slice = GetSliceIndex(NormDepth);
+
+	float Extinction = -log(1.0f - Alpha);
+	uint Packed = PackExtinction(Extinction);
+
+	uint2 PixelPos = uint2(In.Position.xy);
+	InterlockedAdd(OutExtinctionVolume[uint3(PixelPos, Slice)], Packed);
+}

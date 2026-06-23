@@ -3,6 +3,9 @@
 #include "AVBOIT/Raster/AVBOITTestMeshSceneProxy.h"
 #include "Materials/Material.h"
 
+#include "AVBOITRasterSceneData.h"
+#include "PipelineStateCache.h"
+
 FAVBOITTestMeshSceneProxy::FAVBOITTestMeshSceneProxy(UAVBOITTestMeshComponent* Component)
 	: FPrimitiveSceneProxy(Component)
 	, MaterialParams(Component->MaterialParams)
@@ -14,6 +17,55 @@ FAVBOITTestMeshSceneProxy::FAVBOITTestMeshSceneProxy(UAVBOITTestMeshComponent* C
 
 FAVBOITTestMeshSceneProxy::~FAVBOITTestMeshSceneProxy()
 {
+}
+
+void FAVBOITRasterVertexBuffer::InitRHI(FRHICommandListBase& RHICmdList)
+{
+	TResourceArray<FVector3f, VERTEXBUFFER_ALIGNMENT> Vertices;
+	Vertices.SetNumUninitialized(4);
+	Vertices[0] = FVector3f(-50.f, -50.f, 0.f);
+	Vertices[1] = FVector3f( 50.f, -50.f, 0.f);
+	Vertices[2] = FVector3f( 50.f,  50.f, 0.f);
+	Vertices[3] = FVector3f(-50.f,  50.f, 0.f);
+
+	FRHIResourceCreateInfo CreateInfo(TEXT("AVBOITRasterVertexBuffer"), &Vertices);
+	VertexBufferRHI = RHICmdList.CreateVertexBuffer(Vertices.GetResourceDataSize(), BUF_Static, CreateInfo);
+}
+
+void FAVBOITRasterIndexBuffer::InitRHI(FRHICommandListBase& RHICmdList)
+{
+	TResourceArray<uint16, INDEXBUFFER_ALIGNMENT> Indices;
+	Indices.SetNumUninitialized(6);
+	Indices[0] = 0; Indices[1] = 1; Indices[2] = 2;
+	Indices[3] = 0; Indices[4] = 2; Indices[5] = 3;
+
+	FRHIResourceCreateInfo CreateInfo(TEXT("AVBOITRasterIndexBuffer"), &Indices);
+	IndexBufferRHI = RHICmdList.CreateIndexBuffer(sizeof(uint16), Indices.GetResourceDataSize(), BUF_Static, CreateInfo);
+}
+
+void FAVBOITTestMeshSceneProxy::CreateRenderThreadResources()
+{
+	FPrimitiveSceneProxy::CreateRenderThreadResources();
+
+	VertexBuffer.InitResource(FRHICommandListImmediate::Get());
+	IndexBuffer.InitResource(FRHICommandListImmediate::Get());
+
+	FVertexDeclarationElementList Elements;
+	Elements.Add(FVertexElement(0, 0, VET_Float3, 0, sizeof(FVector3f)));
+	VertexDeclaration = PipelineStateCache::GetOrCreateVertexDeclaration(Elements);
+
+	FAVBOITRasterSceneData::Get().RegisterProxy(this);
+}
+
+void FAVBOITTestMeshSceneProxy::DestroyRenderThreadResources()
+{
+	FAVBOITRasterSceneData::Get().UnregisterProxy(this);
+
+	VertexBuffer.ReleaseResource();
+	IndexBuffer.ReleaseResource();
+	VertexDeclaration.SafeRelease();
+
+	FPrimitiveSceneProxy::DestroyRenderThreadResources();
 }
 
 void FAVBOITTestMeshSceneProxy::GetDynamicMeshElements(const TArray<const FSceneView*>& Views, const FSceneViewFamily& ViewFamily, uint32 VisibilityMap, FMeshElementCollector& Collector) const

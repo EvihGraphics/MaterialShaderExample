@@ -7,6 +7,20 @@
 #include "AVBOIT/Raster/AVBOITTestMeshComponent.h"
 #include "MaterialShared.h"
 
+#include "RenderResource.h"
+
+class FAVBOITRasterVertexBuffer : public FVertexBuffer
+{
+public:
+	virtual void InitRHI(FRHICommandListBase& RHICmdList) override;
+};
+
+class FAVBOITRasterIndexBuffer : public FIndexBuffer
+{
+public:
+	virtual void InitRHI(FRHICommandListBase& RHICmdList) override;
+};
+
 class FAVBOITTestMeshSceneProxy : public FPrimitiveSceneProxy
 {
 public:
@@ -19,7 +33,14 @@ public:
 	virtual uint32 GetMemoryFootprint() const override;
 	virtual SIZE_T GetTypeHash() const override;
 
+	virtual void CreateRenderThreadResources() override;
+	virtual void DestroyRenderThreadResources() override;
+
 	FAVBOITRasterMaterialParameters MaterialParams;
 	bool bIsTransparent;
 	int32 SubmissionOrder;
+
+	FAVBOITRasterVertexBuffer VertexBuffer;
+	FAVBOITRasterIndexBuffer IndexBuffer;
+	FVertexDeclarationRHIRef VertexDeclaration;
 };
