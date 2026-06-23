@@ -1,5 +1,11 @@
 # PLAN UE-4: OIT Core Fork & Engine Modification
 
+Status:
+SUPERSEDED — DO NOT EXECUTE
+
+Superseded By:
+PLAN-UE-3-1-RGB-Test-Content-Validation-And-Contract-Freeze.md
+
 ## 1. Objective
 Establish a formal engine fork or local source patch strategy to inject the AVBOIT (Adaptive Volumetric Blend Order Independent Transparency) compute passes into the Unreal Engine 5.7 rendering pipeline. Unlike the previously completed UE-2 smoke tests (which used RDG scene hooks) and UE-3 test content (which used pure plugin logic), UE-4 requires modifying the actual `MobileBasePass` or `DeferredShadingRenderer` to replace standard alpha blending with the AVBOIT accumulators.
 
