@@ -13,3 +13,4 @@
 | 0014 | [CHECKPOINT-0014-20260623T123858Z-UE3-preflight.md](archive/CHECKPOINT-0014-20260623T123858Z-UE3-preflight.md) | 2026-06-23T12:38:58Z | partial | UE-3 preflight | Verify UE-2 closure, repair metadata, and establish plan for deterministic plugin-owned RGB Test Content. |
 | 0015 | [CHECKPOINT-0015-20260623T125333Z-UE3-done.md](archive/CHECKPOINT-0015-20260623T125333Z-UE3-done.md) | 2026-06-23T12:53:33Z | passed | UE-3 done | Completed RGB Test Content validation suite. |
 | 0016 | [CHECKPOINT-0016-20260623T141351Z-UE3-1-preflight.md](archive/CHECKPOINT-0016-20260623T141351Z-UE3-1-preflight.md) | 2026-06-23T14:13:51Z | partial | UE-3.1 preflight | Preflight for UE-3.1 Validation and Contract Freeze. |
+- **0016** (2026-06-23T06:25:36Z) [UE-3.1 PASSED]: Fixed deterministic SceneCapture and generated exact mathematically matched Expected values.
