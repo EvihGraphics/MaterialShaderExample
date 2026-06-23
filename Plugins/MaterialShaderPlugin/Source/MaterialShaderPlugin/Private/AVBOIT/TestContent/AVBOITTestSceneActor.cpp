@@ -26,6 +26,7 @@ AAVBOITTestSceneActor::AAVBOITTestSceneActor()
     SceneCapture->ShowFlags.SetPostProcessing(false);
     SceneCapture->ShowFlags.SetFog(false);
     SceneCapture->ShowFlags.SetAntiAliasing(false);
+    SceneCapture->PrimitiveRenderMode = ESceneCapturePrimitiveRenderMode::PRM_UseShowOnlyList;
     // Transform: Looking down +X
     SceneCapture->SetRelativeTransform(FTransform(FRotator(0.f, 0.f, 0.f), FVector::ZeroVector));
 
@@ -91,11 +92,8 @@ void AAVBOITTestSceneActor::ClearScene()
     SpawnedMIDs.Empty();
     CurrentPrimitives.Empty();
 
-    if (BackgroundComponent)
-    {
-        BackgroundComponent->DestroyComponent();
-        BackgroundComponent = nullptr;
-    }
+    // BackgroundComponent removed.
+    SceneCapture->ClearShowOnlyComponents();
 }
 
 void AAVBOITTestSceneActor::BuildPrimitives()
@@ -241,25 +239,11 @@ void AAVBOITTestSceneActor::SpawnComponents()
         }
 
         SpawnedComponents.Add(Comp);
+        SceneCapture->ShowOnlyComponent(Comp);
     }
 
-    // Add Black Background to block any SkySphere in the map
-    BackgroundComponent = NewObject<UStaticMeshComponent>(this, TEXT("BlackBackground"));
-    BackgroundComponent->SetStaticMesh(PlaneMesh);
-    FQuat FaceCameraRot = FRotator(270.f, 0.f, 0.f).Quaternion();
-    BackgroundComponent->SetWorldTransform(FTransform(FaceCameraRot, FVector(700.f, 0.f, 0.f), FVector(10.f)));
-    BackgroundComponent->SetCastShadow(false);
-    BackgroundComponent->SetCollisionEnabled(ECollisionEnabled::NoCollision);
-    BackgroundComponent->SetupAttachment(GetRootComponent());
-    BackgroundComponent->RegisterComponent();
-
-    if (BaseTestMaterial)
-    {
-        UMaterialInstanceDynamic* MID = UMaterialInstanceDynamic::Create(BaseTestMaterial, this);
-        MID->SetVectorParameterValue(TEXT("TestColor"), FLinearColor::Black);
-        MID->SetScalarParameterValue(TEXT("TestAlpha"), 1.0f); // Opaque black
-        BackgroundComponent->SetMaterial(0, MID);
-    }
+    // A. Use pure ClearColor = Black and PrimitiveRenderMode = PRM_UseShowOnlyList.
+    // The background component was removed to satisfy the contract.
 }
 
 FVector4f AAVBOITTestSceneActor::ComputeAnalyticalFrontToBack(TConstArrayView<FAVBOITTestPrimitiveDesc> SortedFrontToBack) const

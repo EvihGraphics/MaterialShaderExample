@@ -68,8 +68,7 @@ private:
     UPROPERTY(Transient)
     TArray<UMaterialInstanceDynamic*> SpawnedMIDs;
 
-    UPROPERTY(Transient)
-    UStaticMeshComponent* BackgroundComponent;
+    // BackgroundComponent was removed in favor of PRM_UseShowOnlyList
 
     UPROPERTY(Transient)
     class USceneCaptureComponent2D* SceneCapture;
