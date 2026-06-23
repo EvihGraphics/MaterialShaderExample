@@ -8,13 +8,13 @@ absolute UE install paths.
 | Machine ID | Commit | UE Version | Build | Editor | PIE | Standalone | GPU Capture | Verified UTC |
 |---|---|---|---|---|---|---|---|---|
 | DESKTOP-14SQPSC | `59d8c84da73b6d585629978a5e7e85c7d0845a8c` | 5.7.4 | PASS | NOT COVERED | NOT COVERED | PASS | NOT COVERED | 2026-06-22T13:44:19Z |
-| HIVE-4090X2 | `5623a4270394cb3789ed52da01261339c51706fd` | 5.7.4 | PASS | PASS | PASS | PASS | BLOCKED | 2026-06-22T16:34:17Z |
+| HIVE-4090X2 | `90f9514c7744f0da343e480acc91e3a235c52220` | 5.7.4 | PASS | PASS | PASS | PASS | PASS | 2026-06-23T12:12:56Z |
 
 ## Notes
 
 - `DESKTOP-14SQPSC` is historical evidence only and must not be used as current
   machine proof.
-- Checkpoint 0011 base was `59d8c84da73b6d585629978a5e7e85c7d0845a8c`, but the current HEAD is `5623a4270394cb3789ed52da01261339c51706fd`.
+- Checkpoint 0011 base was `59d8c84da73b6d585629978a5e7e85c7d0845a8c`, but the current HEAD is `90f9514c7744f0da343e480acc91e3a235c52220`.
 - `HIVE-4090X2` is the current closeout machine. Its row must be updated only
   from fresh evidence generated under
   `LocalVisualResults/UE57/HIVE-4090X2/UE2-Closeout`.

@@ -15,21 +15,21 @@ UTC: 2026-06-23T03:44:13Z
 
 ## Current Source Compatibility
 
-Status: `PARTIAL`
+Status: `PASSED`
 
 The repository source is compatible enough to build and run the UE-2 RDG smoke
 test on `HIVE-4090X2` at commit
-`5623a4270394cb3789ed52da01261339c51706fd`. Build, determinism, Editor, PIE,
-Standalone, Resize, lifecycle, original regression, and accepted log-scan gates
-have current-machine evidence. External GPU capture is still blocked, so the
-portable project status remains `PARTIAL`.
+`90f9514c7744f0da343e480acc91e3a235c52220`. Build, determinism, Editor, PIE,
+Standalone, Resize, lifecycle, original regression, accepted log-scan, and
+external GPU capture gates have current-machine evidence. The portable
+project status is now `PASSED`.
 
-## Latest Portable Verification Status
+### Pointer
 
 | Item | Value |
 |---|---|
-| Latest Commit Verified | `5623a4270394cb3789ed52da01261339c51706fd` |
-| Latest Portable Verification Status | `partial-gpu-capture-blocked` |
+| Latest Commit Verified | `90f9514c7744f0da343e480acc91e3a235c52220` |
+| Latest Portable Verification Status | `passed` |
 | Evidence Namespace | `LocalVisualResults/UE57/<MachineId>/UE2-Closeout` |
 
 ## Known UE API Risks

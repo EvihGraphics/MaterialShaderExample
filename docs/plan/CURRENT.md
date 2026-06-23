@@ -12,7 +12,7 @@ Status: `passed`
 
 | Repository | Branch | HEAD | Stage Status |
 |---|---|---|---|
-| `MaterialShaderExample_AVBOIT` | `AVBOIT开发` tracking `origin/AVBOIT开发` | `5623a4270394cb3789ed52da01261339c51706fd` (0011 base was `59d8c84da73b6d585629978a5e7e85c7d0845a8c`) | UE-2.2 Portability and GPU Capture completed |
+| `MaterialShaderExample_AVBOIT` | `AVBOIT开发` tracking `origin/AVBOIT开发` | `90f9514c7744f0da343e480acc91e3a235c52220` (0011 base was `59d8c84da73b6d585629978a5e7e85c7d0845a8c`) | UE-2.2 Portability and GPU Capture completed |
 | `MaterialShaderExample` | `master` | `a80b000f589e9953fcb5efbfd3eccbf247d62c4a` | reference worktree, left unmodified |
 | `The-Forge` | `baseline/theforge-1.58-windows-vs-dx12` | `39046051cef37bff0e52e497ca7df07ba9aebe65` | reference worktree, left unmodified |
 
@@ -31,7 +31,7 @@ Project Source Compatibility:
 PASSED
 
 Latest Portable Verified Commit:
-`5623a4270394cb3789ed52da01261339c51706fd`
+`90f9514c7744f0da343e480acc91e3a235c52220`
 
 The project contract is portable and does not prescribe an absolute UE install
 path.
@@ -42,7 +42,7 @@ Machine ID:
 `HIVE-4090X2`
 
 Commit:
-`5623a4270394cb3789ed52da01261339c51706fd`
+`90f9514c7744f0da343e480acc91e3a235c52220`
 
 UE Version:
 5.7.4
