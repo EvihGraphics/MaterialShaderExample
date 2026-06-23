@@ -1,4 +1,4 @@
-﻿// Copyright Voxel Plugin SAS. All Rights Reserved.
+// Copyright Voxel Plugin SAS. All Rights Reserved.
 
 using System.IO;
 using UnrealBuildTool;
@@ -27,6 +27,12 @@ public class MaterialShaderExample : ModuleRules
 		{
 			Path.Combine(GetModuleDirectory("Renderer"), "Private"),
 			Path.Combine(GetModuleDirectory("Renderer"), "Internal"),
+		});
+
+		PrivateDependencyModuleNames.AddRange(new string[]
+		{
+			"Json",
+			"JsonUtilities"
 		});
 
 		if (Target.bBuildEditor)

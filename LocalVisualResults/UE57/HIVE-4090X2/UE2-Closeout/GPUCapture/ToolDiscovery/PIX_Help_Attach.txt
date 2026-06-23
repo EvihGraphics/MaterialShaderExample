@@ -1,0 +1,11 @@
+Usage: pixtool [--help [<command>]] [...] <command> [<command>] [...]
+
+attach <targetProcessId>
+
+Attach to the specified runningprocess
+
+    <targetProcessId>                   Target Process Id.
+
+    --remote=<machine name>             Specifies the remote capture machine.
+                                        Default: localhost
+

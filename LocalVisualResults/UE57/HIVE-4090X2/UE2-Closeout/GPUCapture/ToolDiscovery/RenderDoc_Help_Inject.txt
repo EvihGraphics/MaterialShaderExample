@@ -1,0 +1,22 @@
+Error: need option: --PID
+
+usage: renderdoccmd inject --PID=<uint> [options ...] 
+
+options:
+      --PID                                    The process ID of the process to inject. (uint)
+  -d, --working-dir                            Set the working directory of the program, if launched. (optional string)
+  -c, --capture-file                           Set the filename template for new captures. Frame number will be automatically appended. (optional string)
+  -w, --wait-for-exit                          Wait for the target program to exit, before returning.
+      --opt-disallow-vsync                     Capturing Option: Disallow the application from enabling vsync.
+      --opt-disallow-fullscreen                Capturing Option: Disallow the application from enabling fullscreen.
+      --opt-api-validation                     Capturing Option: Record API debugging events and messages.
+      --opt-api-validation-unmute              Capturing Option: Unmutes API debugging output from --opt-api-validation.
+      --opt-capture-callstacks                 Capturing Option: Capture CPU callstacks for API events.
+      --opt-capture-callstacks-only-actions    Capturing Option: When capturing CPU callstacks, only capture them from actions.
+      --opt-delay-for-debugger                 Capturing Option: Specify a delay in seconds to wait for a debugger to attach. (optional int=0) Must be within [0, 10000]
+      --opt-verify-buffer-access               Capturing Option: Verify any writes to mapped buffers, by bounds checking, and initialise buffers to invalid value if uninitialised.
+      --opt-hook-children                      Capturing Option: Hooks any system API calls that create child processes.
+      --opt-ref-all-resources                  Capturing Option: Include all live resources, not just those used by a frame.
+      --opt-capture-all-cmd-lists              Capturing Option: In D3D11, record all command lists from application start.
+      --opt-soft-memory-limit                  Capturing Option: Specify a soft memory limit to try to respect. (optional int=0) Must be within [0, 10000]
+  -?, --help                                   print this message

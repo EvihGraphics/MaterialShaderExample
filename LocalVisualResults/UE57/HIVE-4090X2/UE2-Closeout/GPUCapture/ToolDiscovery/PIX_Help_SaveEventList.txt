@@ -1,0 +1,23 @@
+Usage: pixtool [--help [<command>]] [...] <command> [<command>] [...]
+
+save-event-list <filename> [...]
+
+Saves the event list in CSV format
+
+    --counters=<pattern>                Includes counters that match the given
+                                        pattern.  Queue ID, Name and Global ID
+                                        are always included.  This switch can be
+                                        specified multiple times to include
+                                        multiple patterns.
+
+                                        Patterns are strings where '*' matches
+                                        any sequence of characters.
+
+    --counter-groups=<pattern>          Includes all counters inside counter
+                                        groups that match the given pattern.
+
+                                        For example "D3D:*" will include all the
+                                        D3D counters.
+
+    --queue-name=<queue name>           The name of the queue to use for the event list
+

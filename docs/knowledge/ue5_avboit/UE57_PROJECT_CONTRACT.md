@@ -1,6 +1,6 @@
 # UE57 Project Contract
 
-UTC: 2026-06-22T16:34:17Z
+UTC: 2026-06-23T03:44:13Z
 
 ## Contract
 
@@ -19,7 +19,7 @@ Status: `PARTIAL`
 
 The repository source is compatible enough to build and run the UE-2 RDG smoke
 test on `HIVE-4090X2` at commit
-`59d8c84da73b6d585629978a5e7e85c7d0845a8c`. Build, determinism, Editor, PIE,
+`5623a4270394cb3789ed52da01261339c51706fd`. Build, determinism, Editor, PIE,
 Standalone, Resize, lifecycle, original regression, and accepted log-scan gates
 have current-machine evidence. External GPU capture is still blocked, so the
 portable project status remains `PARTIAL`.
@@ -28,7 +28,7 @@ portable project status remains `PARTIAL`.
 
 | Item | Value |
 |---|---|
-| Latest Commit Verified | `59d8c84da73b6d585629978a5e7e85c7d0845a8c` |
+| Latest Commit Verified | `5623a4270394cb3789ed52da01261339c51706fd` |
 | Latest Portable Verification Status | `partial-gpu-capture-blocked` |
 | Evidence Namespace | `LocalVisualResults/UE57/<MachineId>/UE2-Closeout` |
 

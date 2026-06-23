@@ -1,0 +1,66 @@
+Usage: pixtool [--help [<command>]] [...] <command> [<command>] [...]
+
+  --help                 show this help message
+
+  --help <command>       show help for a specific command
+
+  --output=<level>       set output verbosity
+
+                         Supported levels are 'quiet', 'trace', 'engine' and
+                         'verbose'. Default is 'trace'.
+
+  --log=<level>          sets the verbosity for the log file
+
+                         Supported levels are the same as above, with the
+                         addition of 'off' (which means no log file is written).
+                         Default is 'verbose'.
+
+  --log-file=<filename>  set the filename for the logfile
+
+                         Default is 'pixtool.log' in your temp directory.
+
+Any number of commands may be specified on a single command line.  Available
+commands:
+
+launch <exe> [...]                      Launches an executable for GPU capture
+launch-app <package> <application> [...] Launches a UWP app for GPU capture
+set-gpu-capture-parameters [--frames=<n>] [...] Sets the parameters for all subsequent captures
+take-capture [--open] [...]             Take a GPU capture of the currently launched app
+programmatic-capture [--open] [--until-exit] Wait for a programmatic capture to be triggered by the currently launched app
+save-capture <filename>                 Saves the currently open capture to the given filename
+save-all-captures <directory>           Saves all recently taken captures to the specified directory
+open-capture <filename> [...]           Opens a Windows GPU capture wpix file
+list-counters                           Lists all the available counters
+save-event-list <filename> [...]        Saves the event list in CSV format
+run-debug-layer                         Forces a playback with the debug layer enabled
+collect-occupancy                       Makes pixtool collect GPU occupancy data for the capture
+save-high-frequency-counters <filename> [...] Collects and saves High Frequency Counters data in CSV format
+save-screenshot <filename>              Saves the capture's screenshot as a PNG file
+save-resource <filename> [...]          Saves a resource from a given draw call
+begin-recapture                         Begins a capture of pixtool itself
+end-recapture                           Ends a recapture
+recapture-single-playback [...]         Performs capture of a playback of the currently open file
+perform-single-playback [...]           Performs one single playback of the currently open file
+recapture-region <outputFilePath> [...] Recaptures a region of the currently open capture file
+take-new-timing-capture <filename> [--duration=<n>] [...] Take a New Timing Capture of the current app and save it
+attach <targetProcessId>                Attach to the specified runningprocess
+export-to-cpp <directory> [--force] [--use-winpixeventruntime] [...] Exports PIX captured frame as C++ project
+upgrade-gpu-capture <sourceCapturePath> [--dest=<destCapturePath>] Upgrades a GPU capture file to the latest format
+
+Example usage:
+
+   pixtool launch d3d12hellotriangle.exe take-capture --open save-capture foo.wpix
+
+   pixtool open-capture foo.wpix save-event-list eventlist.txt --counters=*
+
+   pixtool open-capture foo.wpix list-counters
+
+   pixtool open-capture --remote=192.168.1.1 foo.wpix save-event-list eventlist.txt --counter-groups=D3D*
+
+
+A caret can be used to split long command lines to multiple lines:
+
+   pixtool ^
+     open-capture foo.wpix --remote=192.168.1.1 ^
+     save-event-list eventlist.txt --counters=*
+

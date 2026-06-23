@@ -1,0 +1,9 @@
+usage: renderdoccmd replay [options ...] <capture.rdc>
+
+options:
+  -w, --width          The preview window width. (optional uint=1280)
+  -h, --height         The preview window height. (optional uint=720)
+  -l, --loops          How many times to loop the replay, or 0 for indefinite. (optional uint=0)
+      --remote-host    Instead of replaying locally, replay on this host over the network. (optional string)
+  -?, --help           print this message
+

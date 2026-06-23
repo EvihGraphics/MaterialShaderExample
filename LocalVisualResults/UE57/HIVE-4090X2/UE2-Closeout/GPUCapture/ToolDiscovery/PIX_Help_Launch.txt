@@ -1,0 +1,28 @@
+Usage: pixtool [--help [<command>]] [...] <command> [<command>] [...]
+
+launch <exe> [...]
+
+Launches an executable for GPU capture
+
+    --command-line=<cl>                 Sets the command line parameters to pass to the executable.
+
+    --working-directory=<dir>           Sets the working directory
+                                        Default: the directory containing the exe
+
+    --setenv=<envVar>                   Sets the environment variables of the executable.
+                                        envVar format:
+                                            <VARNAME=VARVALUE>
+                                        The first instance of "=" separates environment variable
+                                        name and value. To set multiple environment variables, you
+                                        can specify this parameter multiple times. For example:
+                                        --setenv="VAR1=VALUE1" --setenv="VAR2=VALUE2"
+
+    --remote=<machine name>             Specifies the remote capture machine.
+                                        Default: localhost
+
+    --timing                            Launch the app for Timing Capture.
+
+    --force11on12                       Forces PIX to use D3D11on12.
+
+    --captureFromStart                  Forces PIX to start capturing before the app starts running.
+
