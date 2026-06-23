@@ -13,6 +13,7 @@
 #include "Modules/ModuleManager.h"
 #include "UnrealClient.h"
 #include "AVBOIT/Testing/AVBOITEvidenceCommands.h"
+#include "AVBOIT/Testing/AVBOITBackendTestAutomation.h"
 #if WITH_EDITOR
 #include "AVBOIT/Testing/AVBOITEditorPIEAutomation.h"
 #endif
@@ -33,6 +34,7 @@ public:
 		AddShaderSourceDirectoryMapping(TEXT("/Plugin/MaterialShaderExample"), Path);
 
 		FAVBOITEvidenceCommands::RegisterCommands();
+		FAVBOITBackendTestAutomation::Initialize();
 	}
 
 	virtual void ShutdownModule() override
@@ -42,6 +44,7 @@ public:
 #endif
 
 		FAVBOITEvidenceCommands::UnregisterCommands();
+		FAVBOITBackendTestAutomation::Shutdown();
 	}
 	//~ End IModuleInterface Implementation
 };

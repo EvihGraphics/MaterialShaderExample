@@ -1,0 +1,27 @@
+#include "/Engine/Public/Platform.ush"
+#include "AVBOITCommon.ush"
+
+RWTexture2DArray<uint> OutExtinctionVolume;
+RWTexture2DArray<float> OutTransmittanceVolume;
+RWTexture2D<float4> OutResultTexture;
+
+[numthreads(8, 8, 1)]
+void ClearCS(uint3 DispatchThreadId : SV_DispatchThreadID)
+{
+    if (DispatchThreadId.x >= (uint)ViewResolution.x || DispatchThreadId.y >= (uint)ViewResolution.y)
+    {
+        return;
+    }
+
+    uint2 PixelCoord = DispatchThreadId.xy;
+
+    for (uint z = 0; z < AVBOIT_VOLUME_DEPTH; ++z)
+    {
+        uint3 Coords = uint3(PixelCoord.x, PixelCoord.y, z);
+        OutExtinctionVolume[Coords] = 0;
+        OutTransmittanceVolume[Coords] = 1.0f; // Initial transmittance is 1.0
+    }
+
+    // Clear Result to 0 (Linear Black, 0 alpha)
+    OutResultTexture[PixelCoord] = float4(0.0f, 0.0f, 0.0f, 0.0f);
+}

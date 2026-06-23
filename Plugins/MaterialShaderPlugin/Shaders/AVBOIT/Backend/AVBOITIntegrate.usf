@@ -1,0 +1,30 @@
+#include "/Engine/Public/Platform.ush"
+#include "AVBOITCommon.ush"
+
+Texture2DArray<uint> InExtinctionVolume;
+RWTexture2DArray<float> OutTransmittanceVolume;
+
+[numthreads(8, 8, 1)]
+void IntegrateCS(uint3 DispatchThreadId : SV_DispatchThreadID)
+{
+    uint2 PixelCoord = DispatchThreadId.xy;
+    if (PixelCoord.x >= (uint)ViewResolution.x || PixelCoord.y >= (uint)ViewResolution.y)
+    {
+        return;
+    }
+
+    float Transmittance = 1.0f;
+
+    // Traverse from slice 0 (Near) to AVBOIT_VOLUME_DEPTH - 1 (Far)
+    for (uint z = 0; z < AVBOIT_VOLUME_DEPTH; ++z)
+    {
+        uint3 Coords = uint3(PixelCoord.x, PixelCoord.y, z);
+        uint PackedExt = InExtinctionVolume[Coords];
+        float Ext = UnpackExtinction(PackedExt);
+
+        Transmittance *= exp(-Ext);
+
+        // Store transmittance after applying the current slice's extinction
+        OutTransmittanceVolume[Coords] = Transmittance;
+    }
+}

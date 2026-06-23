@@ -1,0 +1,27 @@
+#include "/Engine/Public/Platform.ush"
+#include "AVBOITCommon.ush"
+
+Texture2DArray<float> InTransmittanceVolume;
+RWTexture2D<float4> OutResultTexture;
+
+[numthreads(8, 8, 1)]
+void CompositeCS(uint3 DispatchThreadId : SV_DispatchThreadID)
+{
+    uint2 PixelCoord = DispatchThreadId.xy;
+    if (PixelCoord.x >= (uint)ViewResolution.x || PixelCoord.y >= (uint)ViewResolution.y)
+    {
+        return;
+    }
+
+    // Fixed background color: Black
+    float3 BgColor = float3(0.0f, 0.0f, 0.0f);
+
+    // Get total transmittance from the furthest slice
+    uint3 Coords = uint3(PixelCoord.x, PixelCoord.y, AVBOIT_VOLUME_DEPTH - 1);
+    float TotalTransmittance = InTransmittanceVolume[Coords];
+
+    // OutResultTexture was cleared to 0,0,0,0. 
+    // Here we technically would initialize it with BgColor * TotalTransmittance.
+    // Since BgColor is Black, the result remains 0,0,0.
+    OutResultTexture[PixelCoord] = float4(BgColor * TotalTransmittance, 1.0f);
+}

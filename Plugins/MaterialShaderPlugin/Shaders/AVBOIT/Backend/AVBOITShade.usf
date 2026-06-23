@@ -1,0 +1,59 @@
+#include "/Engine/Public/Platform.ush"
+#include "AVBOITCommon.ush"
+
+StructuredBuffer<FInjectedFragment> InjectedFragments;
+Texture2DArray<float> InTransmittanceVolume;
+RWTexture2D<float4> OutResultTexture;
+
+// InterlockedAdd on float textures is not natively supported without special extensions.
+// However, since we are doing synthetic testing, we can use a naive loop in a single thread per pixel
+// to accumulate all fragments touching that pixel, strictly ordering them by slice to ensure stability
+// (Wait, the math says: result = sum(Color * Alpha * FrontTransmittance). This is a simple sum! Addition is commutative!)
+// So we can accumulate them in any order per pixel!
+
+[numthreads(8, 8, 1)]
+void ShadeCS(uint3 DispatchThreadId : SV_DispatchThreadID)
+{
+    uint2 PixelCoord = DispatchThreadId.xy;
+    if (PixelCoord.x >= (uint)ViewResolution.x || PixelCoord.y >= (uint)ViewResolution.y)
+    {
+        return;
+    }
+
+    float3 AccumulatedColor = float3(0.0f, 0.0f, 0.0f);
+
+    for (uint i = 0; i < FragmentCount; ++i)
+    {
+        FInjectedFragment Frag = InjectedFragments[i];
+
+        if (PixelCoord.x >= (uint)Frag.RectMin.x && PixelCoord.x <= (uint)Frag.RectMax.x &&
+            PixelCoord.y >= (uint)Frag.RectMin.y && PixelCoord.y <= (uint)Frag.RectMax.y)
+        {
+            float Alpha = clamp(Frag.LinearColorAndAlpha.a, 0.0f, 0.99f);
+
+            if (Alpha > 0.01f)
+            {
+                float NormDepth = MapLinearDepthToNormDepth(Frag.LinearDepth, ZNear, ZFar);
+                uint ZIndex = GetSliceIndex(NormDepth);
+
+                float FrontTransmittance = 1.0f;
+                if (ZIndex > 0)
+                {
+                    uint3 PrevCoords = uint3(PixelCoord.x, PixelCoord.y, ZIndex - 1);
+                    FrontTransmittance = InTransmittanceVolume[PrevCoords];
+                }
+
+                // AVBOIT Multiplier is explicitly disabled for mathematical validation.
+                float3 Contribution = Frag.LinearColorAndAlpha.rgb * Alpha * FrontTransmittance;
+                AccumulatedColor += Contribution;
+            }
+        }
+    }
+
+    // Add to whatever is in OutResultTexture (which contains the composite background)
+    // Wait, since we are a CS, we can't easily hardware-blend. 
+    // But since one thread handles all fragments for a pixel, we just sum them up here and write!
+    // OutResultTexture contains BgColor * TotalTransmittance.
+    float4 CurrentResult = OutResultTexture[PixelCoord];
+    OutResultTexture[PixelCoord] = float4(CurrentResult.rgb + AccumulatedColor, 1.0f);
+}

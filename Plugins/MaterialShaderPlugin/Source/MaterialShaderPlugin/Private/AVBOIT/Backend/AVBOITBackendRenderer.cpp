@@ -1,0 +1,101 @@
+#include "AVBOIT/Backend/AVBOITBackendRenderer.h"
+#include "AVBOIT/Backend/AVBOITBackendShaders.h"
+#include "AVBOIT/Backend/AVBOITBackendReadback.h"
+#include "RenderGraphUtils.h"
+#include "RHIStaticStates.h"
+
+FRHIGPUTextureReadback* FAVBOITBackendRenderer::Execute(FRDGBuilder& GraphBuilder, const FAVBOITBackendSettings& Settings, const TArray<FAVBOITInjectedFragment>& InjectedFragments)
+{
+    if (!Settings.bEnabled || Settings.Mode == 0)
+    {
+        return nullptr;
+    }
+
+    uint32 FragCount = InjectedFragments.Num();
+    if (FragCount == 0)
+    {
+        return nullptr;
+    }
+
+    FIntPoint Res = Settings.Resolution;
+    FIntVector GroupCount = FIntVector(FMath::DivideAndRoundUp(Res.X, 8), FMath::DivideAndRoundUp(Res.Y, 8), 1);
+
+    // 1. Create Resources
+    FRDGTextureDesc ExtinctionDesc = FRDGTextureDesc::Create2DArray(Res, PF_R32_UINT, FClearValueBinding::None, TexCreate_UAV | TexCreate_ShaderResource, 64);
+    FRDGTextureRef ExtinctionVolume = GraphBuilder.CreateTexture(ExtinctionDesc, TEXT("AVBOIT.ExtinctionVolume"));
+
+    FRDGTextureDesc TransmittanceDesc = FRDGTextureDesc::Create2DArray(Res, PF_R32_FLOAT, FClearValueBinding::None, TexCreate_UAV | TexCreate_ShaderResource, 64);
+    FRDGTextureRef TransmittanceVolume = GraphBuilder.CreateTexture(TransmittanceDesc, TEXT("AVBOIT.TransmittanceVolume"));
+
+    FRDGTextureDesc ResultDesc = FRDGTextureDesc::Create2D(Res, PF_FloatRGBA, FClearValueBinding::None, TexCreate_UAV | TexCreate_ShaderResource | TexCreate_RenderTargetable);
+    FRDGTextureRef ResultTexture = GraphBuilder.CreateTexture(ResultDesc, TEXT("AVBOIT.ResultTexture"));
+
+    // Fragment Buffer
+    FRDGBufferRef FragmentBuffer = CreateStructuredBuffer(GraphBuilder, TEXT("AVBOIT.FragmentBuffer"), sizeof(FAVBOITInjectedFragment), FragCount, InjectedFragments.GetData(), sizeof(FAVBOITInjectedFragment) * FragCount);
+
+    // 2. Clear Pass
+    {
+        FAVBOITClearCS::FParameters* PassParams = GraphBuilder.AllocParameters<FAVBOITClearCS::FParameters>();
+        PassParams->ViewResolution = FVector2f((float)Res.X, (float)Res.Y);
+        PassParams->OutExtinctionVolume = GraphBuilder.CreateUAV(ExtinctionVolume);
+        PassParams->OutTransmittanceVolume = GraphBuilder.CreateUAV(TransmittanceVolume);
+        PassParams->OutResultTexture = GraphBuilder.CreateUAV(ResultTexture);
+
+        TShaderMapRef<FAVBOITClearCS> ComputeShader(GetGlobalShaderMap(GMaxRHIFeatureLevel));
+        FComputeShaderUtils::AddPass(GraphBuilder, RDG_EVENT_NAME("AVBOIT.Clear"), ComputeShader, PassParams, GroupCount);
+    }
+
+    // 3. Build Pass
+    {
+        FAVBOITBuildCS::FParameters* PassParams = GraphBuilder.AllocParameters<FAVBOITBuildCS::FParameters>();
+        PassParams->ViewResolution = FVector2f((float)Res.X, (float)Res.Y);
+        PassParams->ZNear = Settings.ZNear;
+        PassParams->ZFar = Settings.ZFar;
+        PassParams->FragmentCount = FragCount;
+        PassParams->InjectedFragments = GraphBuilder.CreateSRV(FragmentBuffer);
+        PassParams->OutExtinctionVolume = GraphBuilder.CreateUAV(ExtinctionVolume);
+
+        TShaderMapRef<FAVBOITBuildCS> ComputeShader(GetGlobalShaderMap(GMaxRHIFeatureLevel));
+        FComputeShaderUtils::AddPass(GraphBuilder, RDG_EVENT_NAME("AVBOIT.Build"), ComputeShader, PassParams, GroupCount);
+    }
+
+    // 4. Integrate Pass
+    {
+        FAVBOITIntegrateCS::FParameters* PassParams = GraphBuilder.AllocParameters<FAVBOITIntegrateCS::FParameters>();
+        PassParams->ViewResolution = FVector2f((float)Res.X, (float)Res.Y);
+        PassParams->InExtinctionVolume = GraphBuilder.CreateSRV(ExtinctionVolume);
+        PassParams->OutTransmittanceVolume = GraphBuilder.CreateUAV(TransmittanceVolume);
+
+        TShaderMapRef<FAVBOITIntegrateCS> ComputeShader(GetGlobalShaderMap(GMaxRHIFeatureLevel));
+        FComputeShaderUtils::AddPass(GraphBuilder, RDG_EVENT_NAME("AVBOIT.Integrate"), ComputeShader, PassParams, GroupCount);
+    }
+
+    // 5. Composite Pass
+    {
+        FAVBOITCompositeCS::FParameters* PassParams = GraphBuilder.AllocParameters<FAVBOITCompositeCS::FParameters>();
+        PassParams->ViewResolution = FVector2f((float)Res.X, (float)Res.Y);
+        PassParams->InTransmittanceVolume = GraphBuilder.CreateSRV(TransmittanceVolume);
+        PassParams->OutResultTexture = GraphBuilder.CreateUAV(ResultTexture);
+
+        TShaderMapRef<FAVBOITCompositeCS> ComputeShader(GetGlobalShaderMap(GMaxRHIFeatureLevel));
+        FComputeShaderUtils::AddPass(GraphBuilder, RDG_EVENT_NAME("AVBOIT.Composite"), ComputeShader, PassParams, GroupCount);
+    }
+
+    // 6. Shade Pass
+    {
+        FAVBOITShadeCS::FParameters* PassParams = GraphBuilder.AllocParameters<FAVBOITShadeCS::FParameters>();
+        PassParams->ViewResolution = FVector2f((float)Res.X, (float)Res.Y);
+        PassParams->ZNear = Settings.ZNear;
+        PassParams->ZFar = Settings.ZFar;
+        PassParams->FragmentCount = FragCount;
+        PassParams->InjectedFragments = GraphBuilder.CreateSRV(FragmentBuffer);
+        PassParams->InTransmittanceVolume = GraphBuilder.CreateSRV(TransmittanceVolume);
+        PassParams->OutResultTexture = GraphBuilder.CreateUAV(ResultTexture);
+
+        TShaderMapRef<FAVBOITShadeCS> ComputeShader(GetGlobalShaderMap(GMaxRHIFeatureLevel));
+        FComputeShaderUtils::AddPass(GraphBuilder, RDG_EVENT_NAME("AVBOIT.Shade"), ComputeShader, PassParams, GroupCount);
+    }
+
+    // 7. Enqueue Readback
+    return FAVBOITBackendReadback::EnqueueReadback(GraphBuilder, ResultTexture);
+}

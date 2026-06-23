@@ -1,0 +1,45 @@
+#include "/Engine/Public/Platform.ush"
+#include "AVBOITCommon.ush"
+
+StructuredBuffer<FInjectedFragment> InjectedFragments;
+RWTexture2DArray<uint> OutExtinctionVolume;
+
+[numthreads(8, 8, 1)]
+void BuildCS(uint3 DispatchThreadId : SV_DispatchThreadID)
+{
+    uint2 PixelCoord = DispatchThreadId.xy;
+    if (PixelCoord.x >= (uint)ViewResolution.x || PixelCoord.y >= (uint)ViewResolution.y)
+    {
+        return;
+    }
+
+    // Process each synthetic fragment
+    for (uint i = 0; i < FragmentCount; ++i)
+    {
+        FInjectedFragment Frag = InjectedFragments[i];
+
+        // Check rect bounds (ROI)
+        if (PixelCoord.x >= (uint)Frag.RectMin.x && PixelCoord.x <= (uint)Frag.RectMax.x &&
+            PixelCoord.y >= (uint)Frag.RectMin.y && PixelCoord.y <= (uint)Frag.RectMax.y)
+        {
+            float Alpha = clamp(Frag.LinearColorAndAlpha.a, 0.0f, 0.99f);
+            
+            // Only process meaningful alpha
+            if (Alpha > 0.01f)
+            {
+                float NormDepth = MapLinearDepthToNormDepth(Frag.LinearDepth, ZNear, ZFar);
+                uint ZIndex = GetSliceIndex(NormDepth);
+
+                // Compute extinction: -log(1 - alpha)
+                // Use log2() * ln(2) for better GPU performance if desired, 
+                // but standard log() is natively fast. Let's use standard log() 
+                // to exactly match The Forge's "ext = -log(1.0f - min(color.w, 0.99f))"
+                float Ext = -log(1.0f - Alpha);
+                uint PackedExt = PackExtinction(Ext);
+
+                uint3 Coords = uint3(PixelCoord.x, PixelCoord.y, ZIndex);
+                InterlockedAdd(OutExtinctionVolume[Coords], PackedExt);
+            }
+        }
+    }
+}

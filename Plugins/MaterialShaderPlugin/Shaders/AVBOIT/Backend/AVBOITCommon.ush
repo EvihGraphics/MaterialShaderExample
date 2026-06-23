@@ -1,0 +1,52 @@
+#pragma once
+
+#define AVBOIT_VOLUME_DEPTH 64
+#define AVBOIT_EXTINCTION_SCALE 10000.0f
+
+// Match FAVBOITInjectedFragment
+struct FInjectedFragment
+{
+    float4 LinearColorAndAlpha;
+    float LinearDepth;
+    uint SubmissionIndex;
+    int2 RectMin;
+    int2 RectMax;
+};
+
+// Common uniforms
+float2 ViewResolution;
+float ZNear;
+float ZFar;
+uint FragmentCount;
+
+// Pack extinction to fixed-point for atomic add
+uint PackExtinction(float ext)
+{
+    return (uint)(ext * AVBOIT_EXTINCTION_SCALE);
+}
+
+// Unpack extinction from fixed-point
+float UnpackExtinction(uint packed)
+{
+    return (float)(packed) / AVBOIT_EXTINCTION_SCALE;
+}
+
+// Map linear depth to normalized log depth
+float MapLinearDepthToNormDepth(float LinearDepth, float ZNear, float ZFar)
+{
+    // Clamp to avoid log(<=0)
+    float clampedDepth = clamp(LinearDepth, ZNear, ZFar);
+    return log2(ZFar / clampedDepth) / log2(ZFar / ZNear);
+}
+
+// Map normalized log depth to slice index
+uint GetSliceIndex(float NormDepth)
+{
+    return clamp((uint)(NormDepth * AVBOIT_VOLUME_DEPTH), 0u, AVBOIT_VOLUME_DEPTH - 1u);
+}
+
+// Get 1D index for RWBuffer (if 2DArray UAV is not used)
+uint GetVolumeIndex(uint3 Coords, uint Width, uint Height)
+{
+    return Coords.z * Width * Height + Coords.y * Width + Coords.x;
+}
