@@ -12,10 +12,17 @@ struct FAVBOITBackendTestCase
     TArray<FAVBOITInjectedFragment> Fragments;
     FVector3f ExpectedColor;
     float ExpectedTransmittance;
-    float ColorMAETolerance;
-    float ColorMaxAbsTolerance;
-    float TransmittanceTolerance;
     TArray<int32> ExpectedOccupiedSlices;
+    bool bRequireOrderIndependence = false;
+    bool bRequireExactSourceOver = false;
+    float ColorMAETolerance = 0.002f;
+    float ColorMaxAbsTolerance = 0.01f;
+    float TransmittanceTolerance = 0.002f;
+    float ExtinctionTolerance = 0.00015f;
+    
+    // Output
+    FString Status;
+    TArray<FString> FailureReasons;
 };
 
 class FAVBOITBackendTestAutomation : public FTickableGameObject
@@ -37,6 +44,7 @@ public:
     int32 PassedCaseCount = 0;
     int32 FailedCaseCount = 0;
 
+    void RunMappingTests();
     void BuildTestCases();
     void RunNextTest();
 
@@ -44,8 +52,8 @@ public:
     static FAVBOITBackendTestAutomation* Instance;
 private:
     TUniquePtr<FRHIGPUTextureReadback> PendingReadbackResult;
-    TUniquePtr<FRHIGPUTextureReadback> PendingReadbackExtinction;
-    TUniquePtr<FRHIGPUTextureReadback> PendingReadbackTransmittance;
+    TUniquePtr<FRHIGPUBufferReadback> PendingReadbackExtinctionLine;
+    TUniquePtr<FRHIGPUBufferReadback> PendingReadbackTransmittanceLine;
     
     int32 WaitFrameCount = 0;
     const int32 MaximumWaitFrames = 500;

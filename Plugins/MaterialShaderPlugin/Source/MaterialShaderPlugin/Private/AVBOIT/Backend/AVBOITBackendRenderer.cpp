@@ -1,6 +1,7 @@
 #include "AVBOIT/Backend/AVBOITBackendRenderer.h"
 #include "AVBOIT/Backend/AVBOITBackendShaders.h"
 #include "AVBOIT/Backend/AVBOITBackendReadback.h"
+#include "AVBOIT/Backend/AVBOITBackendDebugReadback.h"
 #include "RenderGraphUtils.h"
 #include "RHIStaticStates.h"
 
@@ -99,9 +100,10 @@ FAVBOITBackendReadbacks FAVBOITBackendRenderer::Execute(FRDGBuilder& GraphBuilde
 
     // 7. Enqueue Readback
     OutReadbacks.Result = FAVBOITBackendReadback::EnqueueReadback(GraphBuilder, ResultTexture);
-    // Extinction and Transmittance are Texture2DArray. Direct EnqueueCopy of array triggers out-of-bounds on slice > 0.
-    // Transmittance is now preserved in the ResultTexture's Alpha channel!
-    // OutReadbacks.Extinction = FAVBOITBackendReadback::EnqueueReadback(GraphBuilder, ExtinctionVolume);
-    // OutReadbacks.Transmittance = FAVBOITBackendReadback::EnqueueReadback(GraphBuilder, TransmittanceVolume);
+    
+    FAVBOITSliceLineReadbacks DebugLines = FAVBOITBackendDebugReadback::EnqueueExtractSliceLine(GraphBuilder, ExtinctionVolume, TransmittanceVolume, FIntPoint(256, 256));
+    OutReadbacks.ExtinctionLine = DebugLines.Extinction;
+    OutReadbacks.TransmittanceLine = DebugLines.Transmittance;
+
     return OutReadbacks;
 }

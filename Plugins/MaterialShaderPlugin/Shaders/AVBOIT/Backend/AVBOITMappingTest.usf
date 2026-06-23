@@ -1,0 +1,25 @@
+#include "/Engine/Public/Platform.ush"
+#include "AVBOITCommon.ush"
+
+StructuredBuffer<float> InLinearDepths;
+RWStructuredBuffer<float> OutNormalizedDepths;
+RWStructuredBuffer<uint> OutSliceIndices;
+
+uint ItemCount;
+
+[numthreads(64, 1, 1)]
+void AVBOITMappingTestCS(uint3 DispatchThreadId : SV_DispatchThreadID)
+{
+    uint Index = DispatchThreadId.x;
+    if (Index >= ItemCount)
+    {
+        return;
+    }
+
+    float LinearDepth = InLinearDepths[Index];
+    float NormDepth = MapLinearDepthToNormDepth(LinearDepth, ZNear, ZFar);
+    uint SliceIndex = GetSliceIndex(NormDepth);
+
+    OutNormalizedDepths[Index] = NormDepth;
+    OutSliceIndices[Index] = SliceIndex;
+}

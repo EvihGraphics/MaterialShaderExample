@@ -1,0 +1,23 @@
+#include "/Engine/Public/Platform.ush"
+
+Texture2DArray<uint> InExtinctionVolume;
+Texture2DArray<float> InTransmittanceVolume;
+
+RWStructuredBuffer<uint> OutExtinctionLine;
+RWStructuredBuffer<float> OutTransmittanceLine;
+
+int3 CenterPixel;
+
+[numthreads(64, 1, 1)]
+void AVBOITDebugExtractCS(uint3 DispatchThreadId : SV_DispatchThreadID)
+{
+    uint SliceIndex = DispatchThreadId.x;
+    if (SliceIndex >= 64)
+    {
+        return;
+    }
+
+    uint3 Coords = uint3(CenterPixel.x, CenterPixel.y, SliceIndex);
+    OutExtinctionLine[SliceIndex] = InExtinctionVolume[Coords];
+    OutTransmittanceLine[SliceIndex] = InTransmittanceVolume[Coords];
+}

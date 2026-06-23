@@ -7,8 +7,8 @@
 struct FAVBOITBackendReadbacks
 {
     FRHIGPUTextureReadback* Result = nullptr;
-    FRHIGPUTextureReadback* Extinction = nullptr;
-    FRHIGPUTextureReadback* Transmittance = nullptr;
+    FRHIGPUBufferReadback* ExtinctionLine = nullptr;
+    FRHIGPUBufferReadback* TransmittanceLine = nullptr;
 };
 
 class FAVBOITBackendRenderer

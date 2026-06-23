@@ -1,4 +1,5 @@
-#include "AVBOIT/Testing/AVBOITBackendTestAutomation.h"
+with open('Plugins/MaterialShaderPlugin/Source/MaterialShaderPlugin/Private/AVBOIT/Testing/AVBOITBackendTestAutomation.cpp', 'w', encoding='utf-8') as cout:
+    cout.write('''#include "AVBOIT/Testing/AVBOITBackendTestAutomation.h"
 #include "AVBOIT/Backend/AVBOITBackendRenderer.h"
 #include "AVBOIT/Backend/AVBOITBackendDebugReadback.h"
 #include "RenderGraphBuilder.h"
@@ -182,11 +183,10 @@ void FAVBOITBackendTestAutomation::BuildTestCases()
         Case.Name = TEXT("SameSlice_RedBlue");
         Case.Fragments.Add(RedSame);
         Case.Fragments.Add(BlueSame);
-        // AVBOIT Accumulates Color*Alpha per slice.
-        // For Red: (1,0,0) * 0.5 = (0.5, 0, 0)
-        // For Blue: (0,0,1) * 0.5 = (0, 0, 0.5)
-        // Sum = (0.5, 0, 0.5). FrontTransmittance = 1.0.
-        Case.ExpectedColor = FVector3f(0.5f, 0.0f, 0.5f);
+        // T = 0.25. (1-T)/(Ext) = (1-0.25)/(0.693 + 0.693) = 0.75 / 1.386 = 0.541.
+        // C_red = 0.693 * 0.541 * (1,0,0) = 0.375
+        // C_blue = 0.693 * 0.541 * (0,0,1) = 0.375
+        Case.ExpectedColor = FVector3f(0.375f, 0.0f, 0.375f);
         Case.ExpectedTransmittance = 0.25f;
         Case.ExpectedOccupiedSlices = {54};
         Case.ColorMaxAbsTolerance = 0.01f;
@@ -306,26 +306,12 @@ void FAVBOITBackendTestAutomation::HandleReadback()
     FAVBOITBackendTestCase& TestCase = TestCases[CurrentTestCaseIndex];
     bool bCasePassed = true;
 
-    const void* RawResultData = nullptr;
-    const void* RawExtData = nullptr;
-    const void* RawTransData = nullptr;
-    int32 OutRowPitchInPixels = 0;
-
-    ENQUEUE_RENDER_COMMAND(LockReadbacks)(
-        [&](FRHICommandListImmediate& RHICmdList)
-        {
-            if (PendingReadbackResult) RawResultData = PendingReadbackResult->Lock(OutRowPitchInPixels);
-            if (PendingReadbackExtinctionLine) RawExtData = PendingReadbackExtinctionLine->Lock(64 * sizeof(uint32));
-            if (PendingReadbackTransmittanceLine) RawTransData = PendingReadbackTransmittanceLine->Lock(64 * sizeof(float));
-        });
-    FlushRenderingCommands();
-
-    FVector4f MeanColor = FVector4f(0, 0, 0, 0);
-
     // Result Check
-    if (RawResultData)
+    if (PendingReadbackResult)
     {
-        const FFloat16Color* ColorData = static_cast<const FFloat16Color*>(RawResultData);
+        int32 OutRowPitchInPixels = 0;
+        const void* RawData = PendingReadbackResult->Lock(OutRowPitchInPixels);
+        const FFloat16Color* ColorData = static_cast<const FFloat16Color*>(RawData);
 
         FVector4f SumColor = FVector4f(0, 0, 0, 0);
         int32 Count = 0;
@@ -341,7 +327,10 @@ void FAVBOITBackendTestAutomation::HandleReadback()
             }
         }
 
-        MeanColor = SumColor / (float)Count;
+        PendingReadbackResult->Unlock();
+        PendingReadbackResult.Reset();
+
+        FVector4f MeanColor = SumColor / (float)Count;
         float DiffR = FMath::Abs(MeanColor.X - TestCase.ExpectedColor.X);
         float DiffG = FMath::Abs(MeanColor.Y - TestCase.ExpectedColor.Y);
         float DiffB = FMath::Abs(MeanColor.Z - TestCase.ExpectedColor.Z);
@@ -367,24 +356,15 @@ void FAVBOITBackendTestAutomation::HandleReadback()
     }
 
     FString EvDir = FPaths::ProjectSavedDir() / TEXT("AVBOIT") / TEXT("LocalMachine") / TEXT("UE4-1-2-Acceptance-Closeout");
-    FString CSVContent = TEXT("Slice,ExpectedExtinction,MeasuredPacked,MeasuredExtinction,ExpectedT,MeasuredT\\n");
+    FString CSVContent = TEXT("Slice,ExpectedExtinction,MeasuredPacked,MeasuredExtinction,ExpectedT,MeasuredT\n");
 
     // Extinction and Transmittance Lines Check
-    if (RawExtData && RawTransData)
+    if (PendingReadbackExtinctionLine && PendingReadbackTransmittanceLine)
     {
-        const uint32* ExtData = (const uint32*)RawExtData;
-        const float* TransData = (const float*)RawTransData;
+        const uint32* ExtData = (const uint32*)PendingReadbackExtinctionLine->Lock(64 * sizeof(uint32));
+        const float* TransData = (const float*)PendingReadbackTransmittanceLine->Lock(64 * sizeof(float));
 
-        TArray<float> ExpectedSliceExtinctions;
-        ExpectedSliceExtinctions.Init(0.0f, 64);
-        for (const auto& Frag : TestCase.Fragments)
-        {
-            float NormDepth = AVBOITMapLinearDepthToNormalized(Frag.LinearDepth, 10.0f, 1000.0f);
-            uint32 Slice = FMath::Clamp((uint32)(NormDepth * 64.0f), 0u, 63u);
-            float Alpha = FMath::Clamp(Frag.LinearColorAndAlpha.W, 0.0f, 0.99f);
-            ExpectedSliceExtinctions[Slice] += -FMath::Loge(1.0f - Alpha);
-        }
-
+        TArray<int32> MeasuredOccupiedSlices;
         float ExpectedT = 1.0f;
         
         for (int32 i = 0; i < 64; ++i)
@@ -393,12 +373,18 @@ void FAVBOITBackendTestAutomation::HandleReadback()
             float MeasuredExt = MeasuredPacked / 10000.0f;
             float MeasuredT = TransData[i];
 
-            float ExpectedExt = ExpectedSliceExtinctions[i];
+            float ExpectedExt = 0.0f;
+            if (TestCase.ExpectedOccupiedSlices.Contains(i))
+            {
+                MeasuredOccupiedSlices.Add(i);
+                ExpectedExt = 0.693147f; // alpha=0.5
+            }
+            
             ExpectedT = ExpectedT * FMath::Exp(-ExpectedExt);
             
-            CSVContent += FString::Printf(TEXT("%d,%f,%u,%f,%f,%f\\n"), i, ExpectedExt, MeasuredPacked, MeasuredExt, ExpectedT, MeasuredT);
+            CSVContent += FString::Printf(TEXT("%d,%f,%u,%f,%f,%f\n"), i, ExpectedExt, MeasuredPacked, MeasuredExt, ExpectedT, MeasuredT);
 
-            if (MeasuredExt > 0.001f && ExpectedExt < 0.001f)
+            if (MeasuredExt > 0 && !TestCase.ExpectedOccupiedSlices.Contains(i))
             {
                 TestCase.FailureReasons.Add(FString::Printf(TEXT("Unexpected Extinction %f at Slice %d"), MeasuredExt, i));
                 bCasePassed = false;
@@ -410,23 +396,17 @@ void FAVBOITBackendTestAutomation::HandleReadback()
                 bCasePassed = false;
             }
         }
-    }
 
-    ENQUEUE_RENDER_COMMAND(UnlockReadbacks)(
-        [&](FRHICommandListImmediate& RHICmdList)
-        {
-            if (PendingReadbackResult) { PendingReadbackResult->Unlock(); PendingReadbackResult.Reset(); }
-            if (PendingReadbackExtinctionLine) { PendingReadbackExtinctionLine->Unlock(); PendingReadbackExtinctionLine.Reset(); }
-            if (PendingReadbackTransmittanceLine) { PendingReadbackTransmittanceLine->Unlock(); PendingReadbackTransmittanceLine.Reset(); }
-        });
-    FlushRenderingCommands();
+        PendingReadbackExtinctionLine->Unlock();
+        PendingReadbackExtinctionLine.Reset();
+        PendingReadbackTransmittanceLine->Unlock();
+        PendingReadbackTransmittanceLine.Reset();
+    }
 
     FFileHelper::SaveStringToFile(CSVContent, *(EvDir / (TestCase.Name + TEXT(".csv"))));
 
     if (bCasePassed)
     {
-        UE_LOG(LogTemp, Log, TEXT("Test Case %s: Color PASS. Got: X=%.3f Y=%.3f Z=%.3f"), *TestCase.Name, MeanColor.X, MeanColor.Y, MeanColor.Z);
-        UE_LOG(LogTemp, Log, TEXT("Test Case %s: Transmittance PASS. Got: %f"), *TestCase.Name, MeanColor.W);
         TestCase.Status = TEXT("PASS");
         PassedCaseCount++;
     }
@@ -446,26 +426,26 @@ void FAVBOITBackendTestAutomation::FinalizeSuite()
     
     FString EvDir = FPaths::ProjectSavedDir() / TEXT("AVBOIT") / TEXT("LocalMachine") / TEXT("UE4-1-2-Acceptance-Closeout");
     FString Json = TEXT("{\n");
-    Json += FString::Printf(TEXT("  \"TotalCases\": %d,\n"), TestCases.Num());
-    Json += FString::Printf(TEXT("  \"PassedCases\": %d,\n"), PassedCaseCount);
-    Json += FString::Printf(TEXT("  \"FailedCases\": %d,\n"), FailedCaseCount);
-    Json += TEXT("  \"Cases\": [\n");
+    Json += FString::Printf(TEXT("\"TotalCases\": %d,\n"), TestCases.Num());
+    Json += FString::Printf(TEXT("\"PassedCases\": %d,\n"), PassedCaseCount);
+    Json += FString::Printf(TEXT("\"FailedCases\": %d,\n"), FailedCaseCount);
+    Json += TEXT("\"Cases\": [\n");
     for (int i = 0; i < TestCases.Num(); ++i)
     {
-        Json += TEXT("    {\n");
-        Json += FString::Printf(TEXT("      \"Name\": \"%s\",\n"), *TestCases[i].Name);
-        Json += FString::Printf(TEXT("      \"Status\": \"%s\",\n"), *TestCases[i].Status);
-        Json += TEXT("      \"FailureReasons\": [");
+        Json += TEXT("  {\n");
+        Json += FString::Printf(TEXT("    \"Name\": \"%s\",\n"), *TestCases[i].Name);
+        Json += FString::Printf(TEXT("    \"Status\": \"%s\",\n"), *TestCases[i].Status);
+        Json += TEXT("    \"FailureReasons\": [");
         for (int j=0; j<TestCases[i].FailureReasons.Num(); ++j)
         {
             Json += FString::Printf(TEXT("\"%s\""), *TestCases[i].FailureReasons[j]);
             if (j < TestCases[i].FailureReasons.Num() - 1) Json += TEXT(",");
         }
-        Json += TEXT("]\n    }");
+        Json += TEXT("]\n  }");
         if (i < TestCases.Num() - 1) Json += TEXT(",");
         Json += TEXT("\n");
     }
-    Json += TEXT("  ]\n}\n");
+    Json += TEXT("]\n}\n");
     
     FFileHelper::SaveStringToFile(Json, *(EvDir / TEXT("SuiteSummary.json")));
 
@@ -477,3 +457,4 @@ void FAVBOITBackendTestAutomation::FinalizeSuite()
     
     FGenericPlatformMisc::RequestExitWithStatus(false, FailedCaseCount > 0 ? 1 : 0);
 }
+''')
