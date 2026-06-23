@@ -23,11 +23,11 @@ private:
     static void CaptureSuiteStep();
     static void FinishCaptureSuite();
     static bool Tick(float DeltaTime);
-    static bool WriteViewportPng(const FString& Filename);
+    static bool WriteLinearPng(const TArray<FFloat16Color>& FloatPixels, FIntPoint Size, const FString& Filename);
 
     static int32 CurrentSuiteStep;
+    static double NextTime;
     static TArray<FString> SuiteSteps;
     static FString CurrentSuiteName;
     static FTSTicker::FDelegateHandle TickerHandle;
-    static double NextTime;
 };

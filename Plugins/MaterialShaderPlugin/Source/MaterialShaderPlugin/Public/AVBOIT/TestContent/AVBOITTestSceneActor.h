@@ -17,13 +17,15 @@ class AAVBOITTestSceneActor : public AActor
 public:
     AAVBOITTestSceneActor();
 
-    virtual void Tick(float DeltaTime) override;
-    virtual bool ShouldTickIfViewportsOnly() const override { return true; }
+    virtual bool ShouldTickIfViewportsOnly() const override { return false; }
 
     void SetupScene(EAVBOITTestPreset Preset, EAVBOITOrderPermutation Order, EAVBOITTestReferenceMode ReferenceMode);
 
     UFUNCTION(BlueprintCallable, Category = "AVBOIT Test Content")
     void RebuildScene();
+
+    void CaptureScene();
+    bool ReadbackLinear(TArray<FFloat16Color>& OutLinearPixels, FIntPoint& OutSize) const;
 
     void GetExpectedAnalyticalResult(FVector3f& OutColor, float& OutTransmittance) const;
     const TArray<FAVBOITTestPrimitiveDesc>& GetCurrentPrimitives() const { return CurrentPrimitives; }
@@ -68,4 +70,10 @@ private:
 
     UPROPERTY(Transient)
     UStaticMeshComponent* BackgroundComponent;
+
+    UPROPERTY(Transient)
+    class USceneCaptureComponent2D* SceneCapture;
+
+    UPROPERTY(Transient)
+    class UTextureRenderTarget2D* RenderTarget;
 };

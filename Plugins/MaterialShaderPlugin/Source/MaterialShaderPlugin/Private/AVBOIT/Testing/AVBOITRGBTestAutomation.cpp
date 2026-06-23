@@ -16,12 +16,9 @@
 #if WITH_EDITOR
 #include "FileHelpers.h"
 #include "ImageUtils.h"
-#include "LevelEditor.h"
-#include "IAssetViewport.h"
-#include "UnrealEdGlobals.h"
-#include "Editor/UnrealEdEngine.h"
 #endif
 
+double FAVBOITRGBTestAutomation::NextTime = 0.0;
 int32 FAVBOITRGBTestAutomation::CurrentSuiteStep = 0;
 TArray<FString> FAVBOITRGBTestAutomation::SuiteSteps;
 FString FAVBOITRGBTestAutomation::CurrentSuiteName;
@@ -118,7 +115,8 @@ void FAVBOITRGBTestAutomation::DumpManifestCmd(const TArray<FString>& Args)
     TSharedRef<TJsonWriter<>> Writer = TJsonWriterFactory<>::Create(&JsonStr);
     FJsonSerializer::Serialize(JsonObj.ToSharedRef(), Writer);
 
-    FString EvidenceRoot = FAVBOITEvidencePath::ResolveAVBOITEvidenceRoot(TEXT("UE3-RGB-TestContent"), TEXT(""));
+    // Update to match UE3-1 validation path
+    FString EvidenceRoot = FAVBOITEvidencePath::ResolveAVBOITEvidenceRoot(TEXT("UE3-1-RGB-Validation"), TEXT(""));
     FString SavePath = EvidenceRoot / TEXT("Manifests/CurrentManifest.json");
     if (Args.Num() > 0)
     {
@@ -131,37 +129,23 @@ void FAVBOITRGBTestAutomation::DumpManifestCmd(const TArray<FString>& Args)
 
 void FAVBOITRGBTestAutomation::CaptureCurrentCmd(const TArray<FString>& Args)
 {
-    FString EvidenceRoot = FAVBOITEvidencePath::ResolveAVBOITEvidenceRoot(TEXT("UE3-RGB-TestContent"), TEXT(""));
-    FString SavePath = EvidenceRoot / TEXT("Capture.png");
-    if (Args.Num() > 0) SavePath = EvidenceRoot / Args[0];
-    
-    GEngine->Exec(nullptr, *FString::Printf(TEXT("HighResShot 1 filename=\"%s\""), *SavePath));
+    // Obsolete for UE-3.1 Validation, we rely on the Suite now
 }
 
-double FAVBOITRGBTestAutomation::NextTime = 0.0;
-
-bool FAVBOITRGBTestAutomation::WriteViewportPng(const FString& Filename)
+bool FAVBOITRGBTestAutomation::WriteLinearPng(const TArray<FFloat16Color>& FloatPixels, FIntPoint Size, const FString& Filename)
 {
-#if WITH_EDITOR
-    FViewport* Viewport = nullptr;
-    if (GEditor) Viewport = GEditor->GetActiveViewport();
-    if (!Viewport && GEngine && GEngine->GameViewport) Viewport = GEngine->GameViewport->Viewport;
-    
-    if (!Viewport) return false;
+    if (FloatPixels.Num() != Size.X * Size.Y) return false;
 
-    const FIntPoint Size = Viewport->GetSizeXY();
-    if (Size.X <= 0 || Size.Y <= 0) return false;
-
-    Viewport->Draw();
     TArray<FColor> Bitmap;
-    if (!Viewport->ReadPixels(Bitmap) || Bitmap.Num() != Size.X * Size.Y) return false;
-
-    for (FColor& Color : Bitmap) Color.A = 255;
+    Bitmap.SetNumUninitialized(FloatPixels.Num());
+    for (int32 i = 0; i < FloatPixels.Num(); ++i)
+    {
+        // Simple linear to sRGB/8-bit for preview
+        Bitmap[i] = FLinearColor(FloatPixels[i]).ToFColor(true);
+        Bitmap[i].A = 255;
+    }
     const FImageView Image(Bitmap.GetData(), Size.X, Size.Y);
     return FImageUtils::SaveImageByExtension(*Filename, Image);
-#else
-    return false;
-#endif
 }
 
 void FAVBOITRGBTestAutomation::CaptureRGBSuiteCmd(const TArray<FString>& Args)
@@ -189,17 +173,17 @@ bool FAVBOITRGBTestAutomation::Tick(float DeltaTime)
     int32 ConfigIndex = CurrentSuiteStep / 2;
     bool bIsCaptureStep = (CurrentSuiteStep % 2) != 0;
 
-    struct FTestConfig { int32 Preset; int32 Order; FString Folder; FString File; };
+    struct FTestConfig { int32 Preset; int32 Order; FString Folder; FString File; FString ManifestName; };
     TArray<FTestConfig> Configs = {
-        {1, 0, TEXT("SingleWhite"), TEXT("StandardAlpha.png")},
-        {2, 0, TEXT("DoubleRedBlue"), TEXT("StandardAlpha_CorrectSort.png")},
-        {3, 0, TEXT("TripleRGB"), TEXT("CorrectSort.png")},
-        {3, 0, TEXT("TripleRGB/SubmissionOrders"), TEXT("00_RGB.png")},
-        {3, 1, TEXT("TripleRGB/SubmissionOrders"), TEXT("01_RBG.png")},
-        {3, 2, TEXT("TripleRGB/SubmissionOrders"), TEXT("02_GRB.png")},
-        {3, 3, TEXT("TripleRGB/SubmissionOrders"), TEXT("03_GBR.png")},
-        {3, 4, TEXT("TripleRGB/SubmissionOrders"), TEXT("04_BRG.png")},
-        {3, 5, TEXT("TripleRGB/SubmissionOrders"), TEXT("05_BGR.png")}
+        {1, 0, TEXT("SingleWhite"), TEXT("StandardAlpha.png"), TEXT("SingleWhite.Manifest.json")},
+        {2, 0, TEXT("DoubleRedBlue"), TEXT("StandardAlpha_CorrectSort.png"), TEXT("DoubleRedBlue.Manifest.json")},
+        {3, 0, TEXT("TripleRGB"), TEXT("CorrectSort.png"), TEXT("TripleRGB.Manifest.json")},
+        {3, 0, TEXT("TripleRGB/SubmissionOrders"), TEXT("00_RGB.png"), TEXT("00_RGB.Manifest.json")},
+        {3, 1, TEXT("TripleRGB/SubmissionOrders"), TEXT("01_RBG.png"), TEXT("01_RBG.Manifest.json")},
+        {3, 2, TEXT("TripleRGB/SubmissionOrders"), TEXT("02_GRB.png"), TEXT("02_GRB.Manifest.json")},
+        {3, 3, TEXT("TripleRGB/SubmissionOrders"), TEXT("03_GBR.png"), TEXT("03_GBR.Manifest.json")},
+        {3, 4, TEXT("TripleRGB/SubmissionOrders"), TEXT("04_BRG.png"), TEXT("04_BRG.Manifest.json")},
+        {3, 5, TEXT("TripleRGB/SubmissionOrders"), TEXT("05_BGR.png"), TEXT("05_BGR.Manifest.json")}
     };
 
     if (ConfigIndex >= Configs.Num())
@@ -215,24 +199,78 @@ bool FAVBOITRGBTestAutomation::Tick(float DeltaTime)
 
     if (!bIsCaptureStep)
     {
+        GEngine->Exec(nullptr, TEXT("r.UsePreExposure 0"));
+        GEngine->Exec(nullptr, TEXT("r.EyeAdaptationQuality 0"));
+        GEngine->Exec(nullptr, TEXT("r.AutoExposure.Method 0"));
+        GEngine->Exec(nullptr, TEXT("r.AutoExposure.Bias 0"));
+        GEngine->Exec(nullptr, TEXT("r.Tonemapper.Quality 0"));
+        
         CVarAVBOITTestPreset.AsVariable()->Set(Cfg.Preset, ECVF_SetByConsole);
         CVarAVBOITTestSubmissionOrder.AsVariable()->Set(Cfg.Order, ECVF_SetByConsole);
         BuildSceneCmd({});
-        NextTime = FPlatformTime::Seconds() + 1.0;
+        
+        // Ensure scene executes a frame before capture
+        NextTime = FPlatformTime::Seconds() + 0.5;
     }
     else
     {
-        FString EvidenceRoot = FAVBOITEvidencePath::ResolveAVBOITEvidenceRoot(TEXT("UE3-RGB-TestContent"), TEXT(""));
-        FString ManifestRelative = Cfg.Folder / TEXT("Manifest.json");
-        DumpManifestCmd({ManifestRelative});
+        UAVBOITTestSceneSubsystem* Subsystem = GEngine->GetEngineSubsystem<UAVBOITTestSceneSubsystem>();
+        AAVBOITTestSceneActor* Actor = Subsystem ? Subsystem->GetActiveSceneActor() : nullptr;
         
-        FString CapturePath = EvidenceRoot / Cfg.Folder / Cfg.File;
-        WriteViewportPng(CapturePath);
-        
-        FString ExpectedPath = EvidenceRoot / Cfg.Folder / TEXT("Expected.txt");
-        FFileHelper::SaveStringToFile(TEXT("Please refer to Manifest.json for exact linear ExpectedColor and ExpectedTransmittance.\n"), *ExpectedPath);
+        if (Actor)
+        {
+            Actor->CaptureScene();
+            
+            TArray<FFloat16Color> LinearPixels;
+            FIntPoint Size;
+            if (Actor->ReadbackLinear(LinearPixels, Size) && Size.X > 0 && Size.Y > 0)
+            {
+                FString EvidenceRoot = FAVBOITEvidencePath::ResolveAVBOITEvidenceRoot(TEXT("UE3-1-RGB-Validation"), TEXT(""));
+                
+                FString CapturePath = EvidenceRoot / Cfg.Folder / Cfg.File;
+                WriteLinearPng(LinearPixels, Size, CapturePath);
+                
+                // Extract 64x64 ROI center
+                int32 StartX = FMath::Max(0, (Size.X / 2) - 32);
+                int32 StartY = FMath::Max(0, (Size.Y / 2) - 32);
+                
+                FVector3f SumColor = FVector3f::Zero();
+                int32 Count = 0;
+                for (int32 Y = StartY; Y < StartY + 64 && Y < Size.Y; ++Y)
+                {
+                    for (int32 X = StartX; X < StartX + 64 && X < Size.X; ++X)
+                    {
+                        FLinearColor LC(LinearPixels[Y * Size.X + X]);
+                        SumColor += FVector3f(LC.R, LC.G, LC.B);
+                        Count++;
+                    }
+                }
+                
+                FVector3f MeanColor = Count > 0 ? SumColor / Count : FVector3f::Zero();
+                
+                FVector3f ExpectedColor;
+                float ExpectedTransmittance;
+                Actor->GetExpectedAnalyticalResult(ExpectedColor, ExpectedTransmittance);
+                
+                FVector3f AbsErr = FVector3f(FMath::Abs(MeanColor.X - ExpectedColor.X), FMath::Abs(MeanColor.Y - ExpectedColor.Y), FMath::Abs(MeanColor.Z - ExpectedColor.Z));
+                float MaxAbs = FMath::Max3(AbsErr.X, AbsErr.Y, AbsErr.Z);
+                float MAE = (AbsErr.X + AbsErr.Y + AbsErr.Z) / 3.0f;
+                
+                FString ExpectedPath = EvidenceRoot / Cfg.Folder / FString::Printf(TEXT("%s_Expected.txt"), *FPaths::GetBaseFilename(Cfg.ManifestName));
+                FString Report = FString::Printf(TEXT("Measured Mean: (%f, %f, %f)\nExpected: (%f, %f, %f)\nMaxAbs: %f\nMAE: %f\n"), 
+                    MeanColor.X, MeanColor.Y, MeanColor.Z,
+                    ExpectedColor.X, ExpectedColor.Y, ExpectedColor.Z,
+                    MaxAbs, MAE);
+                
+                FFileHelper::SaveStringToFile(Report, *ExpectedPath);
 
-        NextTime = FPlatformTime::Seconds() + 0.5;
+                // Dump manifest
+                FString ManifestRelative = Cfg.Folder / Cfg.ManifestName;
+                DumpManifestCmd({ManifestRelative});
+            }
+        }
+
+        NextTime = FPlatformTime::Seconds() + 0.1;
     }
 
     CurrentSuiteStep++;
