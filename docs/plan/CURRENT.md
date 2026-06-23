@@ -3,16 +3,16 @@
 ## Repository Pointer
 
 Primary plan:
-`docs/plan/ue5_avboit/PLAN-UE-3-Deterministic-RGB-Test-Content.md`
+`docs/plan/ue5_avboit/PLAN-UE-4-Engine-Mod.md` (To be created)
 
 Latest checkpoint:
-`docs/checkpoints/archive/CHECKPOINT-0014-20260623T123858Z-UE3-preflight.md`
+`docs/checkpoints/archive/CHECKPOINT-0015-20260623T125333Z-UE3-done.md`
 
-Status: `partial`
+Status: `passed`
 
 | Repository | Branch | HEAD | Stage Status |
 |---|---|---|---|
-| `MaterialShaderExample_AVBOIT` | `AVBOIT开发` tracking `origin/AVBOIT开发` | `90f9514c7744f0da343e480acc91e3a235c52220` (0011 base was `59d8c84da73b6d585629978a5e7e85c7d0845a8c`) | UE-3 Test Content in progress |
+| `MaterialShaderExample_AVBOIT` | `AVBOIT开发` tracking `origin/AVBOIT开发` | `42fbeca` (0014 base was `522c790`) | UE-3 Test Content Completed |
 | `MaterialShaderExample` | `master` | `a80b000f589e9953fcb5efbfd3eccbf247d62c4a` | reference worktree, left unmodified |
 | `The-Forge` | `baseline/theforge-1.58-windows-vs-dx12` | `39046051cef37bff0e52e497ca7df07ba9aebe65` | reference worktree, left unmodified |
 
@@ -31,7 +31,7 @@ Project Source Compatibility:
 PASSED
 
 Latest Portable Verified Commit:
-`90f9514c7744f0da343e480acc91e3a235c52220`
+`42fbeca`
 
 The project contract is portable and does not prescribe an absolute UE install
 path.
@@ -42,7 +42,7 @@ Machine ID:
 `HIVE-4090X2`
 
 Commit:
-`90f9514c7744f0da343e480acc91e3a235c52220`
+`42fbeca`
 
 UE Version:
 5.7.4
@@ -72,7 +72,7 @@ GPU Capture:
 PASS
 
 Evidence Root:
-`LocalVisualResults/UE57/HIVE-4090X2/UE2-Closeout`
+`LocalVisualResults/UE57/HIVE-4090X2/UE3-RGB-TestContent`
 
 Machine-local UE details are recorded in:
 
@@ -85,20 +85,14 @@ Saved/AVBOIT/LocalMachine/ue57-environment.json
 - Remote state synchronized: PASS
 - Project / Machine UE separation: PASS
 - Machine-scoped evidence namespace: PASS
-- Deterministic Mode 1: PASS
-- Editor: PASS
-- PIE: PASS
-- Standalone: PASS
-- Resize: PASS
-- Enable / Disable lifecycle: PASS
-- Original MaterialShaderExample regression: PASS
-- Accepted fatal/assert/shader/RDG/device log scan: PASS
-- External GPU Capture: PASS
+- UE-3 Subsystem & Assets: PASS
+- UE-3 RGB Suite execution: PASS
+- Ground Truth validation data: PASS
 
-UE-2 has `PASSED` and generated valid evidence for `AVBOIT.Smoke.Clear`, `AVBOIT.Smoke.Fill`, and `AVBOIT.Smoke.Composite` in `LocalVisualResults/UE57/HIVE-4090X2/UE2-Closeout/GPUCapture`.
+UE-3 has `PASSED` and generated valid evidence for SingleWhite, DoubleRedBlue, and TripleRGB variants in `LocalVisualResults/UE57/HIVE-4090X2/UE3-RGB-TestContent`.
 
 ## Resume
 
-1. Follow PLAN-UE-3 to implement `FAVBOITTestPrimitiveDesc` and the fixed test scene.
-2. Setup the fixed Camera and Black Background.
-3. Validate SingleWhite, DoubleRedBlue, and TripleRGB presets.
+1. Generate Plan for UE-4: Engine Modification
+2. Setup the custom Unreal Engine fork for MaterialShaderPlugin compatibility.
+3. Hook into the Transparent Rendering passes.
