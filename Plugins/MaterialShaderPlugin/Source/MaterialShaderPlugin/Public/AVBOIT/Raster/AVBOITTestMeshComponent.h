@@ -19,7 +19,7 @@ struct FAVBOITRasterMaterialParameters
 };
 
 UCLASS(ClassGroup=(Custom), meta=(BlueprintSpawnableComponent))
-class MATERIALSHADERPLUGIN_API UAVBOITTestMeshComponent : public UPrimitiveComponent
+class MATERIALSHADEREXAMPLE_API UAVBOITTestMeshComponent : public UPrimitiveComponent
 {
 	GENERATED_BODY()
 

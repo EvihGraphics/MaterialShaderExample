@@ -37,7 +37,7 @@ FPrimitiveViewRelevance FAVBOITTestMeshSceneProxy::GetViewRelevance(const FScene
 	}
 	else
 	{
-		Result.bTranslucent = true; // Just to be safe for visibility
+		Result.bNormalTranslucency = true; // Just to be safe for visibility
 	}
 	return Result;
 }
@@ -45,4 +45,10 @@ FPrimitiveViewRelevance FAVBOITTestMeshSceneProxy::GetViewRelevance(const FScene
 uint32 FAVBOITTestMeshSceneProxy::GetMemoryFootprint() const
 {
 	return sizeof(*this) + GetAllocatedSize();
+}
+
+SIZE_T FAVBOITTestMeshSceneProxy::GetTypeHash() const
+{
+	static size_t UniquePointer;
+	return reinterpret_cast<size_t>(&UniquePointer);
 }
