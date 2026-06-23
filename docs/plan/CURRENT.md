@@ -1,8 +1,8 @@
 # Current Development Status
 
 Current Milestone: UE-4.2A
-Current Status: PREFLIGHT
+Current Status: PARTIAL
 
-Expected Remote HEAD: 819d9c2
+Expected Remote HEAD: TO_BE_UPDATED_AFTER_COMMIT
 
-Checkpoint Reference: [`CHECKPOINT-0023-20260623T140000Z-UE4-2A-raster-geometry-preflight.md`](checkpoints/archive/CHECKPOINT-0023-20260623T140000Z-UE4-2A-raster-geometry-preflight.md)
+Checkpoint Reference: [`CHECKPOINT-0024-20260623T142000Z-UE4-2A-raster-geometry-partial.md`](checkpoints/archive/CHECKPOINT-0024-20260623T142000Z-UE4-2A-raster-geometry-partial.md)
