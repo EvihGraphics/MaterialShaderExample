@@ -33,7 +33,7 @@ public:
 	virtual uint32 GetMemoryFootprint() const override;
 	virtual SIZE_T GetTypeHash() const override;
 
-	virtual void CreateRenderThreadResources() override;
+	virtual void CreateRenderThreadResources(FRHICommandListBase& RHICmdList) override;
 	virtual void DestroyRenderThreadResources() override;
 
 	FAVBOITRasterMaterialParameters MaterialParams;

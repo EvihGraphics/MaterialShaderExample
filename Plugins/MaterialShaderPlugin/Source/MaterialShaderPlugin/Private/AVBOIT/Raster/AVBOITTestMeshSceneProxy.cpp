@@ -28,8 +28,9 @@ void FAVBOITRasterVertexBuffer::InitRHI(FRHICommandListBase& RHICmdList)
 	Vertices[2] = FVector3f( 50.f,  50.f, 0.f);
 	Vertices[3] = FVector3f(-50.f,  50.f, 0.f);
 
-	FRHIResourceCreateInfo CreateInfo(TEXT("AVBOITRasterVertexBuffer"), &Vertices);
-	VertexBufferRHI = RHICmdList.CreateVertexBuffer(Vertices.GetResourceDataSize(), BUF_Static, CreateInfo);
+	FRHIBufferCreateDesc CreateDesc(TEXT("AVBOITRasterVertexBuffer"), Vertices.GetResourceDataSize(), 0, BUF_Static | BUF_VertexBuffer);
+	CreateDesc.SetInitActionResourceArray(&Vertices);
+	VertexBufferRHI = RHICmdList.CreateBuffer(CreateDesc);
 }
 
 void FAVBOITRasterIndexBuffer::InitRHI(FRHICommandListBase& RHICmdList)
@@ -39,16 +40,17 @@ void FAVBOITRasterIndexBuffer::InitRHI(FRHICommandListBase& RHICmdList)
 	Indices[0] = 0; Indices[1] = 1; Indices[2] = 2;
 	Indices[3] = 0; Indices[4] = 2; Indices[5] = 3;
 
-	FRHIResourceCreateInfo CreateInfo(TEXT("AVBOITRasterIndexBuffer"), &Indices);
-	IndexBufferRHI = RHICmdList.CreateIndexBuffer(sizeof(uint16), Indices.GetResourceDataSize(), BUF_Static, CreateInfo);
+	FRHIBufferCreateDesc CreateDesc(TEXT("AVBOITRasterIndexBuffer"), Indices.GetResourceDataSize(), sizeof(uint16), BUF_Static | BUF_IndexBuffer);
+	CreateDesc.SetInitActionResourceArray(&Indices);
+	IndexBufferRHI = RHICmdList.CreateBuffer(CreateDesc);
 }
 
-void FAVBOITTestMeshSceneProxy::CreateRenderThreadResources()
+void FAVBOITTestMeshSceneProxy::CreateRenderThreadResources(FRHICommandListBase& RHICmdList)
 {
-	FPrimitiveSceneProxy::CreateRenderThreadResources();
+	FPrimitiveSceneProxy::CreateRenderThreadResources(RHICmdList);
 
-	VertexBuffer.InitResource(FRHICommandListImmediate::Get());
-	IndexBuffer.InitResource(FRHICommandListImmediate::Get());
+	VertexBuffer.InitResource(RHICmdList);
+	IndexBuffer.InitResource(RHICmdList);
 
 	FVertexDeclarationElementList Elements;
 	Elements.Add(FVertexElement(0, 0, VET_Float3, 0, sizeof(FVector3f)));

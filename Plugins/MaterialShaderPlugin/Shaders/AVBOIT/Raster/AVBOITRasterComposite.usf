@@ -12,7 +12,7 @@ void MainPS(
 	in float4 SvPosition : SV_Position,
 	out float4 OutColor : SV_Target0)
 {
-	uint2 PixelPos = uint2(SvPosition.xy) - uint2(ViewRectMin.xy);
+	uint2 PixelPos = uint2(SvPosition.xy);
 
 	float4 Accum = ColorAccumulation.Load(int3(PixelPos, 0));
 	float TotalTransmittance = TransmittanceVolume.Load(int4(PixelPos.x, PixelPos.y, 63, 0));

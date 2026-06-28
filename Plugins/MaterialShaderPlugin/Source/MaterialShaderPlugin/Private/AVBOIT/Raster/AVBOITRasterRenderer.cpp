@@ -157,6 +157,7 @@ void FAVBOITRasterRenderer::AddPasses(
 			PSParams->ColorAndAlpha = FVector4f(Data.Color.R, Data.Color.G, Data.Color.B, Data.Alpha);
 			PSParams->ViewRectMin = ViewRectMin;
 			PSParams->OutExtinctionVolume = GraphBuilder.CreateUAV(ExtinctionVolume);
+			PSParams->RenderTargets.DepthStencil = FDepthStencilBinding(SceneDepthTexture, ERenderTargetLoadAction::ELoad, FExclusiveDepthStencil::DepthRead_StencilNop);
 			SplatPSParams.Add(PSParams);
 
 			auto* VSParams = GraphBuilder.AllocParameters<FAVBOITRasterSplatVS::FParameters>();
@@ -174,12 +175,8 @@ void FAVBOITRasterRenderer::AddPasses(
 			RDG_EVENT_NAME("AVBOIT.Raster.Splat"),
 			PassParameters,
 			ERDGPassFlags::Raster,
-			[SplatVSParams, SplatPSParams, ViewRect, DrawDataArray, SceneDepthTexture](FRHICommandList& RHICmdList)
+			[SplatVSParams, SplatPSParams, ViewRect, DrawDataArray](FRHICommandList& RHICmdList)
 		{
-			// Setup Depth target mapping
-			FRHIRenderPassInfo RPInfo(SceneDepthTexture->GetRHI(), ERenderTargetActions::Load_DontStore);
-			RHICmdList.BeginRenderPass(RPInfo, TEXT("AVBOIT.Raster.Splat"));
-
 			RHICmdList.SetViewport(ViewRect.Min.X, ViewRect.Min.Y, 0.0f, ViewRect.Max.X, ViewRect.Max.Y, 1.0f);
 
 			FGraphicsPipelineStateInitializer GraphicsPSOInit;

@@ -9,3 +9,5 @@ struct FAVBOITRasterInterpolants
 	float4 Position : SV_POSITION;
 	float LinearViewDepth : TEXCOORD0;
 };
+
+int4 ViewRectMin;
