@@ -7,6 +7,7 @@
 #include "ScreenPass.h"
 
 class FSceneView;
+struct FPostProcessingInputs;
 
 class FAVBOITRasterRenderer
 {
