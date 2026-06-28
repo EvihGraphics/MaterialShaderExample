@@ -104,8 +104,11 @@ class FAVBOITDebugExtractCS : public FGlobalShader
 
     BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
         SHADER_PARAMETER(FVector2f, ViewResolution)
+          SHADER_PARAMETER(float, ZNear)
+          SHADER_PARAMETER(float, ZFar)
+          SHADER_PARAMETER(uint32, FragmentCount)
         SHADER_PARAMETER(FIntVector, CenterPixel)
-        SHADER_PARAMETER_RDG_BUFFER_SRV(Buffer<uint>, InExtinctionVolume)
+        SHADER_PARAMETER_RDG_BUFFER_SRV(StructuredBuffer<uint>, InExtinctionVolume)
         SHADER_PARAMETER_RDG_TEXTURE_SRV(Texture2DArray<float>, InTransmittanceVolume)
         SHADER_PARAMETER_RDG_BUFFER_UAV(RWStructuredBuffer<uint>, OutExtinctionLine)
         SHADER_PARAMETER_RDG_BUFFER_UAV(RWStructuredBuffer<float>, OutTransmittanceLine)
@@ -114,7 +117,7 @@ class FAVBOITDebugExtractCS : public FGlobalShader
 
 IMPLEMENT_GLOBAL_SHADER(FAVBOITDebugExtractCS, "/Plugin/MaterialShaderExample/AVBOIT/Backend/AVBOITDebugExtract.usf", "AVBOITDebugExtractCS", SF_Compute);
 
-FAVBOITSliceLineReadbacks FAVBOITBackendDebugReadback::EnqueueExtractSliceLine(FRDGBuilder& GraphBuilder, FRDGBufferRef ExtinctionVolume, FRDGTextureRef TransmittanceVolume, FIntPoint CenterPixel)
+FAVBOITSliceLineReadbacks FAVBOITBackendDebugReadback::EnqueueExtractSliceLine(FRDGBuilder& GraphBuilder, FRDGBufferRef ExtinctionVolume, FRDGTextureRef TransmittanceVolume, FIntPoint CenterPixel, FIntPoint ViewResolution)
 {
     FAVBOITSliceLineReadbacks OutReadbacks;
     
@@ -125,7 +128,10 @@ FAVBOITSliceLineReadbacks FAVBOITBackendDebugReadback::EnqueueExtractSliceLine(F
     FRDGBufferRef OutTransmittanceLineBuf = GraphBuilder.CreateBuffer(TransDesc, TEXT("OutTransmittanceLine"));
 
     FAVBOITDebugExtractCS::FParameters* PassParams = GraphBuilder.AllocParameters<FAVBOITDebugExtractCS::FParameters>();
-    PassParams->ViewResolution = FVector2f(256.0f, 256.0f); // Default to 256x256 for test
+    PassParams->ViewResolution = FVector2f((float)ViewResolution.X, (float)ViewResolution.Y);
+      PassParams->ZNear = 10.0f;
+      PassParams->ZFar = 1000.0f;
+      PassParams->FragmentCount = 0;
     PassParams->CenterPixel = FIntVector(CenterPixel.X, CenterPixel.Y, 0);
     PassParams->InExtinctionVolume = GraphBuilder.CreateSRV(ExtinctionVolume);
     PassParams->InTransmittanceVolume = GraphBuilder.CreateSRV(TransmittanceVolume);

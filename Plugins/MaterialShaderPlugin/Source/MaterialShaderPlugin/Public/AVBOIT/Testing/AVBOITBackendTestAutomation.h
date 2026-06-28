@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 
 #include "CoreMinimal.h"
 #include "Tickable.h"
@@ -25,39 +25,13 @@ struct FAVBOITBackendTestCase
     TArray<FString> FailureReasons;
 };
 
-class MATERIALSHADEREXAMPLE_API FAVBOITBackendTestAutomation : public FTickableGameObject
+class MATERIALSHADEREXAMPLE_API FAVBOITBackendTestAutomation
 {
 public:
     static void Initialize();
     static void Shutdown();
 
-    virtual void Tick(float DeltaTime) override;
-    virtual TStatId GetStatId() const override { return TStatId(); }
-    virtual bool IsTickable() const override { return true; }
-
-    bool bIsRunning = false;
-    bool bShouldStartSuite = false;
-    
-    int32 CurrentTestCaseIndex = 0;
-    TArray<FAVBOITBackendTestCase> TestCases;
-    
-    int32 PassedCaseCount = 0;
-    int32 FailedCaseCount = 0;
-
-    void RunMappingTests();
-    void BuildTestCases();
-    void RunNextTest();
-
-public:
-    static FAVBOITBackendTestAutomation* Instance;
-private:
-    TUniquePtr<FRHIGPUTextureReadback> PendingReadbackResult;
-    TUniquePtr<FRHIGPUBufferReadback> PendingReadbackExtinctionLine;
-    TUniquePtr<FRHIGPUBufferReadback> PendingReadbackTransmittanceLine;
-    
-    int32 WaitFrameCount = 0;
-    const int32 MaximumWaitFrames = 500;
-
-    void HandleReadback();
-    void FinalizeSuite();
+    // Returns the executed test cases synchronously
+    static TArray<FAVBOITBackendTestCase> RunSuite();
 };
+

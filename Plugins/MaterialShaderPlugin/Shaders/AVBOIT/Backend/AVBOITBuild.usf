@@ -2,7 +2,7 @@
 #include "AVBOITCommon.ush"
 
 StructuredBuffer<FInjectedFragment> InjectedFragments;
-RWTexture2DArray<uint> OutExtinctionVolume;
+RWStructuredBuffer<uint> OutExtinctionVolume;
 
 [numthreads(8, 8, 1)]
 void BuildCS(uint3 DispatchThreadId : SV_DispatchThreadID)
@@ -19,8 +19,8 @@ void BuildCS(uint3 DispatchThreadId : SV_DispatchThreadID)
         FInjectedFragment Frag = InjectedFragments[i];
 
         // Check rect bounds (ROI) - Half-open interval [RectMin, RectMax)
-        if (PixelCoord.x >= (uint)Frag.RectMin.x && PixelCoord.x < (uint)Frag.RectMax.x &&
-            PixelCoord.y >= (uint)Frag.RectMin.y && PixelCoord.y < (uint)Frag.RectMax.y)
+        // if (PixelCoord.x >= (uint)Frag.RectMin.x && PixelCoord.x < (uint)Frag.RectMax.x &&
+        //     PixelCoord.y >= (uint)Frag.RectMin.y && PixelCoord.y < (uint)Frag.RectMax.y)
         {
             float Alpha = clamp(Frag.LinearColorAndAlpha.a, 0.0f, 0.99f);
             
@@ -38,7 +38,8 @@ void BuildCS(uint3 DispatchThreadId : SV_DispatchThreadID)
                 uint PackedExt = PackExtinction(Ext);
 
                 uint3 Coords = uint3(PixelCoord.x, PixelCoord.y, ZIndex);
-                InterlockedAdd(OutExtinctionVolume[Coords], PackedExt);
+                uint Index = GetVolumeIndex(Coords, (uint)ViewResolution.x, (uint)ViewResolution.y);
+                InterlockedAdd(OutExtinctionVolume[Index], PackedExt);
             }
         }
     }

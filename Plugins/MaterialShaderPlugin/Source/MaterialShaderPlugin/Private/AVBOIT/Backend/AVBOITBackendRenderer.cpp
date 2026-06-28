@@ -40,6 +40,9 @@ FAVBOITBackendReadbacks FAVBOITBackendRenderer::Execute(FRDGBuilder& GraphBuilde
     {
         FAVBOITClearCS::FParameters* PassParams = GraphBuilder.AllocParameters<FAVBOITClearCS::FParameters>();
         PassParams->ViewResolution = FVector2f((float)Res.X, (float)Res.Y);
+          PassParams->ZNear = Settings.ZNear;
+          PassParams->ZFar = Settings.ZFar;
+          PassParams->FragmentCount = FragCount;
         PassParams->OutExtinctionVolume = GraphBuilder.CreateUAV(ExtinctionVolume);
         PassParams->OutTransmittanceVolume = GraphBuilder.CreateUAV(TransmittanceVolume);
         PassParams->OutResultTexture = GraphBuilder.CreateUAV(ResultTexture);
@@ -66,6 +69,9 @@ FAVBOITBackendReadbacks FAVBOITBackendRenderer::Execute(FRDGBuilder& GraphBuilde
     {
         FAVBOITIntegrateCS::FParameters* PassParams = GraphBuilder.AllocParameters<FAVBOITIntegrateCS::FParameters>();
         PassParams->ViewResolution = FVector2f((float)Res.X, (float)Res.Y);
+          PassParams->ZNear = Settings.ZNear;
+          PassParams->ZFar = Settings.ZFar;
+          PassParams->FragmentCount = FragCount;
         PassParams->InExtinctionVolume = GraphBuilder.CreateSRV(ExtinctionVolume);
         PassParams->OutTransmittanceVolume = GraphBuilder.CreateUAV(TransmittanceVolume);
 
@@ -77,6 +83,9 @@ FAVBOITBackendReadbacks FAVBOITBackendRenderer::Execute(FRDGBuilder& GraphBuilde
     {
         FAVBOITCompositeCS::FParameters* PassParams = GraphBuilder.AllocParameters<FAVBOITCompositeCS::FParameters>();
         PassParams->ViewResolution = FVector2f((float)Res.X, (float)Res.Y);
+          PassParams->ZNear = Settings.ZNear;
+          PassParams->ZFar = Settings.ZFar;
+          PassParams->FragmentCount = FragCount;
         PassParams->InTransmittanceVolume = GraphBuilder.CreateSRV(TransmittanceVolume);
         PassParams->OutResultTexture = GraphBuilder.CreateUAV(ResultTexture);
 
@@ -102,7 +111,7 @@ FAVBOITBackendReadbacks FAVBOITBackendRenderer::Execute(FRDGBuilder& GraphBuilde
     // 7. Enqueue Readback
     OutReadbacks.Result = FAVBOITBackendReadback::EnqueueReadback(GraphBuilder, ResultTexture);
     
-    FAVBOITSliceLineReadbacks DebugLines = FAVBOITBackendDebugReadback::EnqueueExtractSliceLine(GraphBuilder, ExtinctionVolume, TransmittanceVolume, FIntPoint(256, 256));
+    FAVBOITSliceLineReadbacks DebugLines = FAVBOITBackendDebugReadback::EnqueueExtractSliceLine(GraphBuilder, ExtinctionVolume, TransmittanceVolume, FIntPoint(256, 256), Res);
     OutReadbacks.ExtinctionLine = DebugLines.Extinction;
     OutReadbacks.TransmittanceLine = DebugLines.Transmittance;
 

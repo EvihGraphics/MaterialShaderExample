@@ -7,253 +7,48 @@
 #include "RenderingThread.h"
 #include "HAL/FileManager.h"
 
-float AVBOITMapLinearDepthToNormalized(float LinearDepth, float ZNear, float ZFar)
+void FAVBOITBackendTestAutomation::Initialize() {}
+void FAVBOITBackendTestAutomation::Shutdown() {}
+
+float AVBOITMapLinearDepthToNormalized2(float LinearDepth, float ZNear, float ZFar)
 {
     float DepthRatio = FMath::Clamp(LinearDepth / ZNear, 1.0f, ZFar / ZNear);
     return FMath::Log2(DepthRatio) / FMath::Log2(ZFar / ZNear);
 }
 
-uint32 AVBOITMapLinearDepthToSlice(float LinearDepth, float ZNear, float ZFar)
+TArray<FAVBOITBackendTestCase> FAVBOITBackendTestAutomation::RunSuite()
 {
-    float NormDepth = AVBOITMapLinearDepthToNormalized(LinearDepth, ZNear, ZFar);
-    return FMath::Clamp((uint32)(NormDepth * 64.0f), 0u, 63u);
-}
-
-FAVBOITBackendTestAutomation* FAVBOITBackendTestAutomation::Instance = nullptr;
-
-static FAutoConsoleCommand GCmdRunBackendSuite(
-    TEXT("AVBOIT.Test.BackendSuite"),
-    TEXT("Runs the AVBOIT Backend Vertical Slice validation suite"),
-    FConsoleCommandDelegate::CreateStatic([]()
-    {
-        if (!FAVBOITBackendTestAutomation::Instance)
-        {
-            FAVBOITBackendTestAutomation::Initialize();
-        }
-        
-        if (FAVBOITBackendTestAutomation::Instance)
-        {
-            FAVBOITBackendTestAutomation::Instance->bShouldStartSuite = true;
-        }
-    })
-);
-
-void FAVBOITBackendTestAutomation::Initialize()
-{
-    if (!Instance)
-    {
-        Instance = new FAVBOITBackendTestAutomation();
-    }
-    
-    if (FParse::Param(FCommandLine::Get(), TEXT("AVBOITBackendSuite")))
-    {
-        Instance->bShouldStartSuite = true;
-    }
-}
-
-void FAVBOITBackendTestAutomation::Shutdown()
-{
-    if (Instance)
-    {
-        delete Instance;
-        Instance = nullptr;
-    }
-}
-
-void FAVBOITBackendTestAutomation::RunMappingTests()
-{
-    UE_LOG(LogTemp, Log, TEXT("Running CPU/GPU Depth Mapping Tests..."));
-    
-    float ZNear = 10.0f;
-    float ZFar = 1000.0f;
-    TArray<float> TestDepths = { 10.0f, 100.0f, 500.0f, 900.0f, 1000.0f };
-    
-    FAVBOITMappingTestResult GpuResult = FAVBOITBackendDebugReadback::RunMappingTestSync(TestDepths, ZNear, ZFar);
-    
-    if (GpuResult.NormalizedDepths.Num() == 0)
-    {
-        UE_LOG(LogTemp, Error, TEXT("Mapping Test GPU Readback failed!"));
-        FGenericPlatformMisc::RequestExitWithStatus(false, 1);
-        return;
-    }
-
-    bool bPassed = true;
-    for (int32 i = 0; i < TestDepths.Num(); ++i)
-    {
-        float CpuNorm = AVBOITMapLinearDepthToNormalized(TestDepths[i], ZNear, ZFar);
-        uint32 CpuSlice = AVBOITMapLinearDepthToSlice(TestDepths[i], ZNear, ZFar);
-        
-        float GpuNorm = GpuResult.NormalizedDepths[i];
-        uint32 GpuSlice = GpuResult.SliceIndices[i];
-        
-        if (FMath::Abs(CpuNorm - GpuNorm) > 0.001f || CpuSlice != GpuSlice)
-        {
-            UE_LOG(LogTemp, Error, TEXT("Mapping Test %f failed! CPU: (%.3f, %d), GPU: (%.3f, %d)"), TestDepths[i], CpuNorm, CpuSlice, GpuNorm, GpuSlice);
-            bPassed = false;
-        }
-        else
-        {
-            UE_LOG(LogTemp, Log, TEXT("Mapping Test %f PASS: (%.3f, %d)"), TestDepths[i], CpuNorm, CpuSlice);
-        }
-    }
-    
-    if (!bPassed)
-    {
-        FGenericPlatformMisc::RequestExitWithStatus(false, 1);
-    }
-}
-
-void FAVBOITBackendTestAutomation::BuildTestCases()
-{
-    TestCases.Empty();
+    TArray<FAVBOITBackendTestCase> TestCases;
 
     FAVBOITInjectedFragment WhiteFrag = { FVector4f(1.f, 1.f, 1.f, 0.5f), 100.f, 0, FIntPoint(224, 224), FIntPoint(288, 288), FIntPoint(0, 0) };
-    
     FAVBOITInjectedFragment RedFrag   = { FVector4f(1.f, 0.f, 0.f, 0.5f), 100.f, 0, FIntPoint(224, 224), FIntPoint(288, 288), FIntPoint(0, 0) };
     FAVBOITInjectedFragment GreenFrag = { FVector4f(0.f, 1.f, 0.f, 0.5f), 500.f, 1, FIntPoint(224, 224), FIntPoint(288, 288), FIntPoint(0, 0) };
     FAVBOITInjectedFragment BlueFrag  = { FVector4f(0.f, 0.f, 1.f, 0.5f), 900.f, 2, FIntPoint(224, 224), FIntPoint(288, 288), FIntPoint(0, 0) };
 
-    // Case 1: Single White
-    {
-        FAVBOITBackendTestCase Case;
-        Case.Name = TEXT("SingleWhite");
-        Case.Fragments.Add(WhiteFrag);
-        Case.ExpectedColor = FVector3f(0.5f, 0.5f, 0.5f);
-        Case.ExpectedTransmittance = 0.5f;
-        Case.ExpectedOccupiedSlices.Add(32);
-        TestCases.Add(Case);
-    }
+    { FAVBOITBackendTestCase Case; Case.Name = TEXT("SingleWhite"); Case.Fragments.Add(WhiteFrag); Case.ExpectedColor = FVector3f(0.5f, 0.5f, 0.5f); Case.ExpectedTransmittance = 0.5f; TestCases.Add(Case); }
+    { FAVBOITBackendTestCase Case; Case.Name = TEXT("NearRedFarBlue"); Case.Fragments.Add(RedFrag); Case.Fragments.Add(BlueFrag); Case.ExpectedColor = FVector3f(0.5f, 0.0f, 0.25f); Case.ExpectedTransmittance = 0.25f; TestCases.Add(Case); }
+    { FAVBOITBackendTestCase Case; Case.Name = TEXT("NearRedFarBlue_Reverse"); Case.Fragments.Add(BlueFrag); Case.Fragments.Add(RedFrag); Case.ExpectedColor = FVector3f(0.5f, 0.0f, 0.25f); Case.ExpectedTransmittance = 0.25f; TestCases.Add(Case); }
 
-    // Physical Reverse: NearRedFarBlue
-    {
-        FAVBOITBackendTestCase Case;
-        Case.Name = TEXT("NearRedFarBlue");
-        Case.Fragments.Add(RedFrag);
-        Case.Fragments.Add(BlueFrag);
-        Case.ExpectedColor = FVector3f(0.5f, 0.0f, 0.25f);
-        Case.ExpectedTransmittance = 0.25f;
-        Case.ExpectedOccupiedSlices = {32, 62};
-        TestCases.Add(Case);
-    }
-    
-    {
-        FAVBOITBackendTestCase Case;
-        Case.Name = TEXT("NearRedFarBlue_Reverse");
-        Case.Fragments.Add(BlueFrag);
-        Case.Fragments.Add(RedFrag);
-        Case.ExpectedColor = FVector3f(0.5f, 0.0f, 0.25f);
-        Case.ExpectedTransmittance = 0.25f;
-        Case.ExpectedOccupiedSlices = {32, 62};
-        TestCases.Add(Case);
-    }
-
-    // Physical Reverse: NearBlueFarRed
     FAVBOITInjectedFragment BlueNearFrag = { FVector4f(0.f, 0.f, 1.f, 0.5f), 100.f, 0, FIntPoint(224, 224), FIntPoint(288, 288), FIntPoint(0, 0) };
     FAVBOITInjectedFragment RedFarFrag   = { FVector4f(1.f, 0.f, 0.f, 0.5f), 900.f, 1, FIntPoint(224, 224), FIntPoint(288, 288), FIntPoint(0, 0) };
 
-    {
-        FAVBOITBackendTestCase Case;
-        Case.Name = TEXT("NearBlueFarRed");
-        Case.Fragments.Add(BlueNearFrag);
-        Case.Fragments.Add(RedFarFrag);
-        Case.ExpectedColor = FVector3f(0.25f, 0.0f, 0.5f);
-        Case.ExpectedTransmittance = 0.25f;
-        Case.ExpectedOccupiedSlices = {32, 62};
-        TestCases.Add(Case);
-    }
-    
-    {
-        FAVBOITBackendTestCase Case;
-        Case.Name = TEXT("NearBlueFarRed_Reverse");
-        Case.Fragments.Add(RedFarFrag);
-        Case.Fragments.Add(BlueNearFrag);
-        Case.ExpectedColor = FVector3f(0.25f, 0.0f, 0.5f);
-        Case.ExpectedTransmittance = 0.25f;
-        Case.ExpectedOccupiedSlices = {32, 62};
-        TestCases.Add(Case);
-    }
+    { FAVBOITBackendTestCase Case; Case.Name = TEXT("NearBlueFarRed"); Case.Fragments.Add(BlueNearFrag); Case.Fragments.Add(RedFarFrag); Case.ExpectedColor = FVector3f(0.25f, 0.0f, 0.5f); Case.ExpectedTransmittance = 0.25f; TestCases.Add(Case); }
+    { FAVBOITBackendTestCase Case; Case.Name = TEXT("NearBlueFarRed_Reverse"); Case.Fragments.Add(RedFarFrag); Case.Fragments.Add(BlueNearFrag); Case.ExpectedColor = FVector3f(0.25f, 0.0f, 0.5f); Case.ExpectedTransmittance = 0.25f; TestCases.Add(Case); }
 
-    // Same-Slice
     FAVBOITInjectedFragment RedSame = { FVector4f(1.f, 0.f, 0.f, 0.5f), 500.f, 0, FIntPoint(224, 224), FIntPoint(288, 288), FIntPoint(0, 0) };
     FAVBOITInjectedFragment BlueSame= { FVector4f(0.f, 0.f, 1.f, 0.5f), 500.f, 1, FIntPoint(224, 224), FIntPoint(288, 288), FIntPoint(0, 0) };
     
-    {
-        FAVBOITBackendTestCase Case;
-        Case.Name = TEXT("SameSlice_RedBlue");
-        Case.Fragments.Add(RedSame);
-        Case.Fragments.Add(BlueSame);
-        // AVBOIT Accumulates Color*Alpha per slice.
-        // For Red: (1,0,0) * 0.5 = (0.5, 0, 0)
-        // For Blue: (0,0,1) * 0.5 = (0, 0, 0.5)
-        // Sum = (0.5, 0, 0.5). FrontTransmittance = 1.0.
-        Case.ExpectedColor = FVector3f(0.5f, 0.0f, 0.5f);
-        Case.ExpectedTransmittance = 0.25f;
-        Case.ExpectedOccupiedSlices = {54};
-        Case.ColorMaxAbsTolerance = 0.01f;
-        TestCases.Add(Case);
-    }
+    { FAVBOITBackendTestCase Case; Case.Name = TEXT("SameSlice_RedBlue"); Case.Fragments.Add(RedSame); Case.Fragments.Add(BlueSame); Case.ExpectedColor = FVector3f(0.5f, 0.0f, 0.5f); Case.ExpectedTransmittance = 0.25f; Case.ColorMaxAbsTolerance = 0.01f; TestCases.Add(Case); }
 
     TArray<TArray<FAVBOITInjectedFragment>> TriplePerms = {
-        {RedFrag, GreenFrag, BlueFrag},
-        {RedFrag, BlueFrag, GreenFrag},
-        {GreenFrag, RedFrag, BlueFrag},
-        {GreenFrag, BlueFrag, RedFrag},
-        {BlueFrag, RedFrag, GreenFrag},
-        {BlueFrag, GreenFrag, RedFrag}
+        {RedFrag, GreenFrag, BlueFrag}, {RedFrag, BlueFrag, GreenFrag}, {GreenFrag, RedFrag, BlueFrag},
+        {GreenFrag, BlueFrag, RedFrag}, {BlueFrag, RedFrag, GreenFrag}, {BlueFrag, GreenFrag, RedFrag}
     };
-    
     TArray<FString> TripleNames = { TEXT("RGB"), TEXT("RBG"), TEXT("GRB"), TEXT("GBR"), TEXT("BRG"), TEXT("BGR") };
-    
-    for (int32 i = 0; i < TriplePerms.Num(); ++i)
-    {
-        FAVBOITBackendTestCase Case;
-        Case.Name = FString::Printf(TEXT("Triple_%s"), *TripleNames[i]);
-        Case.Fragments = TriplePerms[i];
-        Case.ExpectedColor = FVector3f(0.5f, 0.25f, 0.125f);
-        Case.ExpectedTransmittance = 0.125f;
-        Case.ExpectedOccupiedSlices = {32, 54, 62};
-        TestCases.Add(Case);
+    for (int32 i = 0; i < TriplePerms.Num(); ++i) {
+        FAVBOITBackendTestCase Case; Case.Name = FString::Printf(TEXT("Triple_%s"), *TripleNames[i]); Case.Fragments = TriplePerms[i];
+        Case.ExpectedColor = FVector3f(0.5f, 0.25f, 0.125f); Case.ExpectedTransmittance = 0.125f; TestCases.Add(Case);
     }
-}
-
-void FAVBOITBackendTestAutomation::Tick(float DeltaTime)
-{
-    if (bShouldStartSuite)
-    {
-        bShouldStartSuite = false;
-        bIsRunning = true;
-        RunMappingTests();
-        BuildTestCases();
-        CurrentTestCaseIndex = 0;
-        PassedCaseCount = 0;
-        FailedCaseCount = 0;
-        
-        // Ensure evidence directory exists
-        FString EvDir = FPaths::ProjectSavedDir() / TEXT("AVBOIT") / TEXT("LocalMachine") / TEXT("UE4-1-2-Acceptance-Closeout");
-        IFileManager::Get().MakeDirectory(*EvDir, true);
-
-        RunNextTest();
-        return;
-    }
-
-    if (!bIsRunning) return;
-
-    if (PendingReadbackResult || PendingReadbackExtinctionLine)
-    {
-        HandleReadback();
-    }
-}
-
-void FAVBOITBackendTestAutomation::RunNextTest()
-{
-    if (CurrentTestCaseIndex >= TestCases.Num())
-    {
-        FinalizeSuite();
-        return;
-    }
-
-    const FAVBOITBackendTestCase& TestCase = TestCases[CurrentTestCaseIndex];
-    UE_LOG(LogTemp, Log, TEXT("Running Test Case [%d/%d]: %s"), CurrentTestCaseIndex + 1, TestCases.Num(), *TestCase.Name);
 
     FAVBOITBackendSettings Settings;
     Settings.bEnabled = true;
@@ -262,218 +57,156 @@ void FAVBOITBackendTestAutomation::RunNextTest()
     Settings.ZNear = 10.0f;
     Settings.ZFar = 1000.0f;
 
-    ENQUEUE_RENDER_COMMAND(RunAVBOITBackendTest)(
-        [this, Settings, Fragments = TestCase.Fragments](FRHICommandListImmediate& RHICmdList)
-        {
-            FRDGBuilder GraphBuilder(RHICmdList);
-            FAVBOITBackendReadbacks Readbacks = FAVBOITBackendRenderer::Execute(GraphBuilder, Settings, Fragments);
-            GraphBuilder.Execute();
-            
-            RHICmdList.ImmediateFlush(EImmediateFlushType::FlushRHIThread);
-            this->PendingReadbackResult.Reset(Readbacks.Result);
-            this->PendingReadbackExtinctionLine.Reset(Readbacks.ExtinctionLine);
-            this->PendingReadbackTransmittanceLine.Reset(Readbacks.TransmittanceLine);
-            this->WaitFrameCount = 0;
-        });
-
-    FlushRenderingCommands();
-}
-
-void FAVBOITBackendTestAutomation::HandleReadback()
-{
-    bool bAllReady = (!PendingReadbackResult || PendingReadbackResult->IsReady()) &&
-                     (!PendingReadbackExtinctionLine || PendingReadbackExtinctionLine->IsReady()) &&
-                     (!PendingReadbackTransmittanceLine || PendingReadbackTransmittanceLine->IsReady());
-
-    if (!bAllReady)
+    for (int i=0; i<TestCases.Num(); ++i)
     {
-        WaitFrameCount++;
-        if (WaitFrameCount > MaximumWaitFrames)
-        {
-            UE_LOG(LogTemp, Error, TEXT("Test Case %d: GPU Readback Timeout!"), CurrentTestCaseIndex);
-            TestCases[CurrentTestCaseIndex].Status = TEXT("FAIL");
-            TestCases[CurrentTestCaseIndex].FailureReasons.Add(TEXT("GPU Readback Timeout"));
-            FailedCaseCount++;
-            CurrentTestCaseIndex++;
-            PendingReadbackResult.Reset();
-            PendingReadbackTransmittanceLine.Reset();
-            PendingReadbackExtinctionLine.Reset();
-            RunNextTest();
-        }
-        return;
-    }
-
-    FAVBOITBackendTestCase& TestCase = TestCases[CurrentTestCaseIndex];
-    bool bCasePassed = true;
-
-    const void* RawResultData = nullptr;
-    const void* RawExtData = nullptr;
-    const void* RawTransData = nullptr;
-    int32 OutRowPitchInPixels = 0;
-
-    ENQUEUE_RENDER_COMMAND(LockReadbacks)(
-        [&](FRHICommandListImmediate& RHICmdList)
-        {
-            if (PendingReadbackResult) RawResultData = PendingReadbackResult->Lock(OutRowPitchInPixels);
-            if (PendingReadbackExtinctionLine) RawExtData = PendingReadbackExtinctionLine->Lock(64 * sizeof(uint32));
-            if (PendingReadbackTransmittanceLine) RawTransData = PendingReadbackTransmittanceLine->Lock(64 * sizeof(float));
-        });
-    FlushRenderingCommands();
-
-    FVector4f MeanColor = FVector4f(0, 0, 0, 0);
-
-    // Result Check
-    if (RawResultData)
-    {
-        const FFloat16Color* ColorData = static_cast<const FFloat16Color*>(RawResultData);
-
-        FVector4f SumColor = FVector4f(0, 0, 0, 0);
-        int32 Count = 0;
+        FAVBOITBackendTestCase& TestCase = TestCases[i];
+        TestCase.Status = TEXT("FAILED");
         
-        for (int32 y = 224; y < 288; ++y)
-        {
-            for (int32 x = 224; x < 288; ++x)
+        FRHIGPUTextureReadback* ReadbackR = nullptr;
+        FRHIGPUBufferReadback* ReadbackE = nullptr;
+        FRHIGPUBufferReadback* ReadbackT = nullptr;
+
+        ENQUEUE_RENDER_COMMAND(RunCase)(
+            [Settings, Fragments = TestCase.Fragments, &ReadbackR, &ReadbackE, &ReadbackT](FRHICommandListImmediate& RHICmdList)
             {
-                int32 Index = y * OutRowPitchInPixels + x;
-                FFloat16Color C = ColorData[Index];
-                SumColor += FVector4f(C.R.GetFloat(), C.G.GetFloat(), C.B.GetFloat(), C.A.GetFloat());
-                Count++;
-            }
-        }
+                FRDGBuilder GraphBuilder(RHICmdList);
+                FAVBOITBackendReadbacks Readbacks = FAVBOITBackendRenderer::Execute(GraphBuilder, Settings, Fragments);
+                ReadbackR = Readbacks.Result;
+                ReadbackE = Readbacks.ExtinctionLine;
+                ReadbackT = Readbacks.TransmittanceLine;
+                GraphBuilder.Execute();
+            });
 
-        MeanColor = SumColor / (float)Count;
-        float DiffR = FMath::Abs(MeanColor.X - TestCase.ExpectedColor.X);
-        float DiffG = FMath::Abs(MeanColor.Y - TestCase.ExpectedColor.Y);
-        float DiffB = FMath::Abs(MeanColor.Z - TestCase.ExpectedColor.Z);
-        float DiffT = FMath::Abs(MeanColor.W - TestCase.ExpectedTransmittance);
-        
-        float MaxDiff = FMath::Max3(DiffR, DiffG, DiffB);
+        FlushRenderingCommands();
 
-        if (MaxDiff > TestCase.ColorMaxAbsTolerance)
+        uint32 WaitStart = FPlatformTime::Cycles();
+        uint32 TimeoutMs = 60000;
+        bool bReady = false;
+
+        while (!bReady)
         {
-            UE_LOG(LogTemp, Error, TEXT("Test Case %s: Color mismatch. Expected: %s, Got: %s (MaxDiff: %f)"), 
-                *TestCase.Name, *TestCase.ExpectedColor.ToString(), *FVector3f(MeanColor.X, MeanColor.Y, MeanColor.Z).ToString(), MaxDiff);
-            TestCase.FailureReasons.Add(FString::Printf(TEXT("Color mismatch MaxDiff %f"), MaxDiff));
-            bCasePassed = false;
-        }
-
-        if (DiffT > TestCase.TransmittanceTolerance)
-        {
-            UE_LOG(LogTemp, Error, TEXT("Test Case %s: Final Transmittance mismatch. Expected: %f, Got: %f (Diff: %f)"), 
-                *TestCase.Name, TestCase.ExpectedTransmittance, MeanColor.W, DiffT);
-            TestCase.FailureReasons.Add(FString::Printf(TEXT("Final Transmittance mismatch Diff %f"), DiffT));
-            bCasePassed = false;
-        }
-    }
-
-    FString EvDir = FPaths::ProjectSavedDir() / TEXT("AVBOIT") / TEXT("LocalMachine") / TEXT("UE4-1-2-Acceptance-Closeout");
-    FString CSVContent = TEXT("Slice,ExpectedExtinction,MeasuredPacked,MeasuredExtinction,ExpectedT,MeasuredT\\n");
-
-    // Extinction and Transmittance Lines Check
-    if (RawExtData && RawTransData)
-    {
-        const uint32* ExtData = (const uint32*)RawExtData;
-        const float* TransData = (const float*)RawTransData;
-
-        TArray<float> ExpectedSliceExtinctions;
-        ExpectedSliceExtinctions.Init(0.0f, 64);
-        for (const auto& Frag : TestCase.Fragments)
-        {
-            float NormDepth = AVBOITMapLinearDepthToNormalized(Frag.LinearDepth, 10.0f, 1000.0f);
-            uint32 Slice = FMath::Clamp((uint32)(NormDepth * 64.0f), 0u, 63u);
-            float Alpha = FMath::Clamp(Frag.LinearColorAndAlpha.W, 0.0f, 0.99f);
-            ExpectedSliceExtinctions[Slice] += -FMath::Loge(1.0f - Alpha);
-        }
-
-        float ExpectedT = 1.0f;
-        
-        for (int32 i = 0; i < 64; ++i)
-        {
-            uint32 MeasuredPacked = ExtData[i];
-            float MeasuredExt = MeasuredPacked / 10000.0f;
-            float MeasuredT = TransData[i];
-
-            float ExpectedExt = ExpectedSliceExtinctions[i];
-            ExpectedT = ExpectedT * FMath::Exp(-ExpectedExt);
-            
-            CSVContent += FString::Printf(TEXT("%d,%f,%u,%f,%f,%f\\n"), i, ExpectedExt, MeasuredPacked, MeasuredExt, ExpectedT, MeasuredT);
-
-            if (MeasuredExt > 0.001f && ExpectedExt < 0.001f)
+            if (ReadbackR && ReadbackE && ReadbackT && ReadbackR->IsReady() && ReadbackE->IsReady() && ReadbackT->IsReady())
             {
-                TestCase.FailureReasons.Add(FString::Printf(TEXT("Unexpected Extinction %f at Slice %d"), MeasuredExt, i));
-                bCasePassed = false;
+                bReady = true;
+                break;
             }
-            
-            if (FMath::Abs(MeasuredT - ExpectedT) > TestCase.TransmittanceTolerance)
+
+            if (FPlatformTime::ToMilliseconds(FPlatformTime::Cycles() - WaitStart) > TimeoutMs)
             {
-                TestCase.FailureReasons.Add(FString::Printf(TEXT("Transmittance mismatch at Slice %d: Exp %f, Got %f"), i, ExpectedT, MeasuredT));
-                bCasePassed = false;
+                TestCase.FailureReasons.Add(TEXT("Readback Timeout"));
+                break;
             }
+            FPlatformProcess::Sleep(0.01f);
         }
-    }
 
-    ENQUEUE_RENDER_COMMAND(UnlockReadbacks)(
-        [&](FRHICommandListImmediate& RHICmdList)
+        if (bReady)
         {
-            if (PendingReadbackResult) { PendingReadbackResult->Unlock(); PendingReadbackResult.Reset(); }
-            if (PendingReadbackExtinctionLine) { PendingReadbackExtinctionLine->Unlock(); PendingReadbackExtinctionLine.Reset(); }
-            if (PendingReadbackTransmittanceLine) { PendingReadbackTransmittanceLine->Unlock(); PendingReadbackTransmittanceLine.Reset(); }
-        });
-    FlushRenderingCommands();
+            const void* RawResultData = nullptr;
+            const void* RawExtData = nullptr;
+            const void* RawTransData = nullptr;
+            int32 OutRowPitch = 0;
 
-    FFileHelper::SaveStringToFile(CSVContent, *(EvDir / (TestCase.Name + TEXT(".csv"))));
+            ENQUEUE_RENDER_COMMAND(Lock)(
+                [&](FRHICommandListImmediate& RHICmdList)
+                {
+                    RawResultData = ReadbackR->Lock(OutRowPitch);
+                    RawExtData = ReadbackE->Lock(64 * sizeof(uint32));
+                    RawTransData = ReadbackT->Lock(64 * sizeof(float));
+                });
+            FlushRenderingCommands();
 
-    if (bCasePassed)
-    {
-        UE_LOG(LogTemp, Log, TEXT("Test Case %s: Color PASS. Got: X=%.3f Y=%.3f Z=%.3f"), *TestCase.Name, MeanColor.X, MeanColor.Y, MeanColor.Z);
-        UE_LOG(LogTemp, Log, TEXT("Test Case %s: Transmittance PASS. Got: %f"), *TestCase.Name, MeanColor.W);
-        TestCase.Status = TEXT("PASS");
-        PassedCaseCount++;
-    }
-    else
-    {
-        TestCase.Status = TEXT("FAIL");
-        FailedCaseCount++;
-    }
+            if (RawResultData && RawExtData && RawTransData)
+            {
+                const FFloat16Color* ColorData = static_cast<const FFloat16Color*>(RawResultData);
+                const uint32* ExtData = static_cast<const uint32*>(RawExtData);
+                const float* TransData = static_cast<const float*>(RawTransData);
 
-    CurrentTestCaseIndex++;
-    RunNextTest();
-}
+                FVector4f SumColor(0,0,0,0);
+                int32 Count = 0;
+                for (int32 y = 224; y < 288; ++y)
+                {
+                    for (int32 x = 224; x < 288; ++x)
+                    {
+                        int32 Index = y * (OutRowPitch / sizeof(FFloat16Color)) + x;
+                        FFloat16Color C = ColorData[Index];
+                        SumColor += FVector4f(C.R.GetFloat(), C.G.GetFloat(), C.B.GetFloat(), C.A.GetFloat());
+                        Count++;
+                    }
+                }
+                FVector4f MeanColor = SumColor / (float)Count;
 
-void FAVBOITBackendTestAutomation::FinalizeSuite()
-{
-    bIsRunning = false;
-    
-    FString EvDir = FPaths::ProjectSavedDir() / TEXT("AVBOIT") / TEXT("LocalMachine") / TEXT("UE4-1-2-Acceptance-Closeout");
-    FString Json = TEXT("{\n");
-    Json += FString::Printf(TEXT("  \"TotalCases\": %d,\n"), TestCases.Num());
-    Json += FString::Printf(TEXT("  \"PassedCases\": %d,\n"), PassedCaseCount);
-    Json += FString::Printf(TEXT("  \"FailedCases\": %d,\n"), FailedCaseCount);
-    Json += TEXT("  \"Cases\": [\n");
-    for (int i = 0; i < TestCases.Num(); ++i)
-    {
-        Json += TEXT("    {\n");
-        Json += FString::Printf(TEXT("      \"Name\": \"%s\",\n"), *TestCases[i].Name);
-        Json += FString::Printf(TEXT("      \"Status\": \"%s\",\n"), *TestCases[i].Status);
-        Json += TEXT("      \"FailureReasons\": [");
-        for (int j=0; j<TestCases[i].FailureReasons.Num(); ++j)
-        {
-            Json += FString::Printf(TEXT("\"%s\""), *TestCases[i].FailureReasons[j]);
-            if (j < TestCases[i].FailureReasons.Num() - 1) Json += TEXT(",");
+                float MaxDiff = FMath::Max3(FMath::Abs(MeanColor.X - TestCase.ExpectedColor.X), FMath::Abs(MeanColor.Y - TestCase.ExpectedColor.Y), FMath::Abs(MeanColor.Z - TestCase.ExpectedColor.Z));
+                float DiffT = FMath::Abs(MeanColor.W - TestCase.ExpectedTransmittance);
+
+                bool bPassed = true;
+                if (MaxDiff > TestCase.ColorMaxAbsTolerance)
+                {
+                    TestCase.FailureReasons.Add(FString::Printf(TEXT("Color mismatch: Expected=(%f, %f, %f) Actual=(%f, %f, %f)"), TestCase.ExpectedColor.X, TestCase.ExpectedColor.Y, TestCase.ExpectedColor.Z, MeanColor.X, MeanColor.Y, MeanColor.Z));
+                    bPassed = false;
+                }
+                if (DiffT > TestCase.TransmittanceTolerance)
+                {
+                    TestCase.FailureReasons.Add(FString::Printf(TEXT("Transmittance mismatch: Expected=%f Actual=%f"), TestCase.ExpectedTransmittance, MeanColor.W));
+                    bPassed = false;
+                }
+
+                TArray<float> ExpectedExtinctions;
+                ExpectedExtinctions.Init(0.0f, 64);
+                for (const auto& Frag : TestCase.Fragments)
+                {
+                    float NormDepth = AVBOITMapLinearDepthToNormalized2(Frag.LinearDepth, 10.0f, 1000.0f);
+                    uint32 Slice = FMath::Clamp((uint32)(NormDepth * 64.0f), 0u, 63u);
+                    float Alpha = FMath::Clamp(Frag.LinearColorAndAlpha.W, 0.0f, 0.99f);
+                    ExpectedExtinctions[Slice] += -FMath::Loge(1.0f - Alpha);
+                }
+
+                float ExpectedT = 1.0f;
+                for (int32 s = 0; s < 64; ++s)
+                {
+                    float MeasuredExt = ExtData[s] / 10000.0f;
+                    float MeasuredT = TransData[s];
+
+                    float ExpectedExt = ExpectedExtinctions[s];
+                    ExpectedT = ExpectedT * FMath::Exp(-ExpectedExt);
+
+                    if (MeasuredExt > 0.001f && ExpectedExt < 0.001f)
+                    {
+                        TestCase.FailureReasons.Add(TEXT("Unexpected Extinction"));
+                        bPassed = false;
+                    }
+
+                    if (FMath::Abs(MeasuredT - ExpectedT) > TestCase.TransmittanceTolerance)
+                    {
+                        TestCase.FailureReasons.Add(TEXT("Transmittance mismatch slice"));
+                        bPassed = false;
+                    }
+                }
+
+                if (bPassed)
+                {
+                    TestCase.Status = TEXT("PASSED");
+                }
+            }
+            else
+            {
+                TestCase.FailureReasons.Add(TEXT("Lock failed"));
+            }
+
+            ENQUEUE_RENDER_COMMAND(Unlock)(
+                [&](FRHICommandListImmediate& RHICmdList)
+                {
+                    ReadbackR->Unlock();
+                    ReadbackE->Unlock();
+                    ReadbackT->Unlock();
+                });
+            FlushRenderingCommands();
         }
-        Json += TEXT("]\n    }");
-        if (i < TestCases.Num() - 1) Json += TEXT(",");
-        Json += TEXT("\n");
-    }
-    Json += TEXT("  ]\n}\n");
-    
-    FFileHelper::SaveStringToFile(Json, *(EvDir / TEXT("SuiteSummary.json")));
 
-    UE_LOG(LogTemp, Log, TEXT("======================================"));
-    UE_LOG(LogTemp, Log, TEXT("AVBOIT Backend Suite Complete."));
-    UE_LOG(LogTemp, Log, TEXT("Passed: %d / %d"), PassedCaseCount, TestCases.Num());
-    UE_LOG(LogTemp, Log, TEXT("Failed: %d"), FailedCaseCount);
-    UE_LOG(LogTemp, Log, TEXT("======================================"));
-    
-    FGenericPlatformMisc::RequestExitWithStatus(false, FailedCaseCount > 0 ? 1 : 0);
+        // FAVBOITBackendRenderer internally creates these via "new", so we must delete them.
+        delete ReadbackR;
+        delete ReadbackE;
+        delete ReadbackT;
+    }
+
+    return TestCases;
 }

@@ -120,6 +120,9 @@ FAVBOITRasterPassOutputs FAVBOITRasterRenderer::AddCorePasses(
 	{
 		auto* PassParameters = GraphBuilder.AllocParameters<FAVBOITClearCS::FParameters>();
 		PassParameters->ViewResolution = FVector2f(ViewRect.Width(), ViewRect.Height());
+		PassParameters->ZNear = 10.0f;
+		PassParameters->ZFar = 1000.0f;
+		PassParameters->FragmentCount = 0;
 		PassParameters->OutExtinctionVolume = GraphBuilder.CreateUAV(Outputs.ExtinctionVolume);
 		PassParameters->OutTransmittanceVolume = GraphBuilder.CreateUAV(Outputs.TransmittanceVolume);
 		PassParameters->OutResultTexture = GraphBuilder.CreateUAV(Outputs.ColorAccumulation);
@@ -161,6 +164,14 @@ FAVBOITRasterPassOutputs FAVBOITRasterRenderer::AddCorePasses(
 			PSParams->ColorAndAlpha = FVector4f(Data.Color.R, Data.Color.G, Data.Color.B, Data.Alpha);
 			PSParams->ViewRectMin = ViewRectMin;
 			PSParams->OutExtinctionVolume = GraphBuilder.CreateUAV(Outputs.ExtinctionVolume);
+			PSParams->DebugPixel = Inputs.DebugPixel;
+			
+			if (Inputs.FragmentCoverageCounter != nullptr && Inputs.RasterDebugPixelBuffer != nullptr)
+			{
+				PSParams->FragmentCoverageCounter = GraphBuilder.CreateUAV(Inputs.FragmentCoverageCounter, PF_R32_UINT);
+				PSParams->OutDebugPixelBuffer = GraphBuilder.CreateUAV(Inputs.RasterDebugPixelBuffer);
+			}
+
 			PSParams->RenderTargets.DepthStencil = FDepthStencilBinding(SceneDepthTexture, ERenderTargetLoadAction::ELoad, FExclusiveDepthStencil::DepthRead_StencilNop);
 			SplatPSParams.Add(PSParams);
 
@@ -188,7 +199,15 @@ FAVBOITRasterPassOutputs FAVBOITRasterRenderer::AddCorePasses(
 
 		ClearUnusedGraphResources(PixelShader, PassParameters);
 
-		PassParameters->RenderTargets[0] = FRenderTargetBinding(Outputs.ColorAccumulation, ERenderTargetLoadAction::ELoad);
+		FRDGTextureDesc DummyDesc = FRDGTextureDesc::Create2D(
+			Outputs.ColorAccumulation->Desc.Extent,
+			PF_R8G8B8A8,
+			FClearValueBinding::None,
+			TexCreate_RenderTargetable | TexCreate_ShaderResource
+		);
+		FRDGTextureRef DummyRT = GraphBuilder.CreateTexture(DummyDesc, TEXT("AVBOIT.DummySplatRT"));
+
+		PassParameters->RenderTargets[0] = FRenderTargetBinding(DummyRT, ERenderTargetLoadAction::ENoAction);
 		PassParameters->RenderTargets.DepthStencil = FDepthStencilBinding(SceneDepthTexture, ERenderTargetLoadAction::ELoad, FExclusiveDepthStencil::DepthRead_StencilNop);
 
 		GraphBuilder.AddPass(
@@ -202,7 +221,7 @@ FAVBOITRasterPassOutputs FAVBOITRasterRenderer::AddCorePasses(
 			FGraphicsPipelineStateInitializer GraphicsPSOInit;
 			RHICmdList.ApplyCachedRenderTargets(GraphicsPSOInit);
 
-			GraphicsPSOInit.BlendState = TStaticBlendState<>::GetRHI();
+			GraphicsPSOInit.BlendState = TStaticBlendState<CW_NONE>::GetRHI();
 			GraphicsPSOInit.RasterizerState = TStaticRasterizerState<FM_Solid, CM_None>::GetRHI();
 			// Depth Test Enabled, Write Disabled. Reverse-Z means GreaterEqual.
 			GraphicsPSOInit.DepthStencilState = TStaticDepthStencilState<false, CF_DepthNearOrEqual>::GetRHI();
@@ -228,6 +247,10 @@ FAVBOITRasterPassOutputs FAVBOITRasterRenderer::AddCorePasses(
 	// Pass 3: Integrate
 	{
 		auto* PassParameters = GraphBuilder.AllocParameters<FAVBOITIntegrateCS::FParameters>();
+		PassParameters->ViewResolution = FVector2f(TextureExtent.X, TextureExtent.Y);
+		PassParameters->ZNear = 10.0f; // Note: Raster renderer doesn't strictly use ZNear/ZFar in IntegrateCS, but it must be bound
+		PassParameters->ZFar = 1000.0f;
+		PassParameters->FragmentCount = 0;
 		PassParameters->InExtinctionVolume = GraphBuilder.CreateSRV(Outputs.ExtinctionVolume);
 		PassParameters->OutTransmittanceVolume = GraphBuilder.CreateUAV(Outputs.TransmittanceVolume);
 

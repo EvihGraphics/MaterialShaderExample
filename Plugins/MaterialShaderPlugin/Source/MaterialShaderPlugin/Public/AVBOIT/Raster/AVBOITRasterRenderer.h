@@ -30,6 +30,8 @@ struct FAVBOITRasterPassInputs
 	FRDGTextureRef SceneDepth;
 	FRDGTextureRef SceneColor;
 	FRDGBufferRef FragmentCoverageCounter; // Testing
+	FRDGBufferRef RasterDebugPixelBuffer; // Testing
+	FIntPoint DebugPixel; // Testing
 	TArray<FAVBOITRasterDrawData> DrawData;
 };
 

@@ -10,6 +10,14 @@
 // Splat Shaders
 //
 
+struct FAVBOITRasterDebugPixelData
+{
+	float LinearViewDepth;
+	float NormalizedDepth;
+	uint32 Slice;
+	uint32 WriteFlag;
+};
+
 class FAVBOITRasterSplatVS : public FGlobalShader
 {
 	DECLARE_GLOBAL_SHADER(FAVBOITRasterSplatVS);
@@ -39,8 +47,10 @@ class FAVBOITRasterSplatPS : public FGlobalShader
 		SHADER_PARAMETER(FVector2f, ViewResolution)
 		SHADER_PARAMETER(FVector4f, ColorAndAlpha)
 		SHADER_PARAMETER(FIntVector4, ViewRectMin)
+		SHADER_PARAMETER(FIntPoint, DebugPixel)
 		SHADER_PARAMETER_RDG_BUFFER_UAV(RWStructuredBuffer<uint>, OutExtinctionVolume)
 		SHADER_PARAMETER_RDG_BUFFER_UAV(RWBuffer<uint>, FragmentCoverageCounter)
+		SHADER_PARAMETER_RDG_BUFFER_UAV(RWStructuredBuffer<FAVBOITRasterDebugPixelData>, OutDebugPixelBuffer)
 		RENDER_TARGET_BINDING_SLOTS()
 	END_SHADER_PARAMETER_STRUCT()
 
@@ -140,9 +150,7 @@ class MATERIALSHADEREXAMPLE_API FAVBOITRasterDebugExtractCS : public FGlobalShad
 		SHADER_PARAMETER_RDG_BUFFER_UAV(RWStructuredBuffer<FAVBOITRasterDebugPayload>, OutDebugPayload)
 
 		SHADER_PARAMETER(FIntPoint, DebugPixel)
-		SHADER_PARAMETER(float, LinearViewDepth)
-		SHADER_PARAMETER(float, NormalizedDepth)
-		SHADER_PARAMETER(uint32, Slice)
+		SHADER_PARAMETER_RDG_BUFFER_SRV(StructuredBuffer<FAVBOITRasterDebugPixelData>, RasterDebugPixelBuffer)
 		SHADER_PARAMETER_RDG_BUFFER_SRV(Buffer<uint>, FragmentCoverageCounter)
 		SHADER_PARAMETER(FIntPoint, TextureExtent)
 		SHADER_PARAMETER(FIntPoint, ViewRectMin)

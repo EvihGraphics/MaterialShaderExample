@@ -1,4 +1,4 @@
-param (
+﻿param (
     [string]$ProjectPath = "$PWD\MaterialShaderDemo.uproject",
     [string]$UERoot = "D:\UE\UnrealEngine_Animation_Tech",
     [string]$BaseEvidenceRoot = "$PWD\LocalVisualResults\UE57\HIVE_4090x2\UE4-2A-1-H-1-Real-Headless-GPU",
@@ -21,12 +21,6 @@ New-Item -ItemType Directory -Force -Path "$EvidenceRoot\02_PluginDescriptorChec
 New-Item -ItemType Directory -Force -Path "$EvidenceRoot\03_Build" | Out-Null
 New-Item -ItemType Directory -Force -Path "$EvidenceRoot\04_ShaderCompile" | Out-Null
 New-Item -ItemType Directory -Force -Path "$EvidenceRoot\05_Synthetic" | Out-Null
-New-Item -ItemType Directory -Force -Path "$EvidenceRoot\06_VisibleWhite" | Out-Null
-New-Item -ItemType Directory -Force -Path "$EvidenceRoot\07_Occlusion" | Out-Null
-New-Item -ItemType Directory -Force -Path "$EvidenceRoot\08_NonBlackComposite" | Out-Null
-New-Item -ItemType Directory -Force -Path "$EvidenceRoot\09_DepthNear" | Out-Null
-New-Item -ItemType Directory -Force -Path "$EvidenceRoot\10_DepthMiddle" | Out-Null
-New-Item -ItemType Directory -Force -Path "$EvidenceRoot\11_DepthFar" | Out-Null
 New-Item -ItemType Directory -Force -Path "$EvidenceRoot\12_Trace" | Out-Null
 New-Item -ItemType Directory -Force -Path "$EvidenceRoot\13_Logs" | Out-Null
 New-Item -ItemType Directory -Force -Path "$EvidenceRoot\14_Acceptance" | Out-Null
@@ -36,6 +30,10 @@ New-Item -ItemType Directory -Force -Path "$EvidenceRoot\17_Acceptance" | Out-Nu
 $StartTime = Get-Date
 $ExitCode = 0
 $GitHead = (git rev-parse HEAD).Trim()
+
+function Get-SHA256($Path) {
+    return (Get-FileHash $Path -Algorithm SHA256).Hash
+}
 
 try {
     # 1. Environment & Git State
@@ -79,43 +77,80 @@ try {
             return
         }
         
-        # Verify Output
-        if (Test-Path "$EvidenceRoot\RUNNING.marker") {
-            Write-Host "RUNNING.marker still exists!"
-            $ExitCode = 5
-            return
-        }
+        # Check Markers
+        if (Test-Path "$EvidenceRoot\RUNNING.marker") { Write-Host "RUNNING.marker still exists!"; $ExitCode = 5; return }
+        if (-not (Test-Path "$EvidenceRoot\COMPLETED.marker")) { Write-Host "COMPLETED.marker missing!"; $ExitCode = 5; return }
 
-        # Verify JSON
+        # Check Synthetic
+        $SynthJsonPath = "$EvidenceRoot\05_Synthetic\SyntheticSummary.json"
+        if (-not (Test-Path $SynthJsonPath)) { Write-Host "Missing SyntheticSummary.json"; $ExitCode = 5; return }
+        $SynthJson = Get-Content $SynthJsonPath -Raw | ConvertFrom-Json
+        if ($SynthJson.FailedCases -ne 0 -or $SynthJson.Status -ne "PASSED" -or $SynthJson.RunId -ne $RunId) { Write-Host "Synthetic Failed"; $ExitCode = 5; return }
+
+        # Check Raster Summary
         $RasterJsonPath = "$EvidenceRoot\RasterDirectSummary.json"
-        if (-not (Test-Path $RasterJsonPath)) {
-            Write-Host "Missing RasterDirectSummary.json"
-            $ExitCode = 5
-            return
-        }
-        
-        $JsonContent = Get-Content $RasterJsonPath | ConvertFrom-Json
-        if ($JsonContent.RunId -ne $RunId -or $JsonContent.GpuReadbackPerformed -ne $true -or $JsonContent.RealRasterDrawPerformed -ne $true) {
-            Write-Host "JSON verification failed"
-            $ExitCode = 5
-            return
-        }
-        
-        # Verify Trace
-        if (-not (Test-Path $TracePath) -or (Get-Item $TracePath).Length -lt 65536) {
-            Write-Host "Trace file missing or too small"
+        if (-not (Test-Path $RasterJsonPath)) { Write-Host "Missing RasterDirectSummary.json"; $ExitCode = 5; return }
+        $RasterJson = Get-Content $RasterJsonPath -Raw | ConvertFrom-Json
+        if ($RasterJson.RunId -ne $RunId -or $RasterJson.GpuReadbackPerformed -ne $true -or $RasterJson.RealRasterDrawPerformed -ne $true -or $RasterJson.FailedCases -ne 0 -or $RasterJson.Status -ne "PASSED") {
+            Write-Host "Raster Summary Failed"
             $ExitCode = 5
             return
         }
 
-        # Log Scanning
+        # Check 6 Individual Cases
+        $Cases = @("VisibleWhite", "Occlusion", "NonBlackComposite", "DepthNear", "DepthMiddle", "DepthFar")
+        $Hashes = @{}
+        foreach ($c in $Cases) {
+            $CPath = "$EvidenceRoot\$c.json"
+            if (-not (Test-Path $CPath)) { Write-Host "Missing case json $CPath"; $ExitCode = 5; return }
+            $H = Get-SHA256 $CPath
+            if ($Hashes.ContainsKey($H)) { Write-Host "Case JSONs are identical! Forgery detected."; $ExitCode = 5; return }
+            $Hashes[$H] = $true
+
+            $CJson = Get-Content $CPath -Raw | ConvertFrom-Json
+            if ($CJson.Status -ne "PASSED" -or $CJson.Name -ne $c) { Write-Host "Case $c failed"; $ExitCode = 5; return }
+        }
+
+        # Check CSVs
+        $CSVs = @("VisibleWhite", "Occlusion", "DepthNear", "DepthMiddle", "DepthFar")
+        foreach ($c in $CSVs) {
+            $CsvPath = "$EvidenceRoot\${c}_ExtinctionTransmittance.csv"
+            if (-not (Test-Path $CsvPath)) { Write-Host "Missing CSV $CsvPath"; $ExitCode = 5; return }
+            $CsvLines = Get-Content $CsvPath
+            if ($CsvLines.Count -ne 65) { Write-Host "CSV line count != 65"; $ExitCode = 5; return }
+            if ($CsvLines[1] -match "1,2,3") { Write-Host "CSV contains fake 1,2,3 data"; $ExitCode = 5; return }
+        }
+
+        # Check Trace
+        if (-not (Test-Path $TracePath) -or (Get-Item $TracePath).Length -lt 65536) { Write-Host "Trace file missing or too small"; $ExitCode = 5; return }
+
+        # Runtime Error Scan
         $LogContent = Get-Content $LogPath -Raw
-        if ($LogContent -match "Fatal error|Assertion failed|Ensure condition failed|LogRHI: Error|LogD3D12RHI: Error|LogRenderer: Error|LogRenderGraph: Error|GPU crash|Device removed|Access violation") {
+        if ($LogContent -match "Fatal error|Assertion failed|Ensure condition failed|LogRHI: Error|LogD3D12RHI: Error|LogRenderer: Error|LogRenderGraph: Error|RDG validation|UAV overlap|GPU crash|Device removed|Access violation|Readback Timeout|\bNaN\b|\bInf\b") {
             Write-Host "Critical errors found in log!"
             $ExitCode = 5
             return
         }
-        
+
+        # Evidence Provenance Scan
+        $DirScanList = @(
+            "D:\Users\l3d\Documents\AVBOIT\MaterialShaderExample_AVBOIT\Plugins\MaterialShaderPlugin\Source",
+            $EvidenceRoot
+        )
+        foreach ($Dir in $DirScanList) {
+            $Files = Get-ChildItem -Path $Dir -File -Recurse
+            foreach ($F in $Files) {
+                # skip checking our own scanner script if it accidentally matches
+                if ($F.Extension -eq ".ps1") { continue }
+                $FContent = Get-Content $F.FullName -Raw
+                if ($FContent -match "Dummy evidence|stubbed evidence|placeholder result|fixed pass") {
+                    Write-Host "Provenance failed! Found forged evidence in $($F.FullName)"
+                    $ExitCode = 5
+                    return
+                }
+            }
+        }
+
         Write-Host "All checks passed."
     }
 

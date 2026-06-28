@@ -8,8 +8,21 @@ float4x4 WorldToClip;
 float4x4 WorldToView;
 
 float4 ColorAndAlpha;
+int2 DebugPixel;
+
+struct FAVBOITRasterDebugPixelData
+{
+	float LinearViewDepth;
+	float NormalizedDepth;
+	uint Slice;
+	uint WriteFlag;
+};
 
 RWStructuredBuffer<uint> OutExtinctionVolume;
+#if AVBOIT_TEST_COVERAGE
+RWBuffer<uint> FragmentCoverageCounter;
+RWStructuredBuffer<FAVBOITRasterDebugPixelData> OutDebugPixelBuffer;
+#endif
 
 void MainVS(
 	in float3 InLocalPosition : ATTRIBUTE0,
@@ -23,6 +36,7 @@ void MainVS(
 	Out.LinearViewDepth = ViewPos.z;
 }
 
+[earlydepthstencil]
 void MainPS(
 	in FAVBOITRasterInterpolants In,
 	out float4 OutDummy : SV_Target0)
@@ -40,7 +54,23 @@ void MainPS(
 	uint Packed = PackExtinction(Extinction);
 
 	uint2 PixelPos = uint2(In.Position.xy);
-	uint Index = GetVolumeIndex(uint3(PixelPos, 32), (uint)ViewResolution.x, (uint)ViewResolution.y);
+	uint Index = GetVolumeIndex(uint3(PixelPos, Slice), (uint)ViewResolution.x, (uint)ViewResolution.y);
 	InterlockedAdd(OutExtinctionVolume[Index], Packed);
-	OutDummy = float4(ViewResolution.x / 1000.0f, (float)Packed / 1000.0f, 0.0f, 1.0f);
+	
+#if AVBOIT_TEST_COVERAGE
+	InterlockedAdd(FragmentCoverageCounter[0], 1);
+	if (PixelPos.x == DebugPixel.x && PixelPos.y == DebugPixel.y)
+	{
+		uint OriginalValue;
+		InterlockedCompareExchange(OutDebugPixelBuffer[0].WriteFlag, 0, 1, OriginalValue);
+		if (OriginalValue == 0)
+		{
+			OutDebugPixelBuffer[0].LinearViewDepth = In.LinearViewDepth;
+			OutDebugPixelBuffer[0].NormalizedDepth = NormDepth;
+			OutDebugPixelBuffer[0].Slice = Slice;
+		}
+	}
+#endif
+
+	OutDummy = float4(0.0f, 0.0f, 0.0f, 0.0f);
 }

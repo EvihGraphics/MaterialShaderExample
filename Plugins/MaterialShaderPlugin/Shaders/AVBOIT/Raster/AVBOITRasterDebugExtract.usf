@@ -22,6 +22,14 @@ struct FAVBOITRasterDebugPayload
     float Transmittance[64];
 };
 
+struct FAVBOITRasterDebugPixelData
+{
+	float LinearViewDepth;
+	float NormalizedDepth;
+	uint Slice;
+	uint WriteFlag;
+};
+
 StructuredBuffer<uint> ExtinctionVolume;
 Texture2DArray<float> TransmittanceVolume;
 Texture2D<float4> ColorAccumulation;
@@ -30,9 +38,7 @@ Texture2D<float4> SceneColorAfter;
 RWStructuredBuffer<FAVBOITRasterDebugPayload> OutDebugPayload;
 
 int2 DebugPixel;
-float LinearViewDepth;
-float NormalizedDepth;
-uint Slice;
+StructuredBuffer<FAVBOITRasterDebugPixelData> RasterDebugPixelBuffer;
 Buffer<uint> FragmentCoverageCounter;
 int2 TextureExtent;
 int2 ViewRectMin;
@@ -47,9 +53,9 @@ void MainCS(uint3 DispatchThreadId : SV_DispatchThreadID)
         Header.ColorAccumulation = ColorAccumulation[DebugPixel];
         Header.SceneColorBefore = SceneColorBefore[DebugPixel];
         Header.SceneColorAfter = SceneColorAfter[DebugPixel];
-        Header.LinearViewDepth = LinearViewDepth;
-        Header.NormalizedDepth = NormalizedDepth;
-        Header.Slice = Slice;
+        Header.LinearViewDepth = RasterDebugPixelBuffer[0].LinearViewDepth;
+        Header.NormalizedDepth = RasterDebugPixelBuffer[0].NormalizedDepth;
+        Header.Slice = RasterDebugPixelBuffer[0].Slice;
         Header.FragmentCoverageCount = FragmentCoverageCounter[0];
         Header.TextureExtent = TextureExtent;
         Header.ViewRectMin = ViewRectMin;
