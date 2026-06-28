@@ -104,14 +104,10 @@ void FAVBOITSceneViewExtension::SubscribeToPostProcessingPass(
 
 void FAVBOITSceneViewExtension::PrePostProcessPass_RenderThread(FRDGBuilder& GraphBuilder, const FSceneView& View, const FPostProcessingInputs& Inputs)
 {
-	if (!AVBOIT::Smoke::IsEnabled())
+	if (FAVBOITRasterRenderer::IsEnabled())
 	{
-		return;
+		FAVBOITRasterRenderer::AddPasses(GraphBuilder, View, Inputs);
 	}
-
-	// Output shouldn't really matter here as we modify SceneColor in place or via Intermediate
-	FScreenPassRenderTarget Output;
-	FAVBOITRasterRenderer::AddPasses(GraphBuilder, View, Inputs, Output);
 }
 
 FScreenPassTexture FAVBOITSceneViewExtension::AddSmokePass(

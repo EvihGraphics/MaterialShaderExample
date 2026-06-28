@@ -12,9 +12,10 @@ struct FPostProcessingInputs;
 class FAVBOITRasterRenderer
 {
 public:
+	static bool IsEnabled();
+
 	static void AddPasses(
 		FRDGBuilder& GraphBuilder,
 		const FSceneView& View,
-		const FPostProcessingInputs& Inputs,
-		FScreenPassRenderTarget& Output);
+		const FPostProcessingInputs& Inputs);
 };
