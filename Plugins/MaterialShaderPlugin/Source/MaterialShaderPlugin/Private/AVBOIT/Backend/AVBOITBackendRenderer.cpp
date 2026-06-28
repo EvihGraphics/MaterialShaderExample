@@ -23,8 +23,9 @@ FAVBOITBackendReadbacks FAVBOITBackendRenderer::Execute(FRDGBuilder& GraphBuilde
     FIntVector GroupCount = FIntVector(FMath::DivideAndRoundUp(Res.X, 8), FMath::DivideAndRoundUp(Res.Y, 8), 1);
 
     // 1. Create Resources
-    FRDGTextureDesc ExtinctionDesc = FRDGTextureDesc::Create2DArray(Res, PF_R32_UINT, FClearValueBinding::None, TexCreate_UAV | TexCreate_ShaderResource, 64);
-    FRDGTextureRef ExtinctionVolume = GraphBuilder.CreateTexture(ExtinctionDesc, TEXT("AVBOIT.ExtinctionVolume"));
+    FRDGBufferDesc ExtinctionDesc = FRDGBufferDesc::CreateStructuredDesc(4, Res.X * Res.Y * 64);
+    ExtinctionDesc.Usage |= EBufferUsageFlags::UnorderedAccess | EBufferUsageFlags::ShaderResource;
+    FRDGBufferRef ExtinctionVolume = GraphBuilder.CreateBuffer(ExtinctionDesc, TEXT("AVBOIT.ExtinctionVolume"));
 
     FRDGTextureDesc TransmittanceDesc = FRDGTextureDesc::Create2DArray(Res, PF_R32_FLOAT, FClearValueBinding::None, TexCreate_UAV | TexCreate_ShaderResource, 64);
     FRDGTextureRef TransmittanceVolume = GraphBuilder.CreateTexture(TransmittanceDesc, TEXT("AVBOIT.TransmittanceVolume"));

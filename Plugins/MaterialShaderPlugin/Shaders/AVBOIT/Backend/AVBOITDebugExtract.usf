@@ -1,6 +1,8 @@
 #include "/Engine/Public/Platform.ush"
 
-Texture2DArray<uint> InExtinctionVolume;
+#include "AVBOITCommon.ush"
+
+StructuredBuffer<uint> InExtinctionVolume;
 Texture2DArray<float> InTransmittanceVolume;
 
 RWStructuredBuffer<uint> OutExtinctionLine;
@@ -18,6 +20,7 @@ void AVBOITDebugExtractCS(uint3 DispatchThreadId : SV_DispatchThreadID)
     }
 
     uint3 Coords = uint3(CenterPixel.x, CenterPixel.y, SliceIndex);
-    OutExtinctionLine[SliceIndex] = InExtinctionVolume[Coords];
+    uint Index = GetVolumeIndex(Coords, (uint)ViewResolution.x, (uint)ViewResolution.y);
+    OutExtinctionLine[SliceIndex] = InExtinctionVolume[Index];
     OutTransmittanceLine[SliceIndex] = InTransmittanceVolume[Coords];
 }

@@ -14,7 +14,7 @@ class FAVBOITClearCS : public FGlobalShader
 
     BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
         SHADER_PARAMETER(FVector2f, ViewResolution)
-        SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2DArray<uint>, OutExtinctionVolume)
+        SHADER_PARAMETER_RDG_BUFFER_UAV(RWStructuredBuffer<uint>, OutExtinctionVolume)
         SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2DArray<float>, OutTransmittanceVolume)
         SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2D<float4>, OutResultTexture)
     END_SHADER_PARAMETER_STRUCT()
@@ -31,7 +31,7 @@ class FAVBOITBuildCS : public FGlobalShader
         SHADER_PARAMETER(float, ZFar)
         SHADER_PARAMETER(uint32, FragmentCount)
         SHADER_PARAMETER_RDG_BUFFER_SRV(StructuredBuffer<FInjectedFragment>, InjectedFragments)
-        SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2DArray<uint>, OutExtinctionVolume)
+        SHADER_PARAMETER_RDG_BUFFER_UAV(RWStructuredBuffer<uint>, OutExtinctionVolume)
     END_SHADER_PARAMETER_STRUCT()
 };
 
@@ -42,7 +42,7 @@ class FAVBOITIntegrateCS : public FGlobalShader
 
     BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
         SHADER_PARAMETER(FVector2f, ViewResolution)
-        SHADER_PARAMETER_RDG_TEXTURE_SRV(Texture2DArray<uint>, InExtinctionVolume)
+        SHADER_PARAMETER_RDG_BUFFER_SRV(StructuredBuffer<uint>, InExtinctionVolume)
         SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2DArray<float>, OutTransmittanceVolume)
     END_SHADER_PARAMETER_STRUCT()
 };

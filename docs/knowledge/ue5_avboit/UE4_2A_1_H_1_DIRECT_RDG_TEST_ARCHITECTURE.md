@@ -1,0 +1,1 @@
+﻿# Placeholder for UE4_2A_1_H_1_DIRECT_RDG_TEST_ARCHITECTURE.md

@@ -19,5 +19,5 @@ class FAVBOITBackendDebugReadback
 {
 public:
     static FAVBOITMappingTestResult RunMappingTestSync(const TArray<float>& LinearDepths, float ZNear, float ZFar);
-    static FAVBOITSliceLineReadbacks EnqueueExtractSliceLine(FRDGBuilder& GraphBuilder, FRDGTextureRef ExtinctionVolume, FRDGTextureRef TransmittanceVolume, FIntPoint CenterPixel);
+    static FAVBOITSliceLineReadbacks EnqueueExtractSliceLine(FRDGBuilder& GraphBuilder, FRDGBufferRef ExtinctionVolume, FRDGTextureRef TransmittanceVolume, FIntPoint CenterPixel);
 };

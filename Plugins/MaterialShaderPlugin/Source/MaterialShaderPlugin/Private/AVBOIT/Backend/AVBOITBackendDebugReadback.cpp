@@ -103,8 +103,9 @@ class FAVBOITDebugExtractCS : public FGlobalShader
     SHADER_USE_PARAMETER_STRUCT(FAVBOITDebugExtractCS, FGlobalShader);
 
     BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
+        SHADER_PARAMETER(FVector2f, ViewResolution)
         SHADER_PARAMETER(FIntVector, CenterPixel)
-        SHADER_PARAMETER_RDG_TEXTURE_SRV(Texture2DArray<uint>, InExtinctionVolume)
+        SHADER_PARAMETER_RDG_BUFFER_SRV(Buffer<uint>, InExtinctionVolume)
         SHADER_PARAMETER_RDG_TEXTURE_SRV(Texture2DArray<float>, InTransmittanceVolume)
         SHADER_PARAMETER_RDG_BUFFER_UAV(RWStructuredBuffer<uint>, OutExtinctionLine)
         SHADER_PARAMETER_RDG_BUFFER_UAV(RWStructuredBuffer<float>, OutTransmittanceLine)
@@ -113,7 +114,7 @@ class FAVBOITDebugExtractCS : public FGlobalShader
 
 IMPLEMENT_GLOBAL_SHADER(FAVBOITDebugExtractCS, "/Plugin/MaterialShaderExample/AVBOIT/Backend/AVBOITDebugExtract.usf", "AVBOITDebugExtractCS", SF_Compute);
 
-FAVBOITSliceLineReadbacks FAVBOITBackendDebugReadback::EnqueueExtractSliceLine(FRDGBuilder& GraphBuilder, FRDGTextureRef ExtinctionVolume, FRDGTextureRef TransmittanceVolume, FIntPoint CenterPixel)
+FAVBOITSliceLineReadbacks FAVBOITBackendDebugReadback::EnqueueExtractSliceLine(FRDGBuilder& GraphBuilder, FRDGBufferRef ExtinctionVolume, FRDGTextureRef TransmittanceVolume, FIntPoint CenterPixel)
 {
     FAVBOITSliceLineReadbacks OutReadbacks;
     
@@ -124,11 +125,12 @@ FAVBOITSliceLineReadbacks FAVBOITBackendDebugReadback::EnqueueExtractSliceLine(F
     FRDGBufferRef OutTransmittanceLineBuf = GraphBuilder.CreateBuffer(TransDesc, TEXT("OutTransmittanceLine"));
 
     FAVBOITDebugExtractCS::FParameters* PassParams = GraphBuilder.AllocParameters<FAVBOITDebugExtractCS::FParameters>();
+    PassParams->ViewResolution = FVector2f(256.0f, 256.0f); // Default to 256x256 for test
     PassParams->CenterPixel = FIntVector(CenterPixel.X, CenterPixel.Y, 0);
     PassParams->InExtinctionVolume = GraphBuilder.CreateSRV(ExtinctionVolume);
     PassParams->InTransmittanceVolume = GraphBuilder.CreateSRV(TransmittanceVolume);
-    PassParams->OutExtinctionLine = GraphBuilder.CreateUAV(OutExtinctionLineBuf, PF_R32_UINT);
-    PassParams->OutTransmittanceLine = GraphBuilder.CreateUAV(OutTransmittanceLineBuf, PF_R32_FLOAT);
+    PassParams->OutExtinctionLine = GraphBuilder.CreateUAV(OutExtinctionLineBuf);
+    PassParams->OutTransmittanceLine = GraphBuilder.CreateUAV(OutTransmittanceLineBuf);
 
     TShaderMapRef<FAVBOITDebugExtractCS> ComputeShader(GetGlobalShaderMap(GMaxRHIFeatureLevel));
     FComputeShaderUtils::AddPass(GraphBuilder, RDG_EVENT_NAME("AVBOIT.Debug.ExtractSliceLine"), ComputeShader, PassParams, FIntVector(1, 1, 1)); // 64 threads in X

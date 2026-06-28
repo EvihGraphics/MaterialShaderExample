@@ -290,7 +290,7 @@ void FAVBOITBackendTestAutomation::HandleReadback()
         WaitFrameCount++;
         if (WaitFrameCount > MaximumWaitFrames)
         {
-            UE_LOG(LogTemp, Error, TEXT("Test Case %s: GPU Readback Timeout!"), *TestCases[CurrentTestCaseIndex].Name);
+            UE_LOG(LogTemp, Error, TEXT("Test Case %d: GPU Readback Timeout!"), CurrentTestCaseIndex);
             TestCases[CurrentTestCaseIndex].Status = TEXT("FAIL");
             TestCases[CurrentTestCaseIndex].FailureReasons.Add(TEXT("GPU Readback Timeout"));
             FailedCaseCount++;

@@ -13,6 +13,10 @@
 #include "ScreenPass.h"
 #include "PixelShaderUtils.h"
 
+BEGIN_SHADER_PARAMETER_STRUCT(FAVBOITRasterTargets, )
+	RENDER_TARGET_BINDING_SLOTS()
+END_SHADER_PARAMETER_STRUCT()
+
 // For testing purposes, we define a CVar
 static TAutoConsoleVariable<int32> CVarAVBOITRasterEnable(
 	TEXT("r.AVBOIT.Raster.Enable"),
@@ -44,18 +48,18 @@ void FAVBOITRasterRenderer::AddPasses(
 		return;
 	}
 
-	struct FAVBOITRasterDrawData
-	{
-		FMatrix LocalToWorld;
-		FLinearColor Color;
-		float Alpha;
-		FBufferRHIRef VertexBufferRHI;
-		FBufferRHIRef IndexBufferRHI;
-		FVertexDeclarationRHIRef VertexDeclaration;
-	};
+	FAVBOITRasterPassInputs PassInputs;
+	PassInputs.TextureExtent = Inputs.SceneTextures->GetParameters()->SceneDepthTexture->Desc.Extent;
+	PassInputs.ViewRect = View.UnconstrainedViewRect;
+	PassInputs.WorldToView = FMatrix44f(View.ViewMatrices.GetViewMatrix());
+	PassInputs.WorldToClip = FMatrix44f(View.ViewMatrices.GetViewProjectionMatrix());
+	PassInputs.ZNear = View.NearClippingDistance;
+	PassInputs.ZFar = View.NearClippingDistance + 10000.0f;
+	PassInputs.SceneDepth = Inputs.SceneTextures->GetParameters()->SceneDepthTexture;
+	PassInputs.SceneColor = Inputs.SceneTextures->GetParameters()->SceneColorTexture;
+	PassInputs.FragmentCoverageCounter = nullptr;
 
-	TArray<FAVBOITRasterDrawData> DrawDataArray;
-	DrawDataArray.Reserve(Proxies.Num());
+	PassInputs.DrawData.Reserve(Proxies.Num());
 	for (FAVBOITTestMeshSceneProxy* Proxy : Proxies)
 	{
 		FAVBOITRasterDrawData Data;
@@ -65,17 +69,24 @@ void FAVBOITRasterRenderer::AddPasses(
 		Data.VertexBufferRHI = Proxy->VertexBuffer.VertexBufferRHI;
 		Data.IndexBufferRHI = Proxy->IndexBuffer.IndexBufferRHI;
 		Data.VertexDeclaration = Proxy->VertexDeclaration;
-		DrawDataArray.Add(Data);
+		PassInputs.DrawData.Add(Data);
 	}
 
-	// Extract the actual SceneDepth and SceneColor from Inputs
-	auto SceneTexturesParams = Inputs.SceneTextures->GetParameters();
-	FRDGTextureRef SceneDepthTexture = SceneTexturesParams->SceneDepthTexture;
-	FRDGTextureRef SceneColorTexture = SceneTexturesParams->SceneColorTexture;
+	AddCorePasses(GraphBuilder, PassInputs);
+}
+
+FAVBOITRasterPassOutputs FAVBOITRasterRenderer::AddCorePasses(
+	FRDGBuilder& GraphBuilder,
+	const FAVBOITRasterPassInputs& Inputs)
+{
+	FAVBOITRasterPassOutputs Outputs;
+
+	FRDGTextureRef SceneDepthTexture = Inputs.SceneDepth;
+	FRDGTextureRef SceneColorTexture = Inputs.SceneColor;
 	
 	if (!SceneDepthTexture || !SceneColorTexture)
 	{
-		return;
+		return Outputs;
 	}
 
 	RDG_EVENT_SCOPE(GraphBuilder, "AVBOIT.Raster");
@@ -84,13 +95,8 @@ void FAVBOITRasterRenderer::AddPasses(
 	// We allocate matching SceneDepth extent to prevent ViewRectMin offset issues from causing out of bounds
 	FIntPoint TextureExtent = SceneDepthTexture->Desc.Extent;
 
-	FRDGTextureDesc ExtinctionDesc = FRDGTextureDesc::Create2DArray(
-		TextureExtent,
-		PF_R32_UINT,
-		FClearValueBinding::None,
-		TexCreate_ShaderResource | TexCreate_UAV,
-		64);
-	FRDGTextureRef ExtinctionVolume = GraphBuilder.CreateTexture(ExtinctionDesc, TEXT("AVBOIT.ExtinctionVolume"));
+	FRDGBufferDesc ExtinctionDesc = FRDGBufferDesc::CreateStructuredDesc(4, TextureExtent.X * TextureExtent.Y * 64);
+	Outputs.ExtinctionVolume = GraphBuilder.CreateBuffer(ExtinctionDesc, TEXT("AVBOIT.Outputs.ExtinctionVolume"));
 
 	FRDGTextureDesc TransmittanceDesc = FRDGTextureDesc::Create2DArray(
 		TextureExtent,
@@ -98,23 +104,25 @@ void FAVBOITRasterRenderer::AddPasses(
 		FClearValueBinding::None,
 		TexCreate_ShaderResource | TexCreate_UAV,
 		64);
-	FRDGTextureRef TransmittanceVolume = GraphBuilder.CreateTexture(TransmittanceDesc, TEXT("AVBOIT.TransmittanceVolume"));
+	Outputs.TransmittanceVolume = GraphBuilder.CreateTexture(TransmittanceDesc, TEXT("AVBOIT.Outputs.TransmittanceVolume"));
 
 	FRDGTextureDesc ColorDesc = FRDGTextureDesc::Create2D(
 		TextureExtent,
 		PF_FloatRGBA,
 		FClearValueBinding::Transparent,
-		TexCreate_ShaderResource | TexCreate_RenderTargetable);
-	FRDGTextureRef ColorAccumulation = GraphBuilder.CreateTexture(ColorDesc, TEXT("AVBOIT.ColorAccumulation"));
+		TexCreate_ShaderResource | TexCreate_RenderTargetable | TexCreate_UAV);
+	Outputs.ColorAccumulation = GraphBuilder.CreateTexture(ColorDesc, TEXT("AVBOIT.Outputs.ColorAccumulation"));
 
-	FIntRect ViewRect = View.UnconstrainedViewRect;
+	FIntRect ViewRect = Inputs.ViewRect;
 	FIntVector4 ViewRectMin(ViewRect.Min.X, ViewRect.Min.Y, 0, 0);
 
 	// Pass 1: Clear
 	{
 		auto* PassParameters = GraphBuilder.AllocParameters<FAVBOITClearCS::FParameters>();
-		PassParameters->OutExtinctionVolume = GraphBuilder.CreateUAV(ExtinctionVolume);
-		PassParameters->OutTransmittanceVolume = GraphBuilder.CreateUAV(TransmittanceVolume);
+		PassParameters->ViewResolution = FVector2f(ViewRect.Width(), ViewRect.Height());
+		PassParameters->OutExtinctionVolume = GraphBuilder.CreateUAV(Outputs.ExtinctionVolume);
+		PassParameters->OutTransmittanceVolume = GraphBuilder.CreateUAV(Outputs.TransmittanceVolume);
+		PassParameters->OutResultTexture = GraphBuilder.CreateUAV(Outputs.ColorAccumulation);
 
 		TShaderMapRef<FAVBOITClearCS> ComputeShader(GetGlobalShaderMap(GMaxRHIFeatureLevel));
 		FIntVector GroupCount = FIntVector(
@@ -130,33 +138,29 @@ void FAVBOITRasterRenderer::AddPasses(
 			PassParameters,
 			GroupCount
 		);
-
-		AddClearRenderTargetPass(GraphBuilder, ColorAccumulation, FLinearColor::Transparent);
 	}
 
 	// Prepare common states
-	FMatrix44f LocalToWorld = FMatrix44f(Proxies[0]->GetLocalToWorld());
-	FMatrix44f WorldToClip = FMatrix44f(View.ViewMatrices.GetViewProjectionMatrix());
-	FMatrix44f WorldToView = FMatrix44f(View.ViewMatrices.GetViewMatrix());
+	FMatrix44f WorldToClip = Inputs.WorldToClip;
+	FMatrix44f WorldToView = Inputs.WorldToView;
 
-	float ZNear = View.NearClippingDistance;
-	float ZFar = View.NearClippingDistance + 10000.0f; // Typical empirical or from view
-	// Note: since the test cases expect certain Depth mapping, we can just hardcode ZFar or pass a parameter.
-	
-	FVector4f ColorAndAlpha = FVector4f(Proxies[0]->MaterialParams.Color.R, Proxies[0]->MaterialParams.Color.G, Proxies[0]->MaterialParams.Color.B, Proxies[0]->MaterialParams.Alpha);
-
+	float ZNear = Inputs.ZNear;
+	float ZFar = Inputs.ZFar; // Typical empirical or from view
 	// Pass 2: Splat
 	{
+
+		
 		TArray<FAVBOITRasterSplatPS::FParameters*> SplatPSParams;
 		TArray<FAVBOITRasterSplatVS::FParameters*> SplatVSParams;
-		for (const FAVBOITRasterDrawData& Data : DrawDataArray)
+		for (const FAVBOITRasterDrawData& Data : Inputs.DrawData)
 		{
 			auto* PSParams = GraphBuilder.AllocParameters<FAVBOITRasterSplatPS::FParameters>();
 			PSParams->ZNear = ZNear;
 			PSParams->ZFar = ZFar;
+			PSParams->ViewResolution = FVector2f(TextureExtent.X, TextureExtent.Y);
 			PSParams->ColorAndAlpha = FVector4f(Data.Color.R, Data.Color.G, Data.Color.B, Data.Alpha);
 			PSParams->ViewRectMin = ViewRectMin;
-			PSParams->OutExtinctionVolume = GraphBuilder.CreateUAV(ExtinctionVolume);
+			PSParams->OutExtinctionVolume = GraphBuilder.CreateUAV(Outputs.ExtinctionVolume);
 			PSParams->RenderTargets.DepthStencil = FDepthStencilBinding(SceneDepthTexture, ERenderTargetLoadAction::ELoad, FExclusiveDepthStencil::DepthRead_StencilNop);
 			SplatPSParams.Add(PSParams);
 
@@ -169,13 +173,29 @@ void FAVBOITRasterRenderer::AddPasses(
 		}
 
 		auto* PassParameters = GraphBuilder.AllocParameters<FAVBOITRasterSplatPS::FParameters>();
-		*PassParameters = *SplatPSParams[0]; // For RDG dependency tracking
+		if (SplatPSParams.Num() > 0)
+		{
+			*PassParameters = *SplatPSParams[0]; // For RDG dependency tracking
+		}
+
+		bool bTestCoverage = Inputs.FragmentCoverageCounter != nullptr;
+		TArray<FAVBOITRasterDrawData> DrawDataArray = Inputs.DrawData;
+
+		TShaderMapRef<FAVBOITRasterSplatVS> VertexShader(GetGlobalShaderMap(GMaxRHIFeatureLevel));
+		FAVBOITRasterSplatPS::FPermutationDomain PermutationVector;
+		PermutationVector.Set<FAVBOITRasterSplatPS::FTestCoverageDim>(bTestCoverage);
+		TShaderMapRef<FAVBOITRasterSplatPS> PixelShader(GetGlobalShaderMap(GMaxRHIFeatureLevel), PermutationVector);
+
+		ClearUnusedGraphResources(PixelShader, PassParameters);
+
+		PassParameters->RenderTargets[0] = FRenderTargetBinding(Outputs.ColorAccumulation, ERenderTargetLoadAction::ELoad);
+		PassParameters->RenderTargets.DepthStencil = FDepthStencilBinding(SceneDepthTexture, ERenderTargetLoadAction::ELoad, FExclusiveDepthStencil::DepthRead_StencilNop);
 
 		GraphBuilder.AddPass(
 			RDG_EVENT_NAME("AVBOIT.Raster.Splat"),
 			PassParameters,
 			ERDGPassFlags::Raster,
-			[SplatVSParams, SplatPSParams, ViewRect, DrawDataArray](FRHICommandList& RHICmdList)
+			[SplatVSParams, SplatPSParams, ViewRect, DrawDataArray, bTestCoverage, VertexShader, PixelShader](FRHICommandList& RHICmdList)
 		{
 			RHICmdList.SetViewport(ViewRect.Min.X, ViewRect.Min.Y, 0.0f, ViewRect.Max.X, ViewRect.Max.Y, 1.0f);
 
@@ -186,9 +206,6 @@ void FAVBOITRasterRenderer::AddPasses(
 			GraphicsPSOInit.RasterizerState = TStaticRasterizerState<FM_Solid, CM_None>::GetRHI();
 			// Depth Test Enabled, Write Disabled. Reverse-Z means GreaterEqual.
 			GraphicsPSOInit.DepthStencilState = TStaticDepthStencilState<false, CF_DepthNearOrEqual>::GetRHI();
-
-			TShaderMapRef<FAVBOITRasterSplatVS> VertexShader(GetGlobalShaderMap(GMaxRHIFeatureLevel));
-			TShaderMapRef<FAVBOITRasterSplatPS> PixelShader(GetGlobalShaderMap(GMaxRHIFeatureLevel));
 
 			for (int32 i = 0; i < DrawDataArray.Num(); ++i)
 			{
@@ -205,16 +222,14 @@ void FAVBOITRasterRenderer::AddPasses(
 				RHICmdList.SetStreamSource(0, DrawDataArray[i].VertexBufferRHI, 0);
 				RHICmdList.DrawIndexedPrimitive(DrawDataArray[i].IndexBufferRHI, 0, 0, 4, 0, 2, 1);
 			}
-
-			RHICmdList.EndRenderPass();
 		});
 	}
 
 	// Pass 3: Integrate
 	{
 		auto* PassParameters = GraphBuilder.AllocParameters<FAVBOITIntegrateCS::FParameters>();
-		PassParameters->InExtinctionVolume = GraphBuilder.CreateSRV(ExtinctionVolume);
-		PassParameters->OutTransmittanceVolume = GraphBuilder.CreateUAV(TransmittanceVolume);
+		PassParameters->InExtinctionVolume = GraphBuilder.CreateSRV(Outputs.ExtinctionVolume);
+		PassParameters->OutTransmittanceVolume = GraphBuilder.CreateUAV(Outputs.TransmittanceVolume);
 
 		TShaderMapRef<FAVBOITIntegrateCS> ComputeShader(GetGlobalShaderMap(GMaxRHIFeatureLevel));
 		FIntVector GroupCount = FIntVector(
@@ -236,7 +251,7 @@ void FAVBOITRasterRenderer::AddPasses(
 	{
 		TArray<FAVBOITRasterForwardPS::FParameters*> ForwardPSParams;
 		TArray<FAVBOITRasterForwardVS::FParameters*> ForwardVSParams;
-		for (const FAVBOITRasterDrawData& Data : DrawDataArray)
+		for (const FAVBOITRasterDrawData& Data : Inputs.DrawData)
 		{
 			auto* PSParams = GraphBuilder.AllocParameters<FAVBOITRasterForwardPS::FParameters>();
 			PSParams->ZNear = ZNear;
@@ -244,8 +259,8 @@ void FAVBOITRasterRenderer::AddPasses(
 			PSParams->ColorAndAlpha = FVector4f(Data.Color.R, Data.Color.G, Data.Color.B, Data.Alpha);
 			PSParams->ReferenceBrightnessMultiplier = 1.0f; // Fixed parameter
 			PSParams->ViewRectMin = ViewRectMin;
-			PSParams->TransmittanceVolume = GraphBuilder.CreateSRV(TransmittanceVolume);
-			PSParams->RenderTargets[0] = FRenderTargetBinding(ColorAccumulation, ERenderTargetLoadAction::ELoad);
+			PSParams->TransmittanceVolume = GraphBuilder.CreateSRV(Outputs.TransmittanceVolume);
+			PSParams->RenderTargets[0] = FRenderTargetBinding(Outputs.ColorAccumulation, ERenderTargetLoadAction::ELoad);
 			PSParams->RenderTargets.DepthStencil = FDepthStencilBinding(SceneDepthTexture, ERenderTargetLoadAction::ELoad, FExclusiveDepthStencil::DepthRead_StencilNop);
 			ForwardPSParams.Add(PSParams);
 
@@ -258,13 +273,26 @@ void FAVBOITRasterRenderer::AddPasses(
 		}
 
 		auto* PassParameters = GraphBuilder.AllocParameters<FAVBOITRasterForwardPS::FParameters>();
-		*PassParameters = *ForwardPSParams[0]; // For RDG dependency tracking
+		if (ForwardPSParams.Num() > 0)
+		{
+			*PassParameters = *ForwardPSParams[0]; // For RDG dependency tracking
+		}
+
+		TArray<FAVBOITRasterDrawData> DrawDataArray = Inputs.DrawData;
+		
+		TShaderMapRef<FAVBOITRasterForwardVS> VertexShader(GetGlobalShaderMap(GMaxRHIFeatureLevel));
+		TShaderMapRef<FAVBOITRasterForwardPS> PixelShader(GetGlobalShaderMap(GMaxRHIFeatureLevel));
+		
+		ClearUnusedGraphResources(PixelShader, PassParameters);
+
+		PassParameters->RenderTargets[0] = FRenderTargetBinding(Outputs.ColorAccumulation, ERenderTargetLoadAction::ELoad);
+		PassParameters->RenderTargets.DepthStencil = FDepthStencilBinding(SceneDepthTexture, ERenderTargetLoadAction::ELoad, FExclusiveDepthStencil::DepthRead_StencilNop);
 
 		GraphBuilder.AddPass(
 			RDG_EVENT_NAME("AVBOIT.Raster.ForwardShade"),
 			PassParameters,
 			ERDGPassFlags::Raster,
-			[ForwardVSParams, ForwardPSParams, ViewRect, DrawDataArray](FRHICommandList& RHICmdList)
+			[ForwardVSParams, ForwardPSParams, ViewRect, DrawDataArray, VertexShader, PixelShader](FRHICommandList& RHICmdList)
 		{
 			RHICmdList.SetViewport(ViewRect.Min.X, ViewRect.Min.Y, 0.0f, ViewRect.Max.X, ViewRect.Max.Y, 1.0f);
 
@@ -275,9 +303,6 @@ void FAVBOITRasterRenderer::AddPasses(
 			GraphicsPSOInit.BlendState = TStaticBlendState<CW_RGB, BO_Add, BF_One, BF_One, BO_Add, BF_One, BF_One>::GetRHI();
 			GraphicsPSOInit.RasterizerState = TStaticRasterizerState<FM_Solid, CM_None>::GetRHI();
 			GraphicsPSOInit.DepthStencilState = TStaticDepthStencilState<false, CF_DepthNearOrEqual>::GetRHI();
-
-			TShaderMapRef<FAVBOITRasterForwardVS> VertexShader(GetGlobalShaderMap(GMaxRHIFeatureLevel));
-			TShaderMapRef<FAVBOITRasterForwardPS> PixelShader(GetGlobalShaderMap(GMaxRHIFeatureLevel));
 
 			for (int32 i = 0; i < DrawDataArray.Num(); ++i)
 			{
@@ -302,8 +327,8 @@ void FAVBOITRasterRenderer::AddPasses(
 	{
 		auto* PassParameters = GraphBuilder.AllocParameters<FAVBOITRasterCompositePS::FParameters>();
 		PassParameters->ViewRectMin = ViewRectMin;
-		PassParameters->ColorAccumulation = ColorAccumulation;
-		PassParameters->TransmittanceVolume = GraphBuilder.CreateSRV(TransmittanceVolume);
+		PassParameters->ColorAccumulation = Outputs.ColorAccumulation;
+		PassParameters->TransmittanceVolume = GraphBuilder.CreateSRV(Outputs.TransmittanceVolume);
 		PassParameters->RenderTargets[0] = FRenderTargetBinding(SceneColorTexture, ERenderTargetLoadAction::ELoad);
 
 		TShaderMapRef<FAVBOITRasterCompositePS> PixelShader(GetGlobalShaderMap(GMaxRHIFeatureLevel));
@@ -318,5 +343,8 @@ void FAVBOITRasterRenderer::AddPasses(
 			ViewRect,
 			BlendState
 		);
+		Outputs.CompositeOutput = PassParameters->RenderTargets[0].GetTexture();
 	}
+	
+	return Outputs;
 }

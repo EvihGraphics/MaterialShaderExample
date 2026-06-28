@@ -9,7 +9,7 @@ float4x4 WorldToView;
 
 float4 ColorAndAlpha;
 
-RWTexture2DArray<uint> OutExtinctionVolume;
+RWStructuredBuffer<uint> OutExtinctionVolume;
 
 void MainVS(
 	in float3 InLocalPosition : ATTRIBUTE0,
@@ -19,12 +19,13 @@ void MainVS(
 	Out.Position = mul(WorldPos, WorldToClip);
 	
 	float4 ViewPos = mul(WorldPos, WorldToView);
-	// In UE, Z is forward in view space
+	// Revert to Z-forward since FPerspectiveMatrix uses Z-forward
 	Out.LinearViewDepth = ViewPos.z;
 }
 
 void MainPS(
-	in FAVBOITRasterInterpolants In)
+	in FAVBOITRasterInterpolants In,
+	out float4 OutDummy : SV_Target0)
 {
 	float Alpha = clamp(ColorAndAlpha.a, 0.0f, 0.99f);
 	if (Alpha <= 0.01f)
@@ -39,5 +40,7 @@ void MainPS(
 	uint Packed = PackExtinction(Extinction);
 
 	uint2 PixelPos = uint2(In.Position.xy);
-	InterlockedAdd(OutExtinctionVolume[uint3(PixelPos, Slice)], Packed);
+	uint Index = GetVolumeIndex(uint3(PixelPos, 32), (uint)ViewResolution.x, (uint)ViewResolution.y);
+	InterlockedAdd(OutExtinctionVolume[Index], Packed);
+	OutDummy = float4(ViewResolution.x / 1000.0f, (float)Packed / 1000.0f, 0.0f, 1.0f);
 }

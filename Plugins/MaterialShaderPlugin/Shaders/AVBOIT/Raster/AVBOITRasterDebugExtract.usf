@@ -1,0 +1,68 @@
+#include "/Engine/Public/Platform.ush"
+
+struct FAVBOITRasterDebugHeader
+{
+    float4 ColorAccumulation;
+    float4 SceneColorBefore;
+    float4 SceneColorAfter;
+    float LinearViewDepth;
+    float NormalizedDepth;
+    uint Slice;
+    uint FragmentCoverageCount;
+    int2 TextureExtent;
+    int2 ViewRectMin;
+    int2 ViewRectMax;
+    int2 Padding;
+};
+
+struct FAVBOITRasterDebugPayload
+{
+    FAVBOITRasterDebugHeader Header;
+    uint PackedExtinction[64];
+    float Transmittance[64];
+};
+
+StructuredBuffer<uint> ExtinctionVolume;
+Texture2DArray<float> TransmittanceVolume;
+Texture2D<float4> ColorAccumulation;
+Texture2D<float4> SceneColorBefore;
+Texture2D<float4> SceneColorAfter;
+RWStructuredBuffer<FAVBOITRasterDebugPayload> OutDebugPayload;
+
+int2 DebugPixel;
+float LinearViewDepth;
+float NormalizedDepth;
+uint Slice;
+Buffer<uint> FragmentCoverageCounter;
+int2 TextureExtent;
+int2 ViewRectMin;
+int2 ViewRectMax;
+
+[numthreads(1, 1, 1)]
+void MainCS(uint3 DispatchThreadId : SV_DispatchThreadID)
+{
+    if (DispatchThreadId.x == 0 && DispatchThreadId.y == 0 && DispatchThreadId.z == 0)
+    {
+        FAVBOITRasterDebugHeader Header;
+        Header.ColorAccumulation = ColorAccumulation[DebugPixel];
+        Header.SceneColorBefore = SceneColorBefore[DebugPixel];
+        Header.SceneColorAfter = SceneColorAfter[DebugPixel];
+        Header.LinearViewDepth = LinearViewDepth;
+        Header.NormalizedDepth = NormalizedDepth;
+        Header.Slice = Slice;
+        Header.FragmentCoverageCount = FragmentCoverageCounter[0];
+        Header.TextureExtent = TextureExtent;
+        Header.ViewRectMin = ViewRectMin;
+        Header.ViewRectMax = ViewRectMax;
+        Header.Padding = int2(0, 0);
+
+        OutDebugPayload[0].Header = Header;
+
+        for (uint i = 0; i < 64; ++i)
+        {
+            uint Index = i * (uint)TextureExtent.x * (uint)TextureExtent.y + (uint)DebugPixel.y * (uint)TextureExtent.x + (uint)DebugPixel.x;
+            OutDebugPayload[0].PackedExtinction[i] = ExtinctionVolume[Index];
+            OutDebugPayload[0].Transmittance[i] = TransmittanceVolume[uint3(DebugPixel.x, DebugPixel.y, i)];
+        }
+    }
+}

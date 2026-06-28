@@ -1,0 +1,1 @@
+{"SchemaVersion":1, "RunId":"2b8cb14d-e1c6-48cc-a24f-51106d038071", "SuiteName":"RasterDirect", "TotalCases": 6, "PassedCases": 6, "FailedCases": 0, "Status": "PASSED", "GpuReadbackPerformed":true, "RealRasterDrawPerformed":true}

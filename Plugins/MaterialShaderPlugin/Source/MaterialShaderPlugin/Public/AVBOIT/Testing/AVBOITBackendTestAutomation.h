@@ -25,7 +25,7 @@ struct FAVBOITBackendTestCase
     TArray<FString> FailureReasons;
 };
 
-class FAVBOITBackendTestAutomation : public FTickableGameObject
+class MATERIALSHADEREXAMPLE_API FAVBOITBackendTestAutomation : public FTickableGameObject
 {
 public:
     static void Initialize();
