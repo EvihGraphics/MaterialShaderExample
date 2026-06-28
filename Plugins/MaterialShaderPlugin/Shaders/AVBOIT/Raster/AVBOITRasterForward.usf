@@ -6,8 +6,7 @@
 float4x4 LocalToWorld;
 float4x4 WorldToClip;
 float4x4 WorldToView;
-float ZNear;
-float ZFar;
+
 float4 ColorAndAlpha;
 float ReferenceBrightnessMultiplier;
 
