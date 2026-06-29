@@ -43,7 +43,7 @@ FString FAVBOITEvidencePath::ResolveAVBOITEvidenceRoot(const FString& Stage, con
 	}
 
 	FString MachineId = ResolveAVBOITMachineId();
-	FString DefaultRoot = FPaths::ProjectDir() / TEXT("LocalVisualResults/UE57") / MachineId / Stage;
+	FString DefaultRoot = FPaths::ProjectDir() / TEXT("LocalVisualResults/TempResults/UE57") / MachineId / Stage;
 	FPaths::NormalizeFilename(DefaultRoot);
 	return DefaultRoot;
 }

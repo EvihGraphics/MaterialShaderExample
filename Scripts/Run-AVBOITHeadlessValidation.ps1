@@ -1,7 +1,8 @@
-﻿param (
+param (
     [string]$ProjectPath = "$PWD\MaterialShaderDemo.uproject",
     [string]$UERoot = "D:\UE\UnrealEngine_Animation_Tech",
-    [string]$BaseEvidenceRoot = "$PWD\LocalVisualResults\UE57\HIVE_4090x2\UE4-2A-1-H-1-Real-Headless-GPU",
+    [string]$BaseEvidenceRoot = "$PWD\LocalVisualResults\TempResults\UE57\HIVE_4090x2\UE4-2A-1-H-1-Real-Headless-GPU",
+    [string]$KeyEvidenceRoot = "$PWD\LocalVisualResults\KeyResults\UE57\HIVE_4090x2\UE4-2A-1-H-1-Real-Headless-GPU",
     [int]$TimeoutSeconds = 600,
     [switch]$SkipBuild
 )
@@ -169,6 +170,25 @@ try {
         Duration = (Get-Date) - $StartTime
     }
     $Acceptance | ConvertTo-Json | Out-File "$EvidenceRoot\17_Acceptance\Acceptance.json" -Force
+
+    if ($ExitCode -eq 0) {
+        # Copy Key Results to KeyEvidenceRoot
+        $KeyRunRoot = "$KeyEvidenceRoot\$RunId"
+        New-Item -ItemType Directory -Force -Path $KeyRunRoot | Out-Null
+        Copy-Item -Path "$EvidenceRoot\17_Acceptance\Acceptance.json" -Destination "$KeyRunRoot\" -Force
+        
+        $Screenshots = Get-ChildItem -Path $EvidenceRoot -Recurse -Filter "*.png"
+        foreach ($S in $Screenshots) {
+            $Rel = $S.FullName.Substring($EvidenceRoot.Length + 1)
+            $Dest = "$KeyRunRoot\$Rel"
+            $DestDir = Split-Path $Dest -Parent
+            if (-not (Test-Path $DestDir)) {
+                New-Item -ItemType Directory -Force -Path $DestDir | Out-Null
+            }
+            Copy-Item -Path $S.FullName -Destination $Dest -Force
+        }
+        Write-Host "Key results successfully copied to $KeyRunRoot"
+    }
 
     Write-Host "Validation finished with exit code $ExitCode"
     exit $ExitCode

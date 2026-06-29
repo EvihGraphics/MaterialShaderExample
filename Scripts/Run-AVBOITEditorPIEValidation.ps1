@@ -1,7 +1,8 @@
 param (
     [string]$ProjectPath = "$PWD\MaterialShaderDemo.uproject",
     [string]$UERoot = "D:\UE\UnrealEngine_Animation_Tech",
-    [string]$BaseEvidenceRoot = "$PWD\LocalVisualResults\UE57\HIVE_4090x2\UE4-2A-1-E-1-Real-Scene-Integration",
+    [string]$BaseEvidenceRoot = "$PWD\LocalVisualResults\TempResults\UE57\HIVE_4090x2\UE4-2A-1-E-1-Real-Scene-Integration",
+    [string]$KeyEvidenceRoot = "$PWD\LocalVisualResults\KeyResults\UE57\HIVE_4090x2\UE4-2A-1-E-1-Real-Scene-Integration",
     [int]$TimeoutSeconds = 600,
     [switch]$SkipBuild,
     [switch]$SkipHeadlessRegression
@@ -118,6 +119,20 @@ try {
     $Acceptance | ConvertTo-Json -Depth 4 | Out-File "$EvidenceRoot\15_Acceptance\Acceptance.json"
     New-Item "$EvidenceRoot\COMPLETED.marker" -ItemType File | Out-Null
     Write-Host "All checks passed."
+
+    # Copy Key Results to KeyEvidenceRoot
+    $KeyRunRoot = "$KeyEvidenceRoot\$RunId"
+    New-Item -ItemType Directory -Force -Path $KeyRunRoot | Out-Null
+    Copy-Item -Path "$EvidenceRoot\15_Acceptance\Acceptance.json" -Destination "$KeyRunRoot\" -Force
+    if (Test-Path "$EvidenceRoot\Editor\01_Visible.png") {
+        New-Item -ItemType Directory -Force -Path "$KeyRunRoot\Editor" | Out-Null
+        Copy-Item -Path "$EvidenceRoot\Editor\01_Visible.png" -Destination "$KeyRunRoot\Editor\" -Force
+    }
+    if (Test-Path "$EvidenceRoot\PIE\01_Visible.png") {
+        New-Item -ItemType Directory -Force -Path "$KeyRunRoot\PIE" | Out-Null
+        Copy-Item -Path "$EvidenceRoot\PIE\01_Visible.png" -Destination "$KeyRunRoot\PIE\" -Force
+    }
+    Write-Host "Key results successfully copied to $KeyRunRoot"
 
 } catch {
     Write-Host "Exception: $_"

@@ -15,4 +15,4 @@ _ReSharper.Caches/
 *.rdc
 *.wpix
 # Automation Test Results
-LocalVisualResults/
+LocalVisualResults/TempResults/
