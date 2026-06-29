@@ -45,6 +45,8 @@ class FAVBOITRasterSplatPS : public FGlobalShader
 		SHADER_PARAMETER(float, ZNear)
 		SHADER_PARAMETER(float, ZFar)
 		SHADER_PARAMETER(FVector2f, ViewResolution)
+		SHADER_PARAMETER(FVector2f, VolumeResolution)
+		SHADER_PARAMETER(uint32, DownsampleFactor)
 		SHADER_PARAMETER(FVector4f, ColorAndAlpha)
 		SHADER_PARAMETER(FIntVector4, ViewRectMin)
 		SHADER_PARAMETER(FIntPoint, DebugPixel)
@@ -104,9 +106,10 @@ class FAVBOITRasterCompositePS : public FGlobalShader
 	SHADER_USE_PARAMETER_STRUCT(FAVBOITRasterCompositePS, FGlobalShader);
 
 	BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
-		SHADER_PARAMETER(FIntVector4, ViewRectMin)
 		SHADER_PARAMETER_RDG_TEXTURE(Texture2D<float4>, ColorAccumulation)
 		SHADER_PARAMETER_RDG_TEXTURE_SRV(Texture2DArray<float>, TransmittanceVolume)
+		SHADER_PARAMETER(FIntVector4, ViewRectMin)
+		SHADER_PARAMETER(uint32, DownsampleFactor)
 		RENDER_TARGET_BINDING_SLOTS()
 	END_SHADER_PARAMETER_STRUCT()
 

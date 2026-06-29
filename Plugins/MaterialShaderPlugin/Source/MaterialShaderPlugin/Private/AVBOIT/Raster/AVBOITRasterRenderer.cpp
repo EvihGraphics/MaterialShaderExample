@@ -163,8 +163,8 @@ FAVBOITRasterPassOutputs FAVBOITRasterRenderer::AddCorePasses(
 	UE_LOG(LogTemp, Warning, TEXT("AVBOIT TextureExtent: %d x %d, ExtinctionElements: %lld"), TextureExtent.X, TextureExtent.Y, (long long)TextureExtent.X * TextureExtent.Y * 64);
 
 	
-	// Scale down for P2.6T low-res spline (e.g. half-res or specific factor). Assuming Factor = 2 for now.
-	int32 DownsampleFactor = 2;
+	// Scale down for P2.6T low-res spline
+	int32 DownsampleFactor = 8;
 	FIntPoint SplatExtent = FIntPoint(FMath::DivideAndRoundUp(TextureExtent.X, DownsampleFactor), FMath::DivideAndRoundUp(TextureExtent.Y, DownsampleFactor));
 	
 	int32 NumSlices = 64; // Default slices
@@ -221,6 +221,7 @@ FAVBOITRasterPassOutputs FAVBOITRasterRenderer::AddCorePasses(
 	{
 		auto* PassParameters = GraphBuilder.AllocParameters<FAVBOITClearCS::FParameters>();
 		PassParameters->ViewResolution = FVector2f(ViewRect.Width(), ViewRect.Height());
+		PassParameters->VolumeResolution = FVector2f(SplatExtent.X, SplatExtent.Y);
 		PassParameters->ZNear = 10.0f;
 		PassParameters->ZFar = 1000.0f;
 		PassParameters->FragmentCount = 0;
@@ -261,8 +262,10 @@ FAVBOITRasterPassOutputs FAVBOITRasterRenderer::AddCorePasses(
 		{
 			auto* PSParams = GraphBuilder.AllocParameters<FAVBOITRasterSplatPS::FParameters>();
 			PSParams->ZNear = ZNear;
-			PSParams->ZFar = ZFar;
+			PSParams->ZFar = 1000.0f;
 			PSParams->ViewResolution = FVector2f(TextureExtent.X, TextureExtent.Y);
+			PSParams->VolumeResolution = FVector2f(SplatExtent.X, SplatExtent.Y);
+			PSParams->DownsampleFactor = DownsampleFactor;
 			PSParams->ColorAndAlpha = FVector4f(Data.Color.R, Data.Color.G, Data.Color.B, Data.Alpha);
 			PSParams->ViewRectMin = ViewRectMin;
 			PSParams->OutExtinctionVolume = GraphBuilder.CreateUAV(Outputs.ExtinctionVolume);
@@ -355,6 +358,7 @@ FAVBOITRasterPassOutputs FAVBOITRasterRenderer::AddCorePasses(
 	{
 		auto* PassParameters = GraphBuilder.AllocParameters<FAVBOITIntegrateCS::FParameters>();
 		PassParameters->ViewResolution = FVector2f(TextureExtent.X, TextureExtent.Y);
+		PassParameters->VolumeResolution = FVector2f(SplatExtent.X, SplatExtent.Y);
 		PassParameters->ZNear = 10.0f; // Note: Raster renderer doesn't strictly use ZNear/ZFar in IntegrateCS, but it must be bound
 		PassParameters->ZFar = 1000.0f;
 		PassParameters->FragmentCount = 0;
@@ -489,6 +493,7 @@ FAVBOITRasterPassOutputs FAVBOITRasterRenderer::AddCorePasses(
 		PassParameters->ViewRectMin = ViewRectMin;
 		PassParameters->ColorAccumulation = Outputs.ColorAccumulation;
 		PassParameters->TransmittanceVolume = GraphBuilder.CreateSRV(Outputs.TransmittanceVolume);
+		PassParameters->DownsampleFactor = DownsampleFactor;
 		PassParameters->RenderTargets[0] = FRenderTargetBinding(SceneColorTexture, ERenderTargetLoadAction::ELoad);
 
 		TShaderMapRef<FAVBOITRasterCompositePS> PixelShader(GetGlobalShaderMap(GMaxRHIFeatureLevel));

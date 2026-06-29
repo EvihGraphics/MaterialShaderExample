@@ -14,6 +14,7 @@ class FAVBOITClearCS : public FGlobalShader
 
     BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
         SHADER_PARAMETER(FVector2f, ViewResolution)
+        SHADER_PARAMETER(FVector2f, VolumeResolution)
           SHADER_PARAMETER(float, ZNear)
           SHADER_PARAMETER(float, ZFar)
         SHADER_PARAMETER(uint32, FragmentCount)
@@ -45,6 +46,7 @@ class FAVBOITIntegrateCS : public FGlobalShader
 
     BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
         SHADER_PARAMETER(FVector2f, ViewResolution)
+        SHADER_PARAMETER(FVector2f, VolumeResolution)
           SHADER_PARAMETER(float, ZNear)
           SHADER_PARAMETER(float, ZFar)
         SHADER_PARAMETER(uint32, FragmentCount)

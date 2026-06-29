@@ -7,6 +7,9 @@ float4x4 LocalToWorld;
 float4x4 WorldToClip;
 float4x4 WorldToView;
 
+float2 ViewResolution;
+float2 VolumeResolution;
+uint DownsampleFactor;
 float4 ColorAndAlpha;
 int2 DebugPixel;
 
@@ -51,10 +54,15 @@ void MainPS(
 	uint Slice = GetSliceIndex(NormDepth);
 
 	float Extinction = -log(1.0f - Alpha);
+	
+	// Apply P2.6T AVBOIT Contract: Average extinction over the XY cell 
+	float CellSampleCount = max(float(DownsampleFactor * DownsampleFactor), 1.0f);
+	Extinction /= CellSampleCount;
+	
 	uint Packed = PackExtinction(Extinction);
 
-	uint2 PixelPos = uint2(In.Position.xy);
-	uint Index = GetVolumeIndex(uint3(PixelPos, Slice), (uint)ViewResolution.x, (uint)ViewResolution.y);
+	uint2 PixelPos = uint2(In.Position.xy) / DownsampleFactor;
+	uint Index = GetVolumeIndex(uint3(PixelPos, Slice), (uint)VolumeResolution.x, (uint)VolumeResolution.y);
 	InterlockedAdd(OutExtinctionVolume[Index], Packed);
 	
 #if AVBOIT_TEST_COVERAGE

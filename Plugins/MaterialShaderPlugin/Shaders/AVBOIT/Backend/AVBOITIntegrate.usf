@@ -4,11 +4,13 @@
 StructuredBuffer<uint> InExtinctionVolume;
 RWTexture2DArray<float> OutTransmittanceVolume;
 
+float2 VolumeResolution;
+
 [numthreads(8, 8, 1)]
 void IntegrateCS(uint3 DispatchThreadId : SV_DispatchThreadID)
 {
     uint2 PixelCoord = DispatchThreadId.xy;
-    if (PixelCoord.x >= (uint)ViewResolution.x || PixelCoord.y >= (uint)ViewResolution.y)
+    if (PixelCoord.x >= (uint)VolumeResolution.x || PixelCoord.y >= (uint)VolumeResolution.y)
     {
         return;
     }
@@ -19,7 +21,7 @@ void IntegrateCS(uint3 DispatchThreadId : SV_DispatchThreadID)
     for (uint z = 0; z < AVBOIT_VOLUME_DEPTH; ++z)
     {
         uint3 Coords = uint3(PixelCoord.x, PixelCoord.y, z);
-        uint Index = GetVolumeIndex(Coords, (uint)ViewResolution.x, (uint)ViewResolution.y);
+        uint Index = GetVolumeIndex(Coords, (uint)VolumeResolution.x, (uint)VolumeResolution.y);
         uint PackedExt = InExtinctionVolume[Index];
         float Ext = UnpackExtinction(PackedExt);
 

@@ -5,24 +5,26 @@ RWStructuredBuffer<uint> OutExtinctionVolume;
 RWTexture2DArray<float> OutTransmittanceVolume;
 RWTexture2D<float4> OutResultTexture;
 
+float2 VolumeResolution;
+
 [numthreads(8, 8, 1)]
 void ClearCS(uint3 DispatchThreadId : SV_DispatchThreadID)
 {
-    if (DispatchThreadId.x >= (uint)ViewResolution.x || DispatchThreadId.y >= (uint)ViewResolution.y)
-    {
-        return;
-    }
-
     uint2 PixelCoord = DispatchThreadId.xy;
 
-    for (uint z = 0; z < AVBOIT_VOLUME_DEPTH; ++z)
+    if (PixelCoord.x < (uint)VolumeResolution.x && PixelCoord.y < (uint)VolumeResolution.y)
     {
-        uint3 Coords = uint3(PixelCoord.x, PixelCoord.y, z);
-        uint Index = GetVolumeIndex(Coords, (uint)ViewResolution.x, (uint)ViewResolution.y);
-        OutExtinctionVolume[Index] = 0u;
-        OutTransmittanceVolume[Coords] = 1.0f; // Initial transmittance is 1.0
+        for (uint z = 0; z < AVBOIT_VOLUME_DEPTH; ++z)
+        {
+            uint3 Coords = uint3(PixelCoord.x, PixelCoord.y, z);
+            uint Index = GetVolumeIndex(Coords, (uint)VolumeResolution.x, (uint)VolumeResolution.y);
+            OutExtinctionVolume[Index] = 0u;
+            OutTransmittanceVolume[Coords] = 1.0f;
+        }
     }
 
-    // Clear Result to 0 (Linear Black, 0 alpha)
-    OutResultTexture[PixelCoord] = float4(0.0f, 0.0f, 0.0f, 0.0f);
+    if (PixelCoord.x < (uint)ViewResolution.x && PixelCoord.y < (uint)ViewResolution.y)
+    {
+        OutResultTexture[PixelCoord] = float4(0.0f, 0.0f, 0.0f, 0.0f);
+    }
 }

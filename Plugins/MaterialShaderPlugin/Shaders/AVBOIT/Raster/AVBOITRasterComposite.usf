@@ -7,6 +7,7 @@
 Texture2D<float4> ColorAccumulation;
 Texture2DArray<float> TransmittanceVolume;
 int4 ViewRectMin;
+uint DownsampleFactor;
 
 void MainPS(
 	in float4 SvPosition : SV_Position,
@@ -15,7 +16,8 @@ void MainPS(
 	uint2 PixelPos = uint2(SvPosition.xy);
 
 	float4 Accum = ColorAccumulation.Load(int3(PixelPos, 0));
-	float TotalTransmittance = TransmittanceVolume.Load(int4(PixelPos.x, PixelPos.y, 63, 0));
+	uint2 VolumePos = PixelPos / DownsampleFactor;
+	float TotalTransmittance = TransmittanceVolume.Load(int4(VolumePos.x, VolumePos.y, 63, 0));
 
 	OutColor = float4(Accum.rgb, TotalTransmittance);
 }
