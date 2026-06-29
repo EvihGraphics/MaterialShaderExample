@@ -1,0 +1,13 @@
+{
+  "Camera": {
+    "ForgePosition": [-40.0, 17.0, 34.0],
+    "ForgeLookAt": [0.0, 5.0, 0.0],
+    "UEPosition": [3400.0, -4000.0, 1700.0],
+    "UELookAt": [0.0, 0.0, 500.0],
+    "HorizontalFOV": 90.0,
+    "Aspect": 1.7777777778,
+    "Near": 1.0,
+    "Far": 4000.0,
+    "ReferenceResolution": [1920, 1080]
+  }
+}

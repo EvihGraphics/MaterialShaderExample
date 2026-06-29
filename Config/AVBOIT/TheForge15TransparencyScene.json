@@ -1,0 +1,75 @@
+{
+  "CoordinateSystem": "ForgeToUE(Z, X, Y) * 100.0",
+  "Objects": [
+    {
+      "Name": "Ground",
+      "Type": "Cube",
+      "ForgePosition": [0.0, 0.0, 0.0],
+      "ForgeScale": [100.0, 0.5, 100.0],
+      "Color": [0.9, 0.9, 0.9, 1.0]
+    },
+    {
+      "Name": "RedWallRight",
+      "Type": "Cube",
+      "ForgePosition": [15.0, 4.0, 5.0],
+      "ForgeScale": [4.0, 4.0, 0.1],
+      "Color": [1.0, 0.0, 0.0, 0.9]
+    },
+    {
+      "Name": "GreenWallRight",
+      "Type": "Cube",
+      "ForgePosition": [15.0, 4.0, 0.0],
+      "ForgeScale": [4.0, 4.0, 0.1],
+      "Color": [0.0, 1.0, 0.0, 0.9]
+    },
+    {
+      "Name": "BlueWallRight",
+      "Type": "Cube",
+      "ForgePosition": [15.0, 4.0, -5.0],
+      "ForgeScale": [4.0, 4.0, 0.1],
+      "Color": [0.0, 0.0, 1.0, 0.9]
+    },
+    {
+      "Name": "RedWallLeft",
+      "Type": "Cube",
+      "ForgePosition": [-15.0, 4.0, 5.0],
+      "ForgeScale": [4.0, 4.0, 0.1],
+      "Color": [1.0, 0.0, 0.0, 0.5]
+    },
+    {
+      "Name": "GreenWallLeft",
+      "Type": "Cube",
+      "ForgePosition": [-15.0, 4.0, 0.0],
+      "ForgeScale": [4.0, 4.0, 0.1],
+      "Color": [0.0, 1.0, 0.0, 0.5]
+    },
+    {
+      "Name": "BlueWallLeft",
+      "Type": "Cube",
+      "ForgePosition": [-15.0, 4.0, -5.0],
+      "ForgeScale": [4.0, 4.0, 0.1],
+      "Color": [0.0, 0.0, 1.0, 0.5]
+    },
+    {
+      "Name": "BlueSphereRefract",
+      "Type": "Sphere",
+      "ForgePosition": [0.0, 5.0, -25.0],
+      "ForgeScale": [4.0, 4.0, 4.0],
+      "Color": [0.3, 0.3, 1.0, 0.9],
+      "Eta": 1.5
+    }
+  ],
+  "Grid5x5": {
+    "Start": [-6.0, 2.3, -6.0],
+    "Step": [3.0, 0.0, 3.0],
+    "Rows": 5,
+    "Cols": 5
+  },
+  "ThinSlices25": {
+    "Start": [-25.0, 4.0, 25.0],
+    "Step": [2.0, 0.0, 0.0],
+    "Count": 25,
+    "Color": [1.0, 1.0, 10.0, 0.1],
+    "Scale": [0.1, 4.0, 4.0]
+  }
+}

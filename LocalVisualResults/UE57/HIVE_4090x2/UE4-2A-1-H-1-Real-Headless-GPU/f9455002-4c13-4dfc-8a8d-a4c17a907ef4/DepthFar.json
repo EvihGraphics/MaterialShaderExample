@@ -1,1 +1,0 @@
-{"Name":"DepthFar", "Status":"FAILED", "FailureReasons":["PackedExtinction[63] Expected: 6931, Actual: 0","Transmittance[63] Expected: 0.500000, Actual: 1.000000"], "Expected":"", "Actual":"", "Tolerance":0.000000}

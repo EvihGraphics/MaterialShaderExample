@@ -104,8 +104,9 @@ void FAVBOITRasterRenderer::AddPasses(
 	PassInputs.ViewRect = View.UnconstrainedViewRect;
 	PassInputs.WorldToView = FMatrix44f(View.ViewMatrices.GetViewMatrix());
 	PassInputs.WorldToClip = FMatrix44f(View.ViewMatrices.GetViewProjectionMatrix());
-	PassInputs.ZNear = View.NearClippingDistance;
-	PassInputs.ZFar = View.NearClippingDistance + 10000.0f;
+	// Load parameters from camera contract or context
+	PassInputs.ZNear = 100.0f; // 1 Forge unit = 100cm
+	PassInputs.ZFar = 400000.0f; // 4000 Forge units = 400000cm
 	PassInputs.SceneDepth = Inputs.SceneTextures->GetParameters()->SceneDepthTexture;
 	PassInputs.SceneColor = Inputs.SceneTextures->GetParameters()->SceneColorTexture;
 	PassInputs.FragmentCoverageCounter = nullptr;
@@ -162,11 +163,14 @@ FAVBOITRasterPassOutputs FAVBOITRasterRenderer::AddCorePasses(
 	UE_LOG(LogTemp, Warning, TEXT("AVBOIT TextureExtent: %d x %d, ExtinctionElements: %lld"), TextureExtent.X, TextureExtent.Y, (long long)TextureExtent.X * TextureExtent.Y * 64);
 
 	
-	uint32 ExtinctionElements = TextureExtent.X * TextureExtent.Y * 64;
-	if (true)
-	{
-		ExtinctionElements = 1024;
-	}
+	// Scale down for P2.6T low-res spline (e.g. half-res or specific factor). Assuming Factor = 2 for now.
+	int32 DownsampleFactor = 2;
+	FIntPoint SplatExtent = FIntPoint(FMath::DivideAndRoundUp(ViewRect.Width(), DownsampleFactor), FMath::DivideAndRoundUp(ViewRect.Height(), DownsampleFactor));
+	
+	int32 NumSlices = 64; // Default slices
+	uint64 ExtinctionElements = (uint64)SplatExtent.X * (uint64)SplatExtent.Y * NumSlices;
+	if (ExtinctionElements == 0) ExtinctionElements = 1;
+
 	FRDGBufferDesc ExtinctionDesc = FRDGBufferDesc::CreateStructuredDesc(4, ExtinctionElements);
 
 	Outputs.ExtinctionVolume = GraphBuilder.CreateBuffer(ExtinctionDesc, TEXT("AVBOIT.Outputs.ExtinctionVolume"));
@@ -196,11 +200,11 @@ FAVBOITRasterPassOutputs FAVBOITRasterRenderer::AddCorePasses(
 
 
 	FRDGTextureDesc TransmittanceDesc = FRDGTextureDesc::Create2DArray(
-		TextureExtent,
+		SplatExtent,
 		PF_R32_FLOAT,
 		FClearValueBinding::None,
 		TexCreate_ShaderResource | TexCreate_UAV,
-		64);
+		NumSlices);
 	Outputs.TransmittanceVolume = GraphBuilder.CreateTexture(TransmittanceDesc, TEXT("AVBOIT.Outputs.TransmittanceVolume"));
 
 	FRDGTextureDesc ColorDesc = FRDGTextureDesc::Create2D(

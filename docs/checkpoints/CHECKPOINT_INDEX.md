@@ -35,3 +35,4 @@
 | 0035 | [`CHECKPOINT-0035-20260628T173500Z-UE4-2A-1-H-1-C-numeric-evidence-closeout.md`](archive/CHECKPOINT-0035-20260628T173500Z-UE4-2A-1-H-1-C-numeric-evidence-closeout.md) | 2026-06-28T17:35:00Z | COMPLETED | UE-4.2A.1-H.1-C | Headless Core Closeout |
 | 0036 | [`CHECKPOINT-0036-20260628T183000Z-UE4-2A-1-E-editor-smoke.md`](archive/CHECKPOINT-0036-20260628T183000Z-UE4-2A-1-E-editor-smoke.md) | 2026-06-28T18:30:00Z | COMPLETED | UE-4.2A.1-E | Editor Smoke Test |
 | 0037 | [`CHECKPOINT-0037-20260629T063500Z-UE4-2A-1-E-1-real-scene-integration-preflight.md`](archive/CHECKPOINT-0037-20260629T063500Z-UE4-2A-1-E-1-real-scene-integration-preflight.md) | 2026-06-29T06:35:00Z | PREFLIGHT | UE-4.2A.1-E.1 | Editor/PIE Real Scene Integration Preflight |
+| 0038 | [`CHECKPOINT-0037-20260629T095115Z-UE-4-2B-blocked.md`](archive/CHECKPOINT-0037-20260629T095115Z-UE-4-2B-blocked.md) | 2026-06-29T09:51:15Z | blocked-local | UE-4.2B | The Forge Parity and AVBOIT P2.6T Contract |

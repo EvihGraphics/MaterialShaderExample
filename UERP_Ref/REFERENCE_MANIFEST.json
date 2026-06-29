@@ -1,0 +1,112 @@
+[
+  {
+    "Name": "CompushadyUnreal",
+    "RepositoryURL": "https://github.com/rdeioris/CompushadyUnreal",
+    "SelectedBranchTag": "master",
+    "PinnedCommit": "64702972fa658aaf2320750ce95fa03ec781dcb9",
+    "License": "MIT",
+    "OriginalSupportedUEVersion": "5.x",
+    "RepositoryType": "Plugin",
+    "NestedSubmodules": [],
+    "RelevantAVBOITTopic": "Compute Shader backend execution and arbitrary buffer bindings"
+  },
+  {
+    "Name": "ComputeShaderDemo",
+    "RepositoryURL": "https://github.com/brohaooo/ComputeShaderDemo",
+    "SelectedBranchTag": "main",
+    "PinnedCommit": "b27e736b387eb265f192f997c72f7de75efd1758",
+    "License": "MIT",
+    "OriginalSupportedUEVersion": "5.x",
+    "RepositoryType": "Project",
+    "NestedSubmodules": [],
+    "RelevantAVBOITTopic": "Basic Compute Shader dispatch within a project context"
+  },
+  {
+    "Name": "SceneViewExtensionTemplate",
+    "RepositoryURL": "https://github.com/A57R4L/SceneViewExtensionTemplate",
+    "SelectedBranchTag": "5.0-5.5",
+    "PinnedCommit": "d2852f95f69a65c0d9b1c6e286fd9b557bb85a46",
+    "License": "MIT",
+    "OriginalSupportedUEVersion": "5.0-5.5",
+    "RepositoryType": "Plugin",
+    "NestedSubmodules": [],
+    "RelevantAVBOITTopic": "SceneViewExtension lifecycle and multi-view stability"
+  },
+  {
+    "Name": "UE5ClassicBloomFX",
+    "RepositoryURL": "https://github.com/przemek-em/UE5-ClassicBloomFX",
+    "SelectedBranchTag": "main",
+    "PinnedCommit": "6645e3a6c818b8f33d9ea8ced73aad84d098d27b",
+    "License": "MIT",
+    "OriginalSupportedUEVersion": "5.x",
+    "RepositoryType": "Plugin",
+    "NestedSubmodules": [],
+    "RelevantAVBOITTopic": "PostProcess integration and render graph (RDG) dependencies"
+  },
+  {
+    "Name": "UE5CustomSSGI",
+    "RepositoryURL": "https://github.com/whlee503/ue5_custom_ssgi",
+    "SelectedBranchTag": "main",
+    "PinnedCommit": "1cdbef9939054530460d3f87d5067d8833ba2641",
+    "License": "MIT",
+    "OriginalSupportedUEVersion": "5.x",
+    "RepositoryType": "Plugin",
+    "NestedSubmodules": [],
+    "RelevantAVBOITTopic": "Screen Space raymarching and Depth Buffer access"
+  },
+  {
+    "Name": "UE5GPURuntimeTessellation",
+    "RepositoryURL": "https://github.com/przemek-em/UE5-GPURuntimeTessellation",
+    "SelectedBranchTag": "main",
+    "PinnedCommit": "7954961cf9f6b36ffa4dfb464d72e3f95b87e407",
+    "License": "MIT",
+    "OriginalSupportedUEVersion": "5.x",
+    "RepositoryType": "Plugin",
+    "NestedSubmodules": [],
+    "RelevantAVBOITTopic": "Advanced GPU compute pass and dynamic buffer generation"
+  },
+  {
+    "Name": "UE5HelloTriangle",
+    "RepositoryURL": "https://github.com/Pikachuxxxx/UE5HelloTriangle",
+    "SelectedBranchTag": "master",
+    "PinnedCommit": "c6f80d3e867f91489814e09241e0972ddb237dc6",
+    "License": "MIT",
+    "OriginalSupportedUEVersion": "5.x",
+    "RepositoryType": "Project",
+    "NestedSubmodules": [],
+    "RelevantAVBOITTopic": "Custom rendering path without standard Mesh Pass Processor"
+  },
+  {
+    "Name": "UE5NiagaraComputeShaderIntegration",
+    "RepositoryURL": "https://github.com/Shadertech/UE5NiagaraComputeShaderIntegration",
+    "SelectedBranchTag": "master",
+    "PinnedCommit": "cca2e743266deee1ecdb92a7e23aacacc861555e",
+    "License": "MIT",
+    "OriginalSupportedUEVersion": "5.x",
+    "RepositoryType": "Project",
+    "NestedSubmodules": [],
+    "RelevantAVBOITTopic": "Interacting with Niagara buffers from a compute shader (future milestone)"
+  },
+  {
+    "Name": "UE5ToneMapFX",
+    "RepositoryURL": "https://github.com/przemek-em/UE5-ToneMapFX",
+    "SelectedBranchTag": "main",
+    "PinnedCommit": "a7603351c009147671f2e4bbfbfbe72f0bbbbe3a",
+    "License": "MIT",
+    "OriginalSupportedUEVersion": "5.x",
+    "RepositoryType": "Plugin",
+    "NestedSubmodules": [],
+    "RelevantAVBOITTopic": "Modifying final color output and post-process hooks"
+  },
+  {
+    "Name": "UnrealExtendedGraphicsProgrammingDemo",
+    "RepositoryURL": "https://github.com/heyx3/UnrealExtendedGraphicsProgrammingDemo",
+    "SelectedBranchTag": "part/7",
+    "PinnedCommit": "d6e96fafd580ff08c4a02659491c47d0a5d6760a",
+    "License": "MIT",
+    "OriginalSupportedUEVersion": "5.x",
+    "RepositoryType": "Project",
+    "NestedSubmodules": ["Plugins/ExtendedGraphicsProgramming (bc61329)"],
+    "RelevantAVBOITTopic": "Comprehensive Custom Mesh Pass Processor implementation"
+  }
+]
