@@ -23,10 +23,9 @@ bool FAVBOITEditorPIEAutomation::bEditorPIECloseoutCaptureScreenshots = true;
 
 void FAVBOITEditorPIEAutomation::ApplySmokeState(const int32 Enable, const int32 DebugMode)
 {
-	if (IConsoleVariable* CVar = IConsoleManager::Get().FindConsoleVariable(TEXT("r.AVBOIT.Smoke.Enable"))) CVar->Set(Enable, ECVF_SetByConsole);
-	if (IConsoleVariable* CVar = IConsoleManager::Get().FindConsoleVariable(TEXT("r.AVBOIT.Smoke.DebugMode"))) CVar->Set(DebugMode, ECVF_SetByConsole);
-	if (IConsoleVariable* CVar = IConsoleManager::Get().FindConsoleVariable(TEXT("r.AVBOIT.Smoke.Opacity"))) CVar->Set(0.65f, ECVF_SetByConsole);
-	UE_LOG(LogTemp, Display, TEXT("Closeout state: Enable=%d DebugMode=%d"), Enable, DebugMode);
+	if (IConsoleVariable* CVar = IConsoleManager::Get().FindConsoleVariable(TEXT("r.AVBOIT.Raster.Enable"))) CVar->Set(Enable, ECVF_SetByConsole);
+	// Smoke debug modes are no longer used for Raster, but we leave the log
+	UE_LOG(LogTemp, Display, TEXT("Closeout state: Raster.Enable=%d"), Enable);
 }
 
 bool FAVBOITEditorPIEAutomation::IsPIEActive()
