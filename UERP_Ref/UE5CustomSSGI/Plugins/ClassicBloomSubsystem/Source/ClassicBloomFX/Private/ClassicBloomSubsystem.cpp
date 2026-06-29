@@ -352,7 +352,7 @@ FScreenPassTexture FClassicBloomSceneViewExtension::PostProcessPass_RenderThread
 		// Soft focus needs the entire scene, so use very low threshold
 		// Regular bloom only needs highlights
 		float EffectiveThreshold = ActiveComponent->BloomThreshold;
-		bool bIsSoftFocusMode = (ActiveComponent->BloomMode == EBloomMode::SoftFocus);
+		bool bIsSoftFocusMode = (ActiveComponent->BloomMode == EClassicBloomMode::SoftFocus);
 		
 		if (bIsSoftFocusMode)
 		{
@@ -403,9 +403,9 @@ FScreenPassTexture FClassicBloomSceneViewExtension::PostProcessPass_RenderThread
 	FRDGTextureRef BlurredBloomTexture = nullptr;
 	
 	// Check bloom mode from component
-	bool bUseDirectionalGlare = (ActiveComponent->BloomMode == EBloomMode::DirectionalGlare);
-	bool bUseKawaseBloom = (ActiveComponent->BloomMode == EBloomMode::Kawase);
-	bool bUseSoftFocus = (ActiveComponent->BloomMode == EBloomMode::SoftFocus);
+	bool bUseDirectionalGlare = (ActiveComponent->BloomMode == EClassicBloomMode::DirectionalGlare);
+	bool bUseKawaseBloom = (ActiveComponent->BloomMode == EClassicBloomMode::Kawase);
+	bool bUseSoftFocus = (ActiveComponent->BloomMode == EClassicBloomMode::SoftFocus);
 	
 	if (bUseDirectionalGlare)
 	{

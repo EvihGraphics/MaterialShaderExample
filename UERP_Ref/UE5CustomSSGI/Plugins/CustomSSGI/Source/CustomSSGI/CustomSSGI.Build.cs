@@ -1,4 +1,4 @@
-﻿//// Copyright Epic Games, Inc. All Rights Reserved.
+//// Copyright Epic Games, Inc. All Rights Reserved.
 
 //using System.IO;
 //using UnrealBuildTool;
@@ -9,7 +9,7 @@
 //	{
 //		PCHUsage = ModuleRules.PCHUsageMode.UseExplicitOrSharedPCHs;
 
-//        // 🔥 가장 확실하게 렌더러 Private 폴더 경로를 찾아내는 마법의 코드!
+//        // ?? ?? ???? ??? Private ?? ??? ???? ??? ??!
 //        string RendererPrivatePath = Path.Combine(GetModuleDirectory("Renderer"), "Private");
 //        PrivateIncludePaths.Add(RendererPrivatePath);
 
@@ -42,10 +42,10 @@
 //				"Core",        
 //				"CoreUObject",      
 //				"Engine",
-//				"RenderCore",		// 렌더링 파이프라인 제어를 위해 필수!
-//				"RHI",				// GPU 하드웨어 자원 통제를 위해 필수!
-//                "Projects",			// <-- 플러그인 경로를 찾기 위해 추가!
-//                "Renderer"			// 🔥 이 모듈이 추가되어야 G-Buffer를 읽어올 수 있습니다!
+//				"RenderCore",		// ??? ????? ??? ?? ??!
+//				"RHI",				// GPU ???? ?? ??? ?? ??!
+//                "Projects",			// <-- ???? ??? ?? ?? ??!
+//                "Renderer"			// ?? ? ??? ????? G-Buffer? ??? ? ????!
 //			}
 //			);
 			
@@ -82,21 +82,21 @@ public class CustomSSGI : ModuleRules
     {
         PCHUsage = ModuleRules.PCHUsageMode.UseExplicitOrSharedPCHs;
 
-        // 🔥 가장 확실하게 렌더러 Private 폴더 경로를 찾아내는 마법의 코드! (이것만 남깁니다)
+        // ?? ?? ???? ??? Private ?? ??? ???? ??? ??! (??? ????)
         string RendererPrivatePath = Path.Combine(GetModuleDirectory("Renderer"), "Private");
         PrivateIncludePaths.Add(RendererPrivatePath);
 
-        // 중복된 선언들을 하나로 합치고 깔끔하게 정리했습니다.
+        // ??? ???? ??? ??? ???? ??????.
         PublicDependencyModuleNames.AddRange(
             new string[]
             {
                 "Core",
                 "CoreUObject",
                 "Engine",
-                "RenderCore",		// 렌더링 파이프라인 제어를 위해 필수!
-				"RHI",				// GPU 하드웨어 자원 통제를 위해 필수!
-				"Projects",			// 플러그인 경로를 찾기 위해 추가!
-				"Renderer"			// 🔥 G-Buffer 등 렌더러 코어 접근을 위해 필수!
+                "RenderCore",		// ??? ????? ??? ?? ??!
+				"RHI",				// GPU ???? ?? ??? ?? ??!
+				"Projects",			// ???? ??? ?? ?? ??!
+				"Renderer"			// ?? G-Buffer ? ??? ?? ??? ?? ??!
 			}
         );
 

@@ -22,7 +22,7 @@ enum class EBloomPostProcessPass : uint8
 
 /** Blend mode for compositing bloom back onto the scene */
 UENUM(BlueprintType)
-enum class EBloomBlendMode : uint8
+enum class EClassicBloomBlendMode : uint8
 {
 	/** Screen blend - Photographic glow effect (recommended) */
 	Screen UMETA(DisplayName = "Screen (Recommended)"),
@@ -40,7 +40,7 @@ enum class EBloomBlendMode : uint8
 
 /** Bloom effect mode */
 UENUM(BlueprintType)
-enum class EBloomMode : uint8
+enum class EClassicBloomMode : uint8
 {
 	/** Standard Gaussian blur bloom */
 	Standard UMETA(DisplayName = "Standard (Gaussian)"),
@@ -70,7 +70,7 @@ public:
 	
 	/** Bloom effect mode - Standard Gaussian, Directional Glare, Kawase, or Soft Focus */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Bloom Mode")
-	EBloomMode BloomMode = EBloomMode::Standard;
+	EClassicBloomMode BloomMode = EClassicBloomMode::Standard;
 
 	// ========================================================================
 	// Bloom Settings (shared across modes)
@@ -81,11 +81,11 @@ public:
 	float BloomIntensity = 2.0f;
 
 	/** Threshold for bloom - only pixels brighter than this will bloom (not used in Soft Focus mode) */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Bloom Settings", meta = (ClampMin = "0.0", UIMin = "0.0", UIMax = "10.0", EditCondition = "BloomMode != EBloomMode::SoftFocus"))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Bloom Settings", meta = (ClampMin = "0.0", UIMin = "0.0", UIMax = "10.0", EditCondition = "BloomMode != EClassicBloomMode::SoftFocus"))
 	float BloomThreshold = 0.8f;
 
 	/** Size of the bloom effect (Standard and Glare modes only) */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Bloom Settings", meta = (ClampMin = "0.0", UIMin = "0.0", UIMax = "64.0", EditCondition = "BloomMode == EBloomMode::Standard || BloomMode == EBloomMode::DirectionalGlare || BloomMode == EBloomMode::SoftFocus"))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Bloom Settings", meta = (ClampMin = "0.0", UIMin = "0.0", UIMax = "64.0", EditCondition = "BloomMode == EClassicBloomMode::Standard || BloomMode == EClassicBloomMode::DirectionalGlare || BloomMode == EClassicBloomMode::SoftFocus"))
 	float BloomSize = 4.0f;
 
 	/** Use scene colors for bloom (realistic) or apply tint color */
@@ -98,7 +98,7 @@ public:
 
 	/** Blend mode for compositing bloom onto the scene */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Bloom Settings")
-	EBloomBlendMode BloomBlendMode = EBloomBlendMode::Screen;
+	EClassicBloomBlendMode BloomBlendMode = EClassicBloomBlendMode::Screen;
 
 	/** Saturation boost for bloom colors (1.0 = normal, >1.0 = more vibrant, <1.0 = desaturated) */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Bloom Settings", meta = (ClampMin = "0.0", ClampMax = "3.0", UIMin = "0.0", UIMax = "2.0"))
@@ -117,19 +117,19 @@ public:
 	// ========================================================================
 
 	/** Downsample scale (higher = better quality but slower). 1.0 = half res, 2.0 = full res */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Bloom Quality", meta = (ClampMin = "0.25", ClampMax = "2.0", UIMin = "0.5", UIMax = "2.0", EditCondition = "BloomMode == EBloomMode::Standard || BloomMode == EBloomMode::SoftFocus", EditConditionHides))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Bloom Quality", meta = (ClampMin = "0.25", ClampMax = "2.0", UIMin = "0.5", UIMax = "2.0", EditCondition = "BloomMode == EClassicBloomMode::Standard || BloomMode == EClassicBloomMode::SoftFocus", EditConditionHides))
 	float DownsampleScale = 1.0f;
 
 	/** Number of blur passes (more passes = smoother bloom but slower) */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Bloom Quality", meta = (ClampMin = "1", ClampMax = "4", UIMin = "1", UIMax = "4", EditCondition = "BloomMode == EBloomMode::Standard || BloomMode == EBloomMode::SoftFocus", EditConditionHides))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Bloom Quality", meta = (ClampMin = "1", ClampMax = "4", UIMin = "1", UIMax = "4", EditCondition = "BloomMode == EClassicBloomMode::Standard || BloomMode == EClassicBloomMode::SoftFocus", EditConditionHides))
 	int32 BlurPasses = 1;
 
 	/** Blur quality - number of samples per tap (5, 9, or 13) */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Bloom Quality", meta = (ClampMin = "5", ClampMax = "13", UIMin = "5", UIMax = "13", EditCondition = "BloomMode == EBloomMode::Standard || BloomMode == EBloomMode::SoftFocus", EditConditionHides))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Bloom Quality", meta = (ClampMin = "5", ClampMax = "13", UIMin = "5", UIMax = "13", EditCondition = "BloomMode == EClassicBloomMode::Standard || BloomMode == EClassicBloomMode::SoftFocus", EditConditionHides))
 	int32 BlurSamples = 5;
 
 	/** Use high quality upsampling (slower but reduces pixelation) */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Bloom Quality", meta = (EditCondition = "BloomMode == EBloomMode::Standard || BloomMode == EBloomMode::SoftFocus", EditConditionHides))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Bloom Quality", meta = (EditCondition = "BloomMode == EClassicBloomMode::Standard || BloomMode == EClassicBloomMode::SoftFocus", EditConditionHides))
 	bool bHighQualityUpsampling = false;
 
 	// ========================================================================
@@ -137,19 +137,19 @@ public:
 	// ========================================================================
 
 	/** Number of directional streaks (4-6 recommended for star patterns) */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Directional Glare Settings", meta = (ClampMin = "2", ClampMax = "16", UIMin = "2", UIMax = "12", EditCondition = "BloomMode == EBloomMode::DirectionalGlare", EditConditionHides))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Directional Glare Settings", meta = (ClampMin = "2", ClampMax = "16", UIMin = "2", UIMax = "12", EditCondition = "BloomMode == EClassicBloomMode::DirectionalGlare", EditConditionHides))
 	int32 GlareStreakCount = 6;
 
 	/** Length of each streak in pixels (at full resolution) */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Directional Glare Settings", meta = (ClampMin = "5", ClampMax = "200", UIMin = "10", UIMax = "120", EditCondition = "BloomMode == EBloomMode::DirectionalGlare", EditConditionHides))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Directional Glare Settings", meta = (ClampMin = "5", ClampMax = "200", UIMin = "10", UIMax = "120", EditCondition = "BloomMode == EClassicBloomMode::DirectionalGlare", EditConditionHides))
 	int32 GlareStreakLength = 40;
 
 	/** Rotation offset for streak directions in degrees */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Directional Glare Settings", meta = (ClampMin = "0.0", ClampMax = "180.0", UIMin = "0.0", UIMax = "90.0", EditCondition = "BloomMode == EBloomMode::DirectionalGlare", EditConditionHides))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Directional Glare Settings", meta = (ClampMin = "0.0", ClampMax = "180.0", UIMin = "0.0", UIMax = "90.0", EditCondition = "BloomMode == EClassicBloomMode::DirectionalGlare", EditConditionHides))
 	float GlareRotationOffset = 0.0f;
 
 	/** Exponential falloff rate for streak intensity (higher = faster falloff) */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Directional Glare Settings", meta = (ClampMin = "0.5", ClampMax = "10.0", UIMin = "1.0", UIMax = "5.0", EditCondition = "BloomMode == EBloomMode::DirectionalGlare", EditConditionHides))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Directional Glare Settings", meta = (ClampMin = "0.5", ClampMax = "10.0", UIMin = "1.0", UIMax = "5.0", EditCondition = "BloomMode == EClassicBloomMode::DirectionalGlare", EditConditionHides))
 	float GlareFalloff = 3.0f;
 
 	// ========================================================================
@@ -157,19 +157,19 @@ public:
 	// ========================================================================
 
 	/** Number of mip levels in the bloom pyramid (more = larger blur radius, 5-6 recommended) */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Kawase Bloom Settings", meta = (ClampMin = "3", ClampMax = "8", UIMin = "4", UIMax = "7", EditCondition = "BloomMode == EBloomMode::Kawase", EditConditionHides))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Kawase Bloom Settings", meta = (ClampMin = "3", ClampMax = "8", UIMin = "4", UIMax = "7", EditCondition = "BloomMode == EClassicBloomMode::Kawase", EditConditionHides))
 	int32 KawaseMipCount = 5;
 
 	/** Upsample filter radius (higher = softer bloom) */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Kawase Bloom Settings", meta = (ClampMin = "0.0001", ClampMax = "0.01", UIMin = "0.001", UIMax = "0.005", EditCondition = "BloomMode == EBloomMode::Kawase", EditConditionHides))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Kawase Bloom Settings", meta = (ClampMin = "0.0001", ClampMax = "0.01", UIMin = "0.001", UIMax = "0.005", EditCondition = "BloomMode == EClassicBloomMode::Kawase", EditConditionHides))
 	float KawaseFilterRadius = 0.002f;
 
 	/** Apply soft color threshold instead of hard brightness cutoff */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Kawase Bloom Settings", meta = (EditCondition = "BloomMode == EBloomMode::Kawase", EditConditionHides))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Kawase Bloom Settings", meta = (EditCondition = "BloomMode == EClassicBloomMode::Kawase", EditConditionHides))
 	bool bKawaseSoftThreshold = true;
 
 	/** Threshold knee - controls the smoothness of the threshold transition (0 = hard, 1 = very soft) */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Kawase Bloom Settings", meta = (ClampMin = "0.0", ClampMax = "1.0", UIMin = "0.0", UIMax = "1.0", EditCondition = "BloomMode == EBloomMode::Kawase && bKawaseSoftThreshold", EditConditionHides))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Kawase Bloom Settings", meta = (ClampMin = "0.0", ClampMax = "1.0", UIMin = "0.0", UIMax = "1.0", EditCondition = "BloomMode == EClassicBloomMode::Kawase && bKawaseSoftThreshold", EditConditionHides))
 	float KawaseThresholdKnee = 0.5f;
 
 	// ========================================================================

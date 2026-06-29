@@ -110,9 +110,9 @@ void UBloomFXComponent::PostEditChangeProperty(FPropertyChangedEvent& PropertyCh
 	// When switching to Soft Focus mode, auto-select Overlay blend mode
 	if (PropertyChangedEvent.GetPropertyName() == GET_MEMBER_NAME_CHECKED(UBloomFXComponent, BloomMode))
 	{
-		if (BloomMode == EBloomMode::SoftFocus)
+		if (BloomMode == EClassicBloomMode::SoftFocus)
 		{
-			BloomBlendMode = EBloomBlendMode::Overlay;
+			BloomBlendMode = EClassicBloomBlendMode::Overlay;
 		}
 	}
 }

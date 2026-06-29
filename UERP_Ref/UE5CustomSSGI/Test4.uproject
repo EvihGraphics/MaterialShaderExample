@@ -19,9 +19,9 @@
 			]
 		},
 		{ "Name": "HelloTriangle",                "Enabled": true },
-		{ "Name": "ShaderModule",                 "Enabled": true },
+		{ "Name": "CS_Plugin",                    "Enabled": true },
 		{ "Name": "ToneMapFX",                    "Enabled": true },
-		{ "Name": "ClassicBloomSubsystem",        "Enabled": true },
+		{ "Name": "ClassicBloomFX",        "Enabled": true },
 		{ "Name": "GPURuntimeTessellation",       "Enabled": true },
 		{ "Name": "ExtendedGraphicsProgramming",  "Enabled": false }
 	]

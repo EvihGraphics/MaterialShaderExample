@@ -100,7 +100,7 @@ void FSimpleComputeShaderInterface::DispatchRenderThread(FRHICommandListImmediat
 	{
 		// monitor the execution time of this function
 		SCOPE_CYCLE_COUNTER(STAT_SimpleComputeShader_Execute);
-		DECLARE_GPU_STAT(SimpleComputeShader)
+		DECLARE_GPU_STAT(SimpleComputeShader);
 		RDG_EVENT_SCOPE(GraphBuilder, "SimpleComputeShader");
 		RDG_GPU_STAT_SCOPE(GraphBuilder, SimpleComputeShader);
 
