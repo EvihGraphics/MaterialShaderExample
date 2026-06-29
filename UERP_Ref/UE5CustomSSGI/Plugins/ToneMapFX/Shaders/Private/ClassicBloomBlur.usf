@@ -1,0 +1,50 @@
+// Licensed under the zlib License. See LICENSE file in the project root.
+
+#include "/Engine/Public/Platform.ush"
+#include "/Engine/Private/Common.ush"
+#include "/Engine/Private/ScreenPass.ush"
+
+// Simple Gaussian blur shader - separable (horizontal or vertical pass)
+
+// Parameters are bound from C++ SHADER_PARAMETER_STRUCT
+Texture2D SourceTexture;
+SamplerState SourceSampler;
+float4 BufferSizeAndInvSize;
+float2 BlurDirection;
+float BlurRadius;
+
+// Maximum half-kernel radius in texels
+#define BLOOM_BLUR_MAX_HALF_KERNEL 48
+
+void GaussianBlurPS(
+	float4 SvPosition : SV_POSITION,
+	out float4 OutColor : SV_Target0)
+{
+	// Bloom blur operates on a downsampled buffer — simple UV, no viewport offset
+	float2 UV        = SvPosition.xy * BufferSizeAndInvSize.zw;
+	float2 TexelSize = BufferSizeAndInvSize.zw;
+
+	float2 Epsilon  = TexelSize * 0.5;
+	float2 ClampMin = Epsilon;
+	float2 ClampMax = 1.0 - Epsilon;
+
+	// BlurRadius = Gaussian sigma in texels; sample at 1-texel intervals to avoid
+	// sparse-kernel aliasing (which creates ringing / echo artefacts in bloom)
+	float sigma   = max(BlurRadius, 0.5);
+	float invSig2 = -0.5 / (sigma * sigma);
+	int   halfK   = min(int(ceil(3.0 * sigma)), BLOOM_BLUR_MAX_HALF_KERNEL);
+
+	float3 Result = 0.0;
+	float  TotalW = 0.0;
+
+	LOOP
+	for (int i = -halfK; i <= halfK; ++i)
+	{
+		float  w       = exp(float(i * i) * invSig2);
+		float2 SampleUV = clamp(UV + BlurDirection * TexelSize * float(i), ClampMin, ClampMax);
+		Result  += Texture2DSample(SourceTexture, SourceSampler, SampleUV).rgb * w;
+		TotalW  += w;
+	}
+
+	OutColor = float4(Result / max(TotalW, 1e-6), 1.0);
+}

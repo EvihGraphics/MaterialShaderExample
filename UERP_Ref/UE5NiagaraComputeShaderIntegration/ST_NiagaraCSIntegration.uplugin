@@ -1,0 +1,88 @@
+{
+	"FileVersion": 3,
+	"Version": 1,
+	"VersionName": "0.1.5",
+	"FriendlyName": "Niagara CS Integration",
+	"Description": "Demonstrates compute shader integration with the Niagara particle system.",
+	"Category": "ShaderTech",
+	"CreatedBy": "Aaron Trotter (ShaderTech)",
+	"CreatedByURL": "https://aarontrotter.com/",
+	"DocsURL": "https://github.com/Shadertech/UE5NiagaraComputeShaderIntegration",
+	"MarketplaceURL": "https://www.fab.com/listings/85c5b409-a153-4ab9-9f1b-b6bef092b572",
+	"SupportURL": "https://github.com/Shadertech/UE5NiagaraComputeShaderIntegration",
+	"EngineVersion": "5.8.0",
+	"CanContainContent": true,
+	"IsBetaVersion": false,
+	"IsExperimentalVersion": true,
+	"Installed": true,
+	"Modules": [
+		{
+			"Name": "ST_ComputeCore",
+			"Type": "Runtime",
+			"LoadingPhase": "PostConfigInit",
+			"PlatformAllowList": [
+				"Win64",
+				"Mac",
+				"Linux"
+			]
+		},
+		{
+			"Name": "ST_ComputeRPExample",
+			"Type": "Runtime",
+			"LoadingPhase": "PostConfigInit",
+			"PlatformAllowList": [
+				"Win64",
+				"Mac",
+				"Linux"
+			],
+			"Dependencies": [
+				"ST_ComputeCore"
+			]
+		},
+		{
+			"Name": "ST_ComputeRPLegacyExample",
+			"Type": "Runtime",
+			"LoadingPhase": "PostConfigInit",
+			"PlatformAllowList": [
+				"Win64",
+				"Mac",
+				"Linux"
+			],
+			"Dependencies": [
+				"ST_ComputeCore"
+			]
+		},
+		{
+			"Name": "ST_ComputeRPSUBExample",
+			"Type": "Runtime",
+			"LoadingPhase": "PostConfigInit",
+			"PlatformAllowList": [
+				"Win64",
+				"Mac",
+				"Linux"
+			],
+			"Dependencies": [
+				"ST_ComputeCore"
+			]
+		},
+		{
+			"Name": "ST_NiagaraExample",
+			"Type": "Runtime",
+			"LoadingPhase": "Default",
+			"PlatformAllowList": [
+				"Win64",
+				"Mac",
+				"Linux"
+			],
+			"Dependencies": [
+				"ST_ComputeCore"
+			]
+		}
+	],
+	"Plugins": [
+		{
+			"Name": "Niagara",
+			"Enabled": true
+		}
+	]
+}

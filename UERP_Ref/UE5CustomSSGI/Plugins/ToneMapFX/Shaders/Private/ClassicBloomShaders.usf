@@ -1,0 +1,90 @@
+// Licensed under the zlib License. See LICENSE file in the project root.
+
+#include "/Engine/Public/Platform.ush"
+#include "/Engine/Private/Common.ush"
+#include "/Engine/Private/ScreenPass.ush"
+
+// Brightness extraction shader with soft-knee threshold and HDR compression
+// Extracts pixels above threshold for bloom processing
+
+// Parameters are bound from C++ SHADER_PARAMETER_STRUCT
+Texture2D SceneColorTexture;
+SamplerState SceneColorSampler;
+float4 InputViewportSizeAndInvSize;
+float4 OutputViewportSizeAndInvSize;
+FScreenTransform SvPositionToInputTextureUV; // Transform from SvPosition to scene color texture UV
+float BloomThreshold;
+float BloomIntensity;
+float ThresholdSoftness;  // 0..1  — 0 = hard cutoff, 1 = very wide/soft transition
+float MaxBrightness;      // Clamp extreme HDR values to prevent banding artifacts (0 = no clamp)
+
+float3 ClampBloomMaxBrightness(float3 Bloom, float MaxValue)
+{
+	if (MaxValue <= 0.0)
+	{
+		return Bloom;
+	}
+
+	float Peak = max(max(Bloom.r, Bloom.g), Bloom.b);
+	if (Peak > MaxValue)
+	{
+		Bloom *= MaxValue / Peak;
+	}
+	return Bloom;
+}
+
+// Soft-knee threshold — identical maths to the Kawase path so the two modes
+// produce a consistent look.  Creates a smooth quadratic ramp instead of
+// a hard step, completely eliminating the "cutoff circle" artifact that the
+// old fixed-width smoothstep produced on very bright point sources.
+float3 SoftKneeThreshold(float3 color, float threshold, float knee)
+{
+	float brightness = max(max(color.r, color.g), color.b);
+	float soft = brightness - threshold + knee;
+	soft = clamp(soft, 0.0, 2.0 * knee);
+	soft = soft * soft / (4.0 * knee + 0.00001);
+	float contribution = max(soft, brightness - threshold);
+	contribution /= max(brightness, 0.00001);
+	return color * max(contribution, 0.0);
+}
+
+void BrightPassPS(
+	float4 SvPosition : SV_POSITION,
+	out float4 OutColor : SV_Target0)
+{
+	// Use FScreenTransform to properly map SvPosition to scene color texture UV
+	// This handles all viewport offset and texture extent calculations correctly
+	float2 SceneColorUV = ApplyScreenTransform(SvPosition.xy, SvPositionToInputTextureUV);
+	
+	// Sample from full-resolution scene color
+	float4 SceneColor = Texture2DSample(SceneColorTexture, SceneColorSampler, SceneColorUV);
+	
+	// Very low threshold (< 0.02) means we're in soft focus mode — capture full scene
+	float3 Bloom;
+	
+	if (BloomThreshold < 0.02)
+	{
+		// Soft Focus mode: let everything through
+		Bloom = SceneColor.rgb;
+	}
+	else if (ThresholdSoftness > 0.001)
+	{
+		// Soft-knee threshold: smooth quadratic ramp that scales with the
+		// threshold value, producing a natural falloff at any brightness level
+		float Knee = BloomThreshold * ThresholdSoftness;
+		Bloom = SoftKneeThreshold(SceneColor.rgb, BloomThreshold, Knee);
+	}
+	else
+	{
+		// Hard threshold (legacy behaviour)
+		float Brightness = max(max(SceneColor.r, SceneColor.g), SceneColor.b);
+		Bloom = SceneColor.rgb * step(BloomThreshold, Brightness);
+	}
+	
+	// Clamp extreme HDR values — prevents a single super-bright texel from
+	// dominating the blur and creating visible banding rings.
+	// This is the non-Kawase equivalent of the Karis average.
+	Bloom = ClampBloomMaxBrightness(Bloom, MaxBrightness);
+	
+	OutColor = float4(Bloom, 1.0);
+}

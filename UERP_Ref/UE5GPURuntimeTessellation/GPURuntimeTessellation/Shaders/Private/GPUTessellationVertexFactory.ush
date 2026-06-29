@@ -1,0 +1,518 @@
+// Licensed under the MIT License. See LICENSE file in the project root.
+
+/*=============================================================================
+	GPUTessellationVertexFactory.ush: Vertex factory for GPU-tessellated geometry
+	Fetches vertex data from structured buffers (no traditional vertex streams)
+=============================================================================*/
+
+#include "/Engine/Private/VertexFactoryCommon.ush"
+
+// GPU buffers containing mesh data. Primitive transforms come from the bound primitive uniform buffer.
+StructuredBuffer<float3> PositionBuffer;
+StructuredBuffer<float3> NormalBuffer;
+StructuredBuffer<float2> UVBuffer;
+StructuredBuffer<float4> TangentBuffer;
+uint bHasTangentBuffer;
+
+// Safely normalize a vector that may be (0,0,0) (e.g. an unwritten/cleared buffer slot).
+// Without this guard, normalize(0) returns NaN, which propagates through the entire TBN basis
+// into the material's TangentToWorld, then into any World Position Offset evaluation that
+// reads tangent-space data - producing a vertex that collapses to (0,0,0) clip-space in lit
+// passes while the depth pre-pass (which only fetches PositionBuffer directly) renders fine.
+float3 SafeNormalizeUpVector(float3 V)
+{
+	float LenSq = dot(V, V);
+	return (LenSq > 1.0e-12f) ? (V * rsqrt(LenSq)) : float3(0.0f, 0.0f, 1.0f);
+}
+
+uint bUseHeightTexturePixelNormals;
+uint bHasHeightNormalSubtractTexture;
+float HeightNormalDisplacementIntensity;
+float HeightNormalStrength;
+float HeightNormalTexelStep;
+float HeightNormalPlaneSizeX;
+float HeightNormalPlaneSizeY;
+Texture2D<float> HeightNormalTexture;
+SamplerState HeightNormalTextureSampler;
+Texture2D HeightNormalSubtractTexture;
+SamplerState HeightNormalSubtractSampler;
+
+struct FVertexFactoryInput
+{
+	uint VertexId : SV_VertexID;
+	#if GPU_TESSELLATION_USE_GPU_SCENE_STREAM
+		uint InstanceIdOffset : ATTRIBUTE13;
+		uint DrawInstanceId : SV_InstanceID;
+	#else
+		VF_INSTANCED_STEREO_DECLARE_INPUT_BLOCK()
+	#endif
+	VF_MOBILE_MULTI_VIEW_DECLARE_INPUT_BLOCK()
+};
+
+// Position-only and position+normal inputs are the same for this vertex factory
+// We use the same struct and differentiate via shader defines
+#define FPositionOnlyVertexFactoryInput FVertexFactoryInput
+#define FPositionAndNormalOnlyVertexFactoryInput FVertexFactoryInput
+
+struct FVertexFactoryIntermediates
+{
+	float3 Position;
+	float3 Normal;
+	float3 Tangent;
+	float3 Binormal;
+	float2 UV;
+	float3x3 TangentToLocal;
+	FSceneDataIntermediates SceneData;
+};
+
+struct FVertexFactoryInterpolantsVSToPS
+{
+	TANGENTTOWORLD_INTERPOLATOR_BLOCK
+
+#if NUM_TEX_COORD_INTERPOLATORS
+	float4 TexCoords[(NUM_TEX_COORD_INTERPOLATORS + 1) / 2] : TEXCOORD0;
+#endif
+
+#if INSTANCED_STEREO
+	nointerpolation uint EyeIndex : PACKED_EYE_INDEX;
+#endif
+
+#if VF_USE_PRIMITIVE_SCENE_DATA
+	nointerpolation uint PrimitiveId : PRIMITIVE_ID;
+#endif
+};
+
+uint GetGPUTessellationInstanceIdLoadIndex(FVertexFactoryInput Input)
+{
+#if GPU_TESSELLATION_USE_GPU_SCENE_STREAM
+	return Input.InstanceIdOffset + Input.DrawInstanceId;
+#else
+	return 0u;
+#endif
+}
+
+FVertexFactoryIntermediates GetVertexFactoryIntermediates(FVertexFactoryInput Input)
+{
+	FVertexFactoryIntermediates Intermediates;
+	
+	// Fetch data from GPU buffers using vertex ID
+	Intermediates.Position = PositionBuffer[Input.VertexId];
+	Intermediates.Normal = SafeNormalizeUpVector(NormalBuffer[Input.VertexId]);
+	Intermediates.UV = UVBuffer[Input.VertexId];
+	Intermediates.SceneData = VF_GPUSCENE_GET_INTERMEDIATES(Input);
+	Intermediates.SceneData.InstanceIdLoadIndex = GetGPUTessellationInstanceIdLoadIndex(Input);
+	
+	float3 Normal = Intermediates.Normal;
+	float3 Tangent = float3(1, 0, 0);
+	float3 Binormal = float3(0, 1, 0);
+
+	if (bHasTangentBuffer != 0u)
+	{
+		float4 TangentData = TangentBuffer[Input.VertexId];
+		Tangent = SafeNormalizeUpVector(TangentData.xyz);
+		Tangent = Tangent - Normal * dot(Normal, Tangent);
+		float TangentLength = length(Tangent);
+		Tangent = (TangentLength > 0.001) ? (Tangent / TangentLength) : float3(1, 0, 0);
+		Binormal = cross(Normal, Tangent) * ((TangentData.w < 0.0) ? -1.0 : 1.0);
+	}
+	else
+	{
+		// Plane path fallback: tangent aligned to local U / X.
+		Tangent = Tangent - Normal * dot(Normal, Tangent);
+		float TangentLength = length(Tangent);
+		if (TangentLength < 0.001)
+		{
+			Tangent = (abs(Normal.z) < 0.999) ? normalize(cross(float3(0, 0, 1), Normal)) : normalize(cross(float3(1, 0, 0), Normal));
+		}
+		else
+		{
+			Tangent = Tangent / TangentLength;
+		}
+		Binormal = cross(Normal, Tangent);
+	}
+	
+	Intermediates.Tangent = Tangent;
+	Intermediates.Binormal = Binormal;
+	
+	// Build tangent to local matrix (TBN matrix for normal mapping)
+	// Columns are: Tangent, Binormal, Normal
+	Intermediates.TangentToLocal = float3x3(Tangent, Binormal, Normal);
+	
+	return Intermediates;
+}
+
+void BuildScaleSafeTangentToWorld(FVertexFactoryIntermediates Intermediates, out float3 TangentToWorld0, out float4 TangentToWorld2)
+{
+	float3x3 TangentToWorld = mul(Intermediates.TangentToLocal, DFToFloat3x3(Intermediates.SceneData.InstanceData.LocalToWorld));
+	TangentToWorld0 = normalize(TangentToWorld[0]);
+	TangentToWorld2 = float4(normalize(TangentToWorld[2]), 1.0);
+}
+
+float3x3 GetPrimitiveLocalToWorld3x3(uint PrimitiveId)
+{
+#if VF_USE_PRIMITIVE_SCENE_DATA
+	return DFToFloat3x3(GetPrimitiveData(PrimitiveId).LocalToWorld);
+#else
+	return GetLocalToWorld3x3();
+#endif
+}
+
+float SampleHeightNormalTextureLinear(float2 UV)
+{
+	uint Width;
+	uint Height;
+	HeightNormalTexture.GetDimensions(Width, Height);
+	if (Width == 0u || Height == 0u)
+	{
+		return 0.0;
+	}
+
+	float2 TexelCoord = saturate(UV) * float2((float)Width, (float)Height) - 0.5;
+	float2 BaseFloat = floor(TexelCoord);
+	int2 Base = int2(BaseFloat);
+	float2 Blend = TexelCoord - BaseFloat;
+	int2 MaxCoord = int2((int)Width - 1, (int)Height - 1);
+
+	int2 Coord00 = min(max(Base, int2(0, 0)), MaxCoord);
+	int2 Coord10 = min(max(Base + int2(1, 0), int2(0, 0)), MaxCoord);
+	int2 Coord01 = min(max(Base + int2(0, 1), int2(0, 0)), MaxCoord);
+	int2 Coord11 = min(max(Base + int2(1, 1), int2(0, 0)), MaxCoord);
+
+	float H00 = HeightNormalTexture.Load(int3(Coord00, 0));
+	float H10 = HeightNormalTexture.Load(int3(Coord10, 0));
+	float H01 = HeightNormalTexture.Load(int3(Coord01, 0));
+	float H11 = HeightNormalTexture.Load(int3(Coord11, 0));
+
+	float H0 = lerp(H00, H10, Blend.x);
+	float H1 = lerp(H01, H11, Blend.x);
+	float HeightValue = lerp(H0, H1, Blend.y) * HeightNormalDisplacementIntensity;
+
+	if (bHasHeightNormalSubtractTexture != 0u)
+	{
+		float Mask = HeightNormalSubtractTexture.SampleLevel(HeightNormalSubtractSampler, saturate(UV), 0).r;
+		HeightValue *= (1.0 - Mask);
+	}
+
+	return HeightValue;
+}
+
+float2 GetHeightNormalTexelUVStep()
+{
+	uint Width;
+	uint Height;
+	HeightNormalTexture.GetDimensions(Width, Height);
+	if (Width <= 1u || Height <= 1u)
+	{
+		return float2(1.0 / max(HeightNormalPlaneSizeX, 1.0), 1.0 / max(HeightNormalPlaneSizeY, 1.0));
+	}
+
+	float TexelStep = max(HeightNormalTexelStep, 0.25);
+	return TexelStep / float2((float)Width, (float)Height);
+}
+
+float3 CalculateHeightTexturePixelNormal(float2 UV)
+{
+	float2 UVStep = GetHeightNormalTexelUVStep();
+	float hL = SampleHeightNormalTextureLinear(UV + float2(-UVStep.x, 0));
+	float hR = SampleHeightNormalTextureLinear(UV + float2(UVStep.x, 0));
+	float hD = SampleHeightNormalTextureLinear(UV + float2(0, -UVStep.y));
+	float hU = SampleHeightNormalTextureLinear(UV + float2(0, UVStep.y));
+	float StepX = max(UVStep.x * HeightNormalPlaneSizeX, 1.0e-4);
+	float StepY = max(UVStep.y * HeightNormalPlaneSizeY, 1.0e-4);
+	float2 Slope = float2((hR - hL) / (2.0 * StepX), (hU - hD) / (2.0 * StepY)) * max(HeightNormalStrength, 0.0);
+	return normalize(float3(-Slope.x, -Slope.y, 1.0));
+}
+
+void BuildHeightTextureTangentToWorld(float2 UV, uint PrimitiveId, out float3 TangentToWorld0, out float4 TangentToWorld2)
+{
+	float3 Normal = CalculateHeightTexturePixelNormal(UV);
+	float3 Tangent = float3(1, 0, 0);
+	Tangent = Tangent - Normal * dot(Normal, Tangent);
+	float TangentLength = length(Tangent);
+	if (TangentLength < 0.001)
+	{
+		Tangent = (abs(Normal.z) < 0.999) ? normalize(cross(float3(0, 0, 1), Normal)) : normalize(cross(float3(1, 0, 0), Normal));
+	}
+	else
+	{
+		Tangent /= TangentLength;
+	}
+
+	float3 Binormal = cross(Normal, Tangent);
+	float3x3 TangentToWorld = mul(float3x3(Tangent, Binormal, Normal), GetPrimitiveLocalToWorld3x3(PrimitiveId));
+	TangentToWorld0 = normalize(TangentToWorld[0]);
+	TangentToWorld2 = float4(normalize(TangentToWorld[2]), 1.0);
+}
+
+FPrimitiveSceneData GetPrimitiveData(FVertexFactoryIntermediates Intermediates)
+{
+	return Intermediates.SceneData.Primitive;
+}
+
+FInstanceSceneData GetInstanceData(FVertexFactoryIntermediates Intermediates)
+{
+	return Intermediates.SceneData.InstanceData;
+}
+
+FSceneDataIntermediates GetSceneDataIntermediates(FVertexFactoryIntermediates Intermediates)
+{
+	return Intermediates.SceneData;
+}
+
+uint VertexFactoryGetPrimitiveId(FVertexFactoryInterpolantsVSToPS Interpolants)
+{
+#if VF_USE_PRIMITIVE_SCENE_DATA
+	return Interpolants.PrimitiveId;
+#else
+	return 0;
+#endif
+}
+
+float2 GetHeightTexturePixelNormalUV(FVertexFactoryInterpolantsVSToPS Interpolants)
+{
+#if NUM_TEX_COORD_INTERPOLATORS
+	return Interpolants.TexCoords[0].xy;
+#else
+	return float2(0.5, 0.5);
+#endif
+}
+
+half3x3 VertexFactoryGetTangentToLocal(FVertexFactoryInput Input, FVertexFactoryIntermediates Intermediates)
+{
+	return Intermediates.TangentToLocal;
+}
+
+float4 VertexFactoryGetWorldPosition(FVertexFactoryInput Input, FVertexFactoryIntermediates Intermediates)
+{
+	// Transform from local space to world space using primitive's transform
+	return TransformLocalToTranslatedWorld(Intermediates.Position, Intermediates.SceneData.InstanceData.LocalToWorld);
+}
+
+float4 VertexFactoryGetRasterizedWorldPosition(FVertexFactoryInput Input, FVertexFactoryIntermediates Intermediates, float4 InWorldPosition)
+{
+	return InWorldPosition;
+}
+
+float3 VertexFactoryGetPositionForVertexLighting(FVertexFactoryInput Input, FVertexFactoryIntermediates Intermediates, float3 TranslatedWorldPosition)
+{
+	return TranslatedWorldPosition;
+}
+
+float3 VertexFactoryGetWorldNormal(FVertexFactoryInput Input, FVertexFactoryIntermediates Intermediates)
+{
+	// Transform normal from local space to world space
+	return RotateLocalToWorld(Intermediates.Normal, Intermediates.SceneData.InstanceData.LocalToWorld, Intermediates.SceneData.InstanceData.InvNonUniformScale);
+}
+
+float3 VertexFactoryGetWorldNormal(FVertexFactoryInterpolantsVSToPS Interpolants)
+{
+	if (bUseHeightTexturePixelNormals != 0u)
+	{
+		float3 TangentToWorld0;
+		float4 TangentToWorld2;
+		BuildHeightTextureTangentToWorld(GetHeightTexturePixelNormalUV(Interpolants), VertexFactoryGetPrimitiveId(Interpolants), TangentToWorld0, TangentToWorld2);
+		return TangentToWorld2.xyz;
+	}
+
+	return Interpolants.TangentToWorld2.xyz;
+}
+
+FVertexFactoryInterpolantsVSToPS VertexFactoryGetInterpolantsVSToPS(FVertexFactoryInput Input, FVertexFactoryIntermediates Intermediates, FMaterialVertexParameters VertexParameters)
+{
+	FVertexFactoryInterpolantsVSToPS Interpolants;
+
+	// Initialize interpolants to zero
+	Interpolants = (FVertexFactoryInterpolantsVSToPS)0;
+
+#if INTERPOLATE_VERTEX_COLOR
+	Interpolants.Color = float4(1, 1, 1, 1);
+#endif
+
+	float3 TangentToWorld0;
+	float4 TangentToWorld2;
+	BuildScaleSafeTangentToWorld(Intermediates, TangentToWorld0, TangentToWorld2);
+	Interpolants.TangentToWorld0 = float4(TangentToWorld0, 0);
+	Interpolants.TangentToWorld2 = TangentToWorld2;
+
+#if VF_USE_PRIMITIVE_SCENE_DATA
+	Interpolants.PrimitiveId = Intermediates.SceneData.PrimitiveId;
+#endif
+
+	// Set UVs
+#if NUM_TEX_COORD_INTERPOLATORS
+	float2 CustomizedUVs[NUM_TEX_COORD_INTERPOLATORS];
+	CustomizedUVs[0] = Intermediates.UV;
+	
+	// Fill remaining UV channels with UV0
+	#if NUM_TEX_COORD_INTERPOLATORS > 1
+		UNROLL
+		for (int CoordinateIndex = 1; CoordinateIndex < NUM_TEX_COORD_INTERPOLATORS; CoordinateIndex++)
+		{
+			CustomizedUVs[CoordinateIndex] = Intermediates.UV;
+		}
+	#endif
+
+	// Pack UVs into interpolants
+	UNROLL
+	for (int CoordinateIndex = 0; CoordinateIndex < NUM_TEX_COORD_INTERPOLATORS; CoordinateIndex += 2)
+	{
+		Interpolants.TexCoords[CoordinateIndex / 2].xy = CustomizedUVs[CoordinateIndex];
+		if (CoordinateIndex + 1 < NUM_TEX_COORD_INTERPOLATORS)
+		{
+			Interpolants.TexCoords[CoordinateIndex / 2].zw = CustomizedUVs[CoordinateIndex + 1];
+		}
+	}
+#endif
+
+	return Interpolants;
+}
+
+// Material vertex parameters
+FMaterialVertexParameters GetMaterialVertexParameters(FVertexFactoryInput Input, FVertexFactoryIntermediates Intermediates, float3 WorldPosition, half3x3 TangentToLocal)
+{
+	FMaterialVertexParameters Result = (FMaterialVertexParameters)0;
+	
+	Result.WorldPosition = WorldPosition;
+	Result.SceneData = Intermediates.SceneData;
+	Result.PrimitiveId = Intermediates.SceneData.PrimitiveId;
+	
+	float3 TangentToWorld0;
+	float4 TangentToWorld2;
+	BuildScaleSafeTangentToWorld(Intermediates, TangentToWorld0, TangentToWorld2);
+	Result.TangentToWorld = AssembleTangentToWorld(TangentToWorld0, TangentToWorld2);
+	
+#if NUM_MATERIAL_TEXCOORDS_VERTEX
+	Result.TexCoords[0] = Intermediates.UV;
+	#if NUM_MATERIAL_TEXCOORDS_VERTEX > 1
+		UNROLL
+		for (int CoordinateIndex = 1; CoordinateIndex < NUM_MATERIAL_TEXCOORDS_VERTEX; CoordinateIndex++)
+		{
+			Result.TexCoords[CoordinateIndex] = Intermediates.UV;
+		}
+	#endif
+#endif
+
+	Result.VertexColor = float4(1, 1, 1, 1);
+	Result.PreSkinnedPosition = Intermediates.Position;
+	Result.PreSkinnedNormal = Intermediates.Normal;
+	
+	return Result;
+}
+
+// Overload for previous frame (velocity rendering)
+FMaterialVertexParameters GetMaterialVertexParameters(FVertexFactoryInput Input, FVertexFactoryIntermediates Intermediates, float3 WorldPosition, half3x3 TangentToLocal, bool bPreviousFrame)
+{
+	return GetMaterialVertexParameters(Input, Intermediates, WorldPosition, TangentToLocal);
+}
+
+// Pixel shader material parameters
+FMaterialPixelParameters GetMaterialPixelParameters(FVertexFactoryInterpolantsVSToPS Interpolants, float4 SvPosition)
+{
+	FMaterialPixelParameters Result = (FMaterialPixelParameters)0;
+
+#if NUM_TEX_COORD_INTERPOLATORS
+	UNROLL
+	for (int CoordinateIndex = 0; CoordinateIndex < NUM_TEX_COORD_INTERPOLATORS; CoordinateIndex += 2)
+	{
+		Result.TexCoords[CoordinateIndex] = Interpolants.TexCoords[CoordinateIndex / 2].xy;
+		if (CoordinateIndex + 1 < NUM_TEX_COORD_INTERPOLATORS)
+		{
+			Result.TexCoords[CoordinateIndex + 1] = Interpolants.TexCoords[CoordinateIndex / 2].zw;
+		}
+	}
+#endif
+
+	// Reconstruct tangent to world
+	Result.TangentToWorld = AssembleTangentToWorld(Interpolants.TangentToWorld0.xyz, Interpolants.TangentToWorld2);
+	if (bUseHeightTexturePixelNormals != 0u)
+	{
+		float3 TangentToWorld0;
+		float4 TangentToWorld2;
+		BuildHeightTextureTangentToWorld(GetHeightTexturePixelNormalUV(Interpolants), VertexFactoryGetPrimitiveId(Interpolants), TangentToWorld0, TangentToWorld2);
+		Result.TangentToWorld = AssembleTangentToWorld(TangentToWorld0, TangentToWorld2);
+	}
+	Result.UnMirrored = 1;
+	Result.PrimitiveId = VertexFactoryGetPrimitiveId(Interpolants);
+	
+	Result.VertexColor = float4(1, 1, 1, 1);
+	Result.TwoSidedSign = 1;
+
+	return Result;
+}
+
+float4 VertexFactoryGetTranslatedPrimitiveVolumeBounds(FVertexFactoryInterpolantsVSToPS Interpolants)
+{
+	return float4(0, 0, 0, 0);
+}
+
+#if NEEDS_LIGHTMAP_COORDINATE
+void GetLightMapCoordinates(FVertexFactoryInterpolantsVSToPS Interpolants, out float2 LightmapUV0, out float2 LightmapUV1)
+{
+	LightmapUV0 = float2(0, 0);
+	LightmapUV1 = float2(0, 0);
+}
+
+half2 GetShadowMapCoordinate(FVertexFactoryInterpolantsVSToPS Interpolants)
+{
+	return float2(0, 0);
+}
+#endif
+
+#if INSTANCED_STEREO
+uint VertexFactoryGetEyeIndex(uint InstanceId)
+{
+	return 0;
+}
+#endif
+
+float4 VertexFactoryGetInstanceHitProxyId(FVertexFactoryInput Input, FVertexFactoryIntermediates Intermediates)
+{
+	return float4(0, 0, 0, 0);
+}
+
+// Position-only versions for depth/shadow passes that call with just Input
+// Since FPositionOnlyVertexFactoryInput is typedef'd to FVertexFactoryInput, 
+// we need to be careful about overload resolution
+// The engine will prefer single-parameter version when Intermediates aren't needed
+float4 VertexFactoryGetWorldPosition(FPositionOnlyVertexFactoryInput Input)
+{
+	FSceneDataIntermediates SceneData = VF_GPUSCENE_GET_INTERMEDIATES(Input);
+	float3 LocalPos = PositionBuffer[Input.VertexId];
+	return TransformLocalToTranslatedWorld(LocalPos, SceneData.InstanceData.LocalToWorld);
+}
+
+float3 VertexFactoryGetWorldNormal(FPositionAndNormalOnlyVertexFactoryInput Input)
+{
+	FSceneDataIntermediates SceneData = VF_GPUSCENE_GET_INTERMEDIATES(Input);
+	float3 LocalNormal = SafeNormalizeUpVector(NormalBuffer[Input.VertexId]);
+	return RotateLocalToWorld(LocalNormal, SceneData.InstanceData.LocalToWorld, SceneData.InstanceData.InvNonUniformScale);
+}
+
+// Previous frame position (for velocity rendering) - no motion for static mesh
+float4 VertexFactoryGetPreviousWorldPosition(FVertexFactoryInput Input, FVertexFactoryIntermediates Intermediates)
+{
+	// Static mesh - previous position is same as current (transform from local to world space)
+	return TransformPreviousLocalPositionToTranslatedWorld(Intermediates.Position, Intermediates.SceneData.InstanceData.PrevLocalToWorld);
+}
+
+// Instancing and GPU Scene support
+uint VertexFactoryGetViewIndex(FVertexFactoryIntermediates Intermediates)
+{
+	return Intermediates.SceneData.ViewIndex;
+}
+
+uint VertexFactoryGetViewIndex(FVertexFactoryInput Input)
+{
+	FSceneDataIntermediates SceneData = VF_GPUSCENE_GET_INTERMEDIATES(Input);
+	return SceneData.ViewIndex;
+}
+
+uint VertexFactoryGetInstanceIdLoadIndex(FVertexFactoryIntermediates Intermediates)
+{
+	return Intermediates.SceneData.InstanceIdLoadIndex;
+}
+
+uint VertexFactoryGetInstanceIdLoadIndex(FVertexFactoryInput Input)
+{
+	return GetGPUTessellationInstanceIdLoadIndex(Input);
+}

@@ -1,0 +1,28 @@
+{
+	"FileVersion": 3,
+	"EngineAssociation": "5.7",
+	"Category": "",
+	"Description": "",
+	"Modules": [
+		{
+			"Name": "Test4",
+			"Type": "Runtime",
+			"LoadingPhase": "Default"
+		}
+	],
+	"Plugins": [
+		{
+			"Name": "ModelingToolsEditorMode",
+			"Enabled": true,
+			"TargetAllowList": [
+				"Editor"
+			]
+		},
+		{ "Name": "HelloTriangle",                "Enabled": true },
+		{ "Name": "ShaderModule",                 "Enabled": true },
+		{ "Name": "ToneMapFX",                    "Enabled": true },
+		{ "Name": "ClassicBloomSubsystem",        "Enabled": true },
+		{ "Name": "GPURuntimeTessellation",       "Enabled": true },
+		{ "Name": "ExtendedGraphicsProgramming",  "Enabled": false }
+	]
+}
