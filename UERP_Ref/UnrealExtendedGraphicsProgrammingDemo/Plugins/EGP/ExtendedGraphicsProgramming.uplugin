@@ -2,21 +2,19 @@
 	"FileVersion": 3,
 	"Version": 1,
 	"VersionName": "1.0",
-	"FriendlyName": "HelloTriangle",
-	"Description": "Hello Triangle using UE5 RHI",
+	"FriendlyName": "ExtendedGraphicsProgramming",
+	"Description": "Eases the burden of advanced graphics programming in Unreal 5.3",
 	"Category": "Other",
-	"CreatedBy": "Phani",
-	"CreatedByURL": "",
+	"CreatedBy": "William Mishra-Manning",
 	"DocsURL": "",
 	"MarketplaceURL": "",
-	"SupportURL": "",
 	"CanContainContent": true,
 	"IsBetaVersion": false,
 	"IsExperimentalVersion": false,
 	"Installed": false,
 	"Modules": [
 		{
-			"Name": "HelloTriangle",
+			"Name": "ExtendedGraphicsProgramming",
 			"Type": "Runtime",
 			"LoadingPhase": "PostConfigInit"
 		}
