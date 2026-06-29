@@ -165,7 +165,7 @@ FAVBOITRasterPassOutputs FAVBOITRasterRenderer::AddCorePasses(
 	
 	// Scale down for P2.6T low-res spline (e.g. half-res or specific factor). Assuming Factor = 2 for now.
 	int32 DownsampleFactor = 2;
-	FIntPoint SplatExtent = FIntPoint(FMath::DivideAndRoundUp(ViewRect.Width(), DownsampleFactor), FMath::DivideAndRoundUp(ViewRect.Height(), DownsampleFactor));
+	FIntPoint SplatExtent = FIntPoint(FMath::DivideAndRoundUp(TextureExtent.X, DownsampleFactor), FMath::DivideAndRoundUp(TextureExtent.Y, DownsampleFactor));
 	
 	int32 NumSlices = 64; // Default slices
 	uint64 ExtinctionElements = (uint64)SplatExtent.X * (uint64)SplatExtent.Y * NumSlices;
