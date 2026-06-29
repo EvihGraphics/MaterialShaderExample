@@ -12,7 +12,6 @@ public:
 	static void FinishEditorPIECloseout(bool bRequestExit);
 
 private:
-	static void ApplySmokeState(int32 Enable, int32 DebugMode);
 	static bool IsPIEActive();
 	static void StartPIE();
 	static void EndPIE();

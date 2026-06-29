@@ -11,6 +11,15 @@
 #include "LevelEditor.h"
 #include "PlayInEditorDataTypes.h"
 #include "UnrealEdGlobals.h"
+#include "AVBOIT/Raster/AVBOITRasterRenderer.h"
+#include "Serialization/JsonSerializer.h"
+#include "AVBOITEditorSceneBuilder.h"
+#include "AVBOIT/Testing/AVBOITBackendTestAutomation.h"
+#include "Engine/StaticMeshActor.h"
+#include "Camera/CameraActor.h"
+#include "AVBOIT/Raster/AVBOITTestMeshComponent.h"
+#include "EngineUtils.h"
+#include "AVBOIT/Raster/AVBOITRasterShaders.h"
 
 FTSTicker::FDelegateHandle FAVBOITEditorPIEAutomation::EditorPIECloseoutTickerHandle;
 FDelegateHandle FAVBOITEditorPIEAutomation::EditorPIECloseoutBeginPIEHandle;
@@ -21,150 +30,143 @@ int32 FAVBOITEditorPIEAutomation::EditorPIECloseoutStep = 0;
 bool FAVBOITEditorPIEAutomation::bEditorPIECloseoutRunning = false;
 bool FAVBOITEditorPIEAutomation::bEditorPIECloseoutCaptureScreenshots = true;
 
-void FAVBOITEditorPIEAutomation::ApplySmokeState(const int32 Enable, const int32 DebugMode)
+static const FName AVBOIT_TEST_TAG = TEXT("AVBOIT_AutomatedSceneIntegration");
+static FAVBOITEditorSceneState GSceneState;
+static FAVBOITRasterExecutionProbe GProbeInstance;
+
+static void WriteProbeJson(const FString& Filename, const FAVBOITRasterExecutionProbe& Probe)
 {
-	if (IConsoleVariable* CVar = IConsoleManager::Get().FindConsoleVariable(TEXT("r.AVBOIT.Raster.Enable"))) CVar->Set(Enable, ECVF_SetByConsole);
-	// Smoke debug modes are no longer used for Raster, but we leave the log
-	UE_LOG(LogTemp, Display, TEXT("Closeout state: Raster.Enable=%d"), Enable);
+	TSharedPtr<FJsonObject> JsonObj = MakeShareable(new FJsonObject);
+	JsonObj->SetNumberField(TEXT("FrameNumber"), Probe.FrameNumber);
+	JsonObj->SetStringField(TEXT("WorldName"), Probe.WorldName);
+	JsonObj->SetStringField(TEXT("Context"), Probe.Context);
+	JsonObj->SetBoolField(TEXT("RasterEnabled"), Probe.bRasterEnabled);
+	JsonObj->SetNumberField(TEXT("RegistryProxyCount"), Probe.RegistryProxyCount);
+	JsonObj->SetNumberField(TEXT("AcceptedProxyCount"), Probe.AcceptedProxyCount);
+	JsonObj->SetBoolField(TEXT("ClearPassScheduled"), Probe.bClearPassScheduled);
+	JsonObj->SetBoolField(TEXT("SplatPassScheduled"), Probe.bSplatPassScheduled);
+	JsonObj->SetBoolField(TEXT("IntegratePassScheduled"), Probe.bIntegratePassScheduled);
+	JsonObj->SetBoolField(TEXT("ForwardPassScheduled"), Probe.bForwardPassScheduled);
+	JsonObj->SetBoolField(TEXT("CompositePassScheduled"), Probe.bCompositePassScheduled);
+	JsonObj->SetNumberField(TEXT("SplatDrawCount"), Probe.SplatDrawCount);
+	JsonObj->SetNumberField(TEXT("ForwardDrawCount"), Probe.ForwardDrawCount);
+	JsonObj->SetNumberField(TEXT("CompositeDrawCount"), Probe.CompositeDrawCount);
+	JsonObj->SetBoolField(TEXT("DebugReadbackScheduled"), Probe.bDebugReadbackScheduled);
+	JsonObj->SetNumberField(TEXT("SkipReason"), (int32)Probe.SkipReason);
+	
+	TSharedPtr<FJsonObject> RectObj = MakeShareable(new FJsonObject);
+	RectObj->SetNumberField(TEXT("MinX"), Probe.ViewRect.Min.X);
+	RectObj->SetNumberField(TEXT("MinY"), Probe.ViewRect.Min.Y);
+	RectObj->SetNumberField(TEXT("MaxX"), Probe.ViewRect.Max.X);
+	RectObj->SetNumberField(TEXT("MaxY"), Probe.ViewRect.Max.Y);
+	JsonObj->SetObjectField(TEXT("ViewRect"), RectObj);
+	
+	TSharedPtr<FJsonObject> ExtentObj = MakeShareable(new FJsonObject);
+	ExtentObj->SetNumberField(TEXT("X"), Probe.TextureExtent.X);
+	ExtentObj->SetNumberField(TEXT("Y"), Probe.TextureExtent.Y);
+	JsonObj->SetObjectField(TEXT("TextureExtent"), ExtentObj);
+
+	if (Probe.ReadbackPayload && Probe.bReadbackReady)
+	{
+		TSharedPtr<FJsonObject> PayloadObj = MakeShareable(new FJsonObject);
+		PayloadObj->SetNumberField(TEXT("CoverageCount"), Probe.ReadbackPayload->Header.FragmentCoverageCount);
+		PayloadObj->SetNumberField(TEXT("SceneColorBeforeX"), Probe.ReadbackPayload->Header.SceneColorBefore.X);
+		PayloadObj->SetNumberField(TEXT("SceneColorAfterX"), Probe.ReadbackPayload->Header.SceneColorAfter.X);
+		PayloadObj->SetNumberField(TEXT("ColorAccumulationX"), Probe.ReadbackPayload->Header.ColorAccumulation.X);
+		JsonObj->SetObjectField(TEXT("ReadbackPayload"), PayloadObj);
+	}
+
+	FString OutputString;
+	TSharedRef<TJsonWriter<>> Writer = TJsonWriterFactory<>::Create(&OutputString);
+	FJsonSerializer::Serialize(JsonObj.ToSharedRef(), Writer);
+	FFileHelper::SaveStringToFile(OutputString, *Filename);
 }
 
-bool FAVBOITEditorPIEAutomation::IsPIEActive()
+static void SaveSlicesCSV(const FString& Filename, const FAVBOITRasterExecutionProbe& Probe)
 {
-	return GEditor && GEditor->PlayWorld != nullptr;
+	if (!Probe.bReadbackReady || !Probe.ReadbackPayload) return;
+	FString CSV = TEXT("Slice,PackedExtinction,Transmittance\n");
+	for (int32 i = 0; i < 64; ++i)
+	{
+		CSV += FString::Printf(TEXT("%d,%u,%f\n"), (int32)i, (uint32)(Probe.ReadbackPayload->PackedExtinction[i]), (float)(Probe.ReadbackPayload->Transmittance[i]));
+	}
+	FFileHelper::SaveStringToFile(CSV, *Filename);
 }
+
+static void EnableRaster(bool bEnable)
+{
+	if (IConsoleVariable* CVar = IConsoleManager::Get().FindConsoleVariable(TEXT("r.AVBOIT.Raster.Enable")))
+	{
+		CVar->Set(bEnable ? 1 : 0, ECVF_SetByConsole);
+	}
+}
+
+bool FAVBOITEditorPIEAutomation::IsPIEActive() { return GEditor && GEditor->PlayWorld != nullptr; }
 
 void FAVBOITEditorPIEAutomation::StartPIE()
 {
-	if (!GUnrealEd || IsPIEActive())
-	{
-		return;
-	}
-
+	if (!GUnrealEd || IsPIEActive()) return;
 	FRequestPlaySessionParams Params;
 	FLevelEditorModule& LevelEditorModule = FModuleManager::LoadModuleChecked<FLevelEditorModule>(TEXT("LevelEditor"));
 	Params.DestinationSlateViewport = LevelEditorModule.GetFirstActiveViewport();
 	GUnrealEd->RequestPlaySession(Params);
-	UE_LOG(LogTemp, Display, TEXT("Closeout requested PIE start."));
 }
 
 void FAVBOITEditorPIEAutomation::EndPIE()
 {
-	if (GUnrealEd && IsPIEActive())
-	{
-		GUnrealEd->RequestEndPlayMap();
-		UE_LOG(LogTemp, Display, TEXT("Closeout requested PIE end."));
-	}
+	if (GUnrealEd && IsPIEActive()) GUnrealEd->RequestEndPlayMap();
 }
 
 void FAVBOITEditorPIEAutomation::RunEditorPIECloseout(const FString& Root, bool bCaptureScreenshots)
 {
-	if (bEditorPIECloseoutRunning)
-	{
-		UE_LOG(LogTemp, Warning, TEXT("Editor/PIE closeout is already running."));
-		return;
-	}
-
+	if (bEditorPIECloseoutRunning) return;
 	EditorPIECloseoutRoot = Root;
 	bEditorPIECloseoutCaptureScreenshots = bCaptureScreenshots;
-
-	IFileManager::Get().MakeDirectory(*(EditorPIECloseoutRoot / TEXT("Editor")), /*Tree*/ true);
-	IFileManager::Get().MakeDirectory(*(EditorPIECloseoutRoot / TEXT("PIE")), /*Tree*/ true);
-
+	IFileManager::Get().MakeDirectory(*(EditorPIECloseoutRoot / TEXT("Editor")), true);
+	IFileManager::Get().MakeDirectory(*(EditorPIECloseoutRoot / TEXT("PIE")), true);
 	bEditorPIECloseoutRunning = true;
 	EditorPIECloseoutStep = 0;
-	EditorPIECloseoutNextTime = FPlatformTime::Seconds() + 2.0;
-
+	EditorPIECloseoutNextTime = FPlatformTime::Seconds() + 1.0;
+	
+	FAVBOITEditorSceneBuilder::ApplyDeterministicSettings();
+	
 	EditorPIECloseoutBeginPIEHandle = FEditorDelegates::BeginPIE.AddStatic(&FAVBOITEditorPIEAutomation::OnEditorPIECloseoutBeginPIE);
 	EditorPIECloseoutEndPIEHandle = FEditorDelegates::EndPIE.AddStatic(&FAVBOITEditorPIEAutomation::OnEditorPIECloseoutEndPIE);
 	EditorPIECloseoutTickerHandle = FTSTicker::GetCoreTicker().AddTicker(FTickerDelegate::CreateStatic(&FAVBOITEditorPIEAutomation::TickEditorPIECloseout), 0.25f);
-
-	UE_LOG(LogTemp, Display, TEXT("Started editor/PIE closeout sequence at %s screenshots=%s"), *EditorPIECloseoutRoot, bEditorPIECloseoutCaptureScreenshots ? TEXT("true") : TEXT("false"));
 }
 
 void FAVBOITEditorPIEAutomation::RequestCloseoutScreenshot(const TCHAR* RelativePath)
 {
-	if (!bEditorPIECloseoutCaptureScreenshots)
-	{
-		UE_LOG(LogTemp, Display, TEXT("Closeout skipped screenshot by request: %s"), RelativePath);
-		AdvanceCloseoutAfterDelay(0.5);
-		return;
-	}
-
+	if (!bEditorPIECloseoutCaptureScreenshots) return;
 	const FString Filename = EditorPIECloseoutRoot / RelativePath;
-	IFileManager::Get().MakeDirectory(*FPaths::GetPath(Filename), /*Tree*/ true);
-
-	if (WriteCloseoutViewportPng(Filename))
-	{
-		UE_LOG(LogTemp, Display, TEXT("Closeout wrote viewport screenshot: %s"), *Filename);
-	}
-	else
-	{
-		UE_LOG(LogTemp, Warning, TEXT("Closeout failed to write viewport screenshot: %s"), *Filename);
-	}
-
-	AdvanceCloseoutAfterDelay(1.0);
+	IFileManager::Get().MakeDirectory(*FPaths::GetPath(Filename), true);
+	WriteCloseoutViewportPng(Filename);
 }
 
 FViewport* FAVBOITEditorPIEAutomation::FindCloseoutViewport()
 {
-	if (GEngine && GEngine->GameViewport && GEngine->GameViewport->Viewport)
-	{
-		return GEngine->GameViewport->Viewport;
-	}
-
-	if (GEditor)
-	{
-		if (FViewport* ActiveViewport = GEditor->GetActiveViewport())
-		{
-			return ActiveViewport;
-		}
-	}
-
+	if (GEngine && GEngine->GameViewport && GEngine->GameViewport->Viewport) return GEngine->GameViewport->Viewport;
+	if (GEditor) if (FViewport* ActiveViewport = GEditor->GetActiveViewport()) return ActiveViewport;
 	if (FModuleManager::Get().IsModuleLoaded(TEXT("LevelEditor")))
 	{
 		FLevelEditorModule& LevelEditorModule = FModuleManager::LoadModuleChecked<FLevelEditorModule>(TEXT("LevelEditor"));
 		const TSharedPtr<IAssetViewport> ActiveLevelViewport = LevelEditorModule.GetFirstActiveViewport();
-		if (ActiveLevelViewport.IsValid())
-		{
-			return ActiveLevelViewport->GetActiveViewport();
-		}
+		if (ActiveLevelViewport.IsValid()) return ActiveLevelViewport->GetActiveViewport();
 	}
-
 	return nullptr;
 }
 
 bool FAVBOITEditorPIEAutomation::WriteCloseoutViewportPng(const FString& Filename)
 {
 	FViewport* Viewport = FindCloseoutViewport();
-	if (!Viewport)
-	{
-		UE_LOG(LogTemp, Warning, TEXT("Closeout screenshot failed because no active viewport was found."));
-		return false;
-	}
-
+	if (!Viewport) return false;
 	const FIntPoint Size = Viewport->GetSizeXY();
-	if (Size.X <= 0 || Size.Y <= 0)
-	{
-		UE_LOG(LogTemp, Warning, TEXT("Closeout screenshot failed because viewport size is invalid: %dx%d"), Size.X, Size.Y);
-		return false;
-	}
-
+	if (Size.X <= 0 || Size.Y <= 0) return false;
 	Viewport->Draw();
-
 	TArray<FColor> Bitmap;
-	if (!Viewport->ReadPixels(Bitmap) || Bitmap.Num() != Size.X * Size.Y)
-	{
-		UE_LOG(LogTemp, Warning, TEXT("Closeout screenshot failed while reading %dx%d viewport pixels; read %d pixels."), Size.X, Size.Y, Bitmap.Num());
-		return false;
-	}
-
-	for (FColor& Color : Bitmap)
-	{
-		Color.A = 255;
-	}
-
-	const FImageView Image(Bitmap.GetData(), Size.X, Size.Y);
-	return FImageUtils::SaveImageByExtension(*Filename, Image);
+	if (!Viewport->ReadPixels(Bitmap) || Bitmap.Num() != Size.X * Size.Y) return false;
+	for (FColor& Color : Bitmap) Color.A = 255;
+	return FImageUtils::SaveImageByExtension(*Filename, FImageView(Bitmap.GetData(), Size.X, Size.Y));
 }
 
 void FAVBOITEditorPIEAutomation::AdvanceCloseoutAfterDelay(const double DelaySeconds)
@@ -175,166 +177,210 @@ void FAVBOITEditorPIEAutomation::AdvanceCloseoutAfterDelay(const double DelaySec
 
 bool FAVBOITEditorPIEAutomation::TickEditorPIECloseout(float)
 {
-	if (!bEditorPIECloseoutRunning)
-	{
-		return false;
-	}
+	if (!bEditorPIECloseoutRunning) return false;
+	if (FPlatformTime::Seconds() < EditorPIECloseoutNextTime) return true;
 
-	if (FPlatformTime::Seconds() < EditorPIECloseoutNextTime)
-	{
-		return true;
-	}
+	static FAVBOITRasterDebugPayload PayloadStorage;
 
 	switch (EditorPIECloseoutStep)
 	{
 	case 0:
-		ApplySmokeState(0, 1);
-		RequestCloseoutScreenshot(TEXT("Editor/00_Disabled.png"));
+		// 1. Initialize
+		GSceneState = FAVBOITEditorSceneBuilder::BuildTestScene(GEditor->GetEditorWorldContext().World());
+		GAVBOITRasterProbe = &GProbeInstance;
+		GProbeInstance = FAVBOITRasterExecutionProbe();
+		GProbeInstance.ReadbackPayload = &PayloadStorage;
+		AdvanceCloseoutAfterDelay(1.0);
 		break;
 	case 1:
-		ApplySmokeState(1, 1);
-		RequestCloseoutScreenshot(TEXT("Editor/01_Mode1_Deterministic.png"));
+		// EditorDisabled
+		EnableRaster(false);
+		FAVBOITEditorSceneBuilder::SetTestMeshVisible(GSceneState, true);
+		FAVBOITEditorSceneBuilder::SetOccluderVisible(GSceneState, false);
+		AdvanceCloseoutAfterDelay(0.5);
 		break;
 	case 2:
-		ApplySmokeState(1, 2);
-		RequestCloseoutScreenshot(TEXT("Editor/02_Mode2_SceneDepth.png"));
+		RequestCloseoutScreenshot(TEXT("Editor/00_Disabled.png"));
+		WriteProbeJson(EditorPIECloseoutRoot / TEXT("EditorDisabled.json"), GProbeInstance);
+		// Prepare next
+		EnableRaster(true);
+		GProbeInstance.RequestedDebugPixel = FIntPoint(GProbeInstance.ViewRect.Width()/2, GProbeInstance.ViewRect.Height()/2); // Center pixel
+		GProbeInstance.bReadbackReady = false;
+		AdvanceCloseoutAfterDelay(0.5);
 		break;
 	case 3:
-		ApplySmokeState(1, 3);
-		RequestCloseoutScreenshot(TEXT("Editor/03_Mode3_SceneColorOverlay.png"));
+		// EditorVisible
+		RequestCloseoutScreenshot(TEXT("Editor/01_Visible.png"));
+		WriteProbeJson(EditorPIECloseoutRoot / TEXT("EditorVisible.json"), GProbeInstance);
+		SaveSlicesCSV(EditorPIECloseoutRoot / TEXT("EditorVisible_Slices.csv"), GProbeInstance);
+		// Prepare next
+		GProbeInstance = FAVBOITRasterExecutionProbe();
+		GProbeInstance.ReadbackPayload = &PayloadStorage;
+		GProbeInstance.RequestedDebugPixel = FIntPoint(GProbeInstance.ViewRect.Width()/2, GProbeInstance.ViewRect.Height()/2);
+		FAVBOITEditorSceneBuilder::SetOccluderVisible(GSceneState, true);
+		AdvanceCloseoutAfterDelay(0.5);
 		break;
 	case 4:
-		ApplySmokeState(0, 1);
-		RequestCloseoutScreenshot(TEXT("Editor/10_OriginalMaterialShaderRegression.png"));
+		// EditorOccluded
+		RequestCloseoutScreenshot(TEXT("Editor/02_Occluded.png"));
+		WriteProbeJson(EditorPIECloseoutRoot / TEXT("EditorOccluded.json"), GProbeInstance);
+		SaveSlicesCSV(EditorPIECloseoutRoot / TEXT("EditorOccluded_Slices.csv"), GProbeInstance);
+		// Prepare next
+		EnableRaster(false);
+		StartPIE();
+		AdvanceCloseoutAfterDelay(3.0);
 		break;
 	case 5:
-		StartPIE();
-		AdvanceCloseoutAfterDelay(4.0);
+		if (!IsPIEActive()) { EditorPIECloseoutNextTime = FPlatformTime::Seconds() + 1.0; return true; }
+		// PIEDisabled
+		GProbeInstance = FAVBOITRasterExecutionProbe();
+		GProbeInstance.ReadbackPayload = &PayloadStorage;
+		AdvanceCloseoutAfterDelay(0.5);
 		break;
 	case 6:
-		if (!IsPIEActive())
-		{
-			EditorPIECloseoutNextTime = FPlatformTime::Seconds() + 1.0;
-			return true;
-		}
-		ApplySmokeState(0, 1);
 		RequestCloseoutScreenshot(TEXT("PIE/00_Disabled.png"));
+		WriteProbeJson(EditorPIECloseoutRoot / TEXT("PIEDisabled.json"), GProbeInstance);
+		// Prepare next
+		EnableRaster(true);
+		FAVBOITEditorSceneBuilder::SetOccluderVisible(GSceneState, false); // Applies to Editor objects, PIE duplicates need care
+		// To fix PIE occluder, we should find the PIE actor or just rely on camera.
+		// For simplicity, we just toggle all actors with the tag in the PIE world.
+		if (UWorld* PIEWorld = GEditor->PlayWorld)
+		{
+			for (TActorIterator<AActor> It(PIEWorld); It; ++It)
+			{
+				if (It->ActorHasTag(AVBOIT_TEST_TAG))
+				{
+					if (It->IsA(AStaticMeshActor::StaticClass()) && !It->GetActorScale3D().Equals(FVector(50.f,50.f,1.f)))
+					{
+						It->SetActorHiddenInGame(true); // Hide occluder
+					}
+				}
+			}
+		}
+		GProbeInstance.RequestedDebugPixel = FIntPoint(GProbeInstance.ViewRect.Width()/2, GProbeInstance.ViewRect.Height()/2);
+		AdvanceCloseoutAfterDelay(0.5);
 		break;
 	case 7:
-		ApplySmokeState(1, 1);
-		RequestCloseoutScreenshot(TEXT("PIE/01_Mode1.png"));
+		// PIEVisible
+		RequestCloseoutScreenshot(TEXT("PIE/01_Visible.png"));
+		WriteProbeJson(EditorPIECloseoutRoot / TEXT("PIEVisible.json"), GProbeInstance);
+		SaveSlicesCSV(EditorPIECloseoutRoot / TEXT("PIEVisible_Slices.csv"), GProbeInstance);
+		// Prepare next
+		GProbeInstance = FAVBOITRasterExecutionProbe();
+		GProbeInstance.ReadbackPayload = &PayloadStorage;
+		GProbeInstance.RequestedDebugPixel = FIntPoint(GProbeInstance.ViewRect.Width()/2, GProbeInstance.ViewRect.Height()/2);
+		if (UWorld* PIEWorld = GEditor->PlayWorld)
+		{
+			for (TActorIterator<AActor> It(PIEWorld); It; ++It)
+			{
+				if (It->ActorHasTag(AVBOIT_TEST_TAG))
+				{
+					if (It->IsA(AStaticMeshActor::StaticClass()) && !It->GetActorScale3D().Equals(FVector(50.f,50.f,1.f)))
+					{
+						It->SetActorHiddenInGame(false); // Show occluder
+					}
+				}
+			}
+		}
+		AdvanceCloseoutAfterDelay(0.5);
 		break;
 	case 8:
-		ApplySmokeState(1, 2);
-		RequestCloseoutScreenshot(TEXT("PIE/02_Mode2_SceneDepth.png"));
+		// PIEOccluded
+		RequestCloseoutScreenshot(TEXT("PIE/02_Occluded.png"));
+		WriteProbeJson(EditorPIECloseoutRoot / TEXT("PIEOccluded.json"), GProbeInstance);
+		SaveSlicesCSV(EditorPIECloseoutRoot / TEXT("PIEOccluded_Slices.csv"), GProbeInstance);
+		
+		// Setup LifecycleDestroy
+		if (UWorld* PIEWorld = GEditor->PlayWorld)
+		{
+			for (TActorIterator<AActor> It(PIEWorld); It; ++It)
+			{
+				if (It->ActorHasTag(AVBOIT_TEST_TAG) && !It->IsA(AStaticMeshActor::StaticClass()) && !It->IsA(ACameraActor::StaticClass()))
+				{
+					It->Destroy(); // Destroy TestActor
+				}
+			}
+		}
+		GProbeInstance = FAVBOITRasterExecutionProbe();
+		GProbeInstance.ReadbackPayload = &PayloadStorage;
+		AdvanceCloseoutAfterDelay(1.0);
 		break;
 	case 9:
-		ApplySmokeState(1, 3);
-		RequestCloseoutScreenshot(TEXT("PIE/03_Mode3_SceneColorOverlay.png"));
+		WriteProbeJson(EditorPIECloseoutRoot / TEXT("LifecycleDestroy.json"), GProbeInstance);
+		
+		// Setup LifecycleRespawn
+		if (UWorld* PIEWorld = GEditor->PlayWorld)
+		{
+			FActorSpawnParameters SpawnParams;
+			AActor* ReActor = PIEWorld->SpawnActor<AActor>(FVector(100, 0, 100), FRotator::ZeroRotator, SpawnParams);
+			ReActor->Tags.Add(AVBOIT_TEST_TAG);
+			USceneComponent* RootComp = NewObject<USceneComponent>(ReActor);
+			ReActor->SetRootComponent(RootComp);
+			RootComp->RegisterComponent();
+			UAVBOITTestMeshComponent* ReMesh = NewObject<UAVBOITTestMeshComponent>(ReActor);
+			ReMesh->SetupAttachment(RootComp);
+			ReMesh->MaterialParams.Color = FLinearColor::White;
+			ReMesh->MaterialParams.Alpha = 0.5f;
+			ReMesh->bIsTransparent = true;
+			ReMesh->RegisterComponent();
+		}
+		GProbeInstance = FAVBOITRasterExecutionProbe();
+		GProbeInstance.ReadbackPayload = &PayloadStorage;
+		AdvanceCloseoutAfterDelay(1.0);
 		break;
 	case 10:
-		EndPIE();
-		AdvanceCloseoutAfterDelay(3.0);
+		WriteProbeJson(EditorPIECloseoutRoot / TEXT("LifecycleRespawn.json"), GProbeInstance);
+		FAVBOITEditorSceneBuilder::ForceResizeViewport(640, 360);
+		AdvanceCloseoutAfterDelay(1.0);
 		break;
 	case 11:
-		if (IsPIEActive())
-		{
-			EditorPIECloseoutNextTime = FPlatformTime::Seconds() + 1.0;
-			return true;
-		}
-		StartPIE();
-		AdvanceCloseoutAfterDelay(4.0);
+		WriteProbeJson(EditorPIECloseoutRoot / TEXT("Resize640x360.json"), GProbeInstance);
+		FAVBOITEditorSceneBuilder::ForceResizeViewport(960, 540);
+		AdvanceCloseoutAfterDelay(1.0);
 		break;
 	case 12:
-		if (!IsPIEActive())
-		{
-			EditorPIECloseoutNextTime = FPlatformTime::Seconds() + 1.0;
-			return true;
-		}
-		ApplySmokeState(1, 1);
-		AdvanceCloseoutAfterDelay(1.0);
+		WriteProbeJson(EditorPIECloseoutRoot / TEXT("Resize960x540.json"), GProbeInstance);
+		EndPIE();
+		AdvanceCloseoutAfterDelay(2.0);
 		break;
 	case 13:
-		ApplySmokeState(0, 1);
-		AdvanceCloseoutAfterDelay(1.0);
+		if (IsPIEActive()) { EditorPIECloseoutNextTime = FPlatformTime::Seconds() + 1.0; return true; }
+		// Original Regression
+		EnableRaster(false);
+		GProbeInstance = FAVBOITRasterExecutionProbe();
+		GProbeInstance.ReadbackPayload = &PayloadStorage;
+		AdvanceCloseoutAfterDelay(0.5);
 		break;
 	case 14:
-		ApplySmokeState(1, 2);
-		AdvanceCloseoutAfterDelay(1.0);
-		break;
-	case 15:
-		ApplySmokeState(0, 2);
-		AdvanceCloseoutAfterDelay(1.0);
-		break;
-	case 16:
-		ApplySmokeState(1, 3);
-		RequestCloseoutScreenshot(TEXT("PIE/04_Lifecycle_FinalEnable.png"));
-		break;
-	case 17:
-		EndPIE();
-		AdvanceCloseoutAfterDelay(3.0);
-		break;
-	case 18:
-		if (IsPIEActive())
-		{
-			EditorPIECloseoutNextTime = FPlatformTime::Seconds() + 1.0;
-			return true;
-		}
-		FinishEditorPIECloseout(/*bRequestExit*/ true);
+		RequestCloseoutScreenshot(TEXT("Editor/10_OriginalMaterialShaderRegression.png"));
+		FinishEditorPIECloseout(true);
 		return false;
 	default:
-		FinishEditorPIECloseout(/*bRequestExit*/ true);
+		FinishEditorPIECloseout(true);
 		return false;
 	}
 
 	return true;
 }
 
-void FAVBOITEditorPIEAutomation::OnEditorPIECloseoutBeginPIE(const bool bIsSimulating)
-{
-	UE_LOG(LogTemp, Display, TEXT("Closeout observed BeginPIE. Simulating=%s"), bIsSimulating ? TEXT("true") : TEXT("false"));
-}
-
-void FAVBOITEditorPIEAutomation::OnEditorPIECloseoutEndPIE(const bool bIsSimulating)
-{
-	UE_LOG(LogTemp, Display, TEXT("Closeout observed EndPIE. Simulating=%s"), bIsSimulating ? TEXT("true") : TEXT("false"));
-}
+void FAVBOITEditorPIEAutomation::OnEditorPIECloseoutBeginPIE(const bool bIsSimulating) {}
+void FAVBOITEditorPIEAutomation::OnEditorPIECloseoutEndPIE(const bool bIsSimulating) {}
 
 void FAVBOITEditorPIEAutomation::FinishEditorPIECloseout(const bool bRequestExit)
 {
-	if (!bEditorPIECloseoutRunning)
-	{
-		return;
-	}
+	if (!bEditorPIECloseoutRunning) return;
+	EnableRaster(false);
+	GAVBOITRasterProbe = nullptr;
+	FAVBOITEditorSceneBuilder::CleanupExistingTestActors(GSceneState.World);
+	FAVBOITEditorSceneBuilder::RestoreSettings();
 
-	ApplySmokeState(0, 1);
-
-	if (EditorPIECloseoutTickerHandle.IsValid())
-	{
-		FTSTicker::GetCoreTicker().RemoveTicker(EditorPIECloseoutTickerHandle);
-		EditorPIECloseoutTickerHandle.Reset();
-	}
-
-	if (EditorPIECloseoutBeginPIEHandle.IsValid())
-	{
-		FEditorDelegates::BeginPIE.Remove(EditorPIECloseoutBeginPIEHandle);
-		EditorPIECloseoutBeginPIEHandle.Reset();
-	}
-
-	if (EditorPIECloseoutEndPIEHandle.IsValid())
-	{
-		FEditorDelegates::EndPIE.Remove(EditorPIECloseoutEndPIEHandle);
-		EditorPIECloseoutEndPIEHandle.Reset();
-	}
-
+	if (EditorPIECloseoutTickerHandle.IsValid()) FTSTicker::GetCoreTicker().RemoveTicker(EditorPIECloseoutTickerHandle);
+	if (EditorPIECloseoutBeginPIEHandle.IsValid()) FEditorDelegates::BeginPIE.Remove(EditorPIECloseoutBeginPIEHandle);
+	if (EditorPIECloseoutEndPIEHandle.IsValid()) FEditorDelegates::EndPIE.Remove(EditorPIECloseoutEndPIEHandle);
+	
 	bEditorPIECloseoutRunning = false;
-	bEditorPIECloseoutCaptureScreenshots = true;
-	UE_LOG(LogTemp, Display, TEXT("Finished editor/PIE closeout sequence."));
-
-	if (bRequestExit)
-	{
-		FPlatformMisc::RequestExit(false);
-	}
+	if (bRequestExit) FPlatformMisc::RequestExit(false);
 }
 
 #endif

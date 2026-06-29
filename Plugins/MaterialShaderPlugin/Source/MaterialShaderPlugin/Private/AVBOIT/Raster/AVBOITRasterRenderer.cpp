@@ -27,6 +27,10 @@ static TAutoConsoleVariable<int32> CVarAVBOITRasterEnable(
 	ECVF_RenderThreadSafe
 );
 
+#if WITH_EDITOR || WITH_DEV_AUTOMATION_TESTS
+FAVBOITRasterExecutionProbe* GAVBOITRasterProbe = nullptr;
+#endif
+
 bool FAVBOITRasterRenderer::IsEnabled()
 {
 	return CVarAVBOITRasterEnable.GetValueOnRenderThread() > 0;
@@ -37,14 +41,61 @@ void FAVBOITRasterRenderer::AddPasses(
 	const FSceneView& View,
 	const FPostProcessingInputs& Inputs)
 {
+#if WITH_EDITOR || WITH_DEV_AUTOMATION_TESTS
+	if (GAVBOITRasterProbe)
+	{
+		GAVBOITRasterProbe->ObservedViewCount++;
+		// Filter view: Must be Level Editor Viewport or PIE Viewport (exclude thumbnails, captures, etc.)
+		bool bIsMainView = (View.bIsGameView || View.bIsViewInfo) && !View.bIsSceneCapture && !View.bIsReflectionCapture && !View.bIsPlanarReflection;
+		if (!bIsMainView)
+		{
+			GAVBOITRasterProbe->RejectedViewCount++;
+			return; // Don't run in thumbnails
+		}
+		
+		GAVBOITRasterProbe->AcceptedViewCount++;
+		GAVBOITRasterProbe->AcceptedViewRect = View.UnconstrainedViewRect;
+		
+		UWorld* World = View.Family ? View.Family->Scene->GetWorld() : nullptr;
+		if (World)
+		{
+			GAVBOITRasterProbe->WorldName = World->GetName();
+			GAVBOITRasterProbe->Context = (World->WorldType == EWorldType::PIE) ? TEXT("PIE") : TEXT("Editor");
+		}
+		
+		GAVBOITRasterProbe->FrameNumber = View.Family ? View.Family->FrameNumber : 0;
+		GAVBOITRasterProbe->ViewRect = View.UnconstrainedViewRect;
+		GAVBOITRasterProbe->TextureExtent = Inputs.SceneTextures->GetParameters()->SceneDepthTexture->Desc.Extent;
+		GAVBOITRasterProbe->bRasterEnabled = IsEnabled();
+	}
+#endif
+
 	if (!IsEnabled())
 	{
+#if WITH_EDITOR || WITH_DEV_AUTOMATION_TESTS
+		if (GAVBOITRasterProbe && GAVBOITRasterProbe->SkipReason == EAVBOITRasterSkipReason::Disabled)
+		{
+			GAVBOITRasterProbe->SkipReason = EAVBOITRasterSkipReason::Disabled;
+		}
+#endif
 		return;
 	}
 
 	const TArray<FAVBOITTestMeshSceneProxy*>& Proxies = FAVBOITRasterSceneData::Get().GetProxies();
+	
+#if WITH_EDITOR || WITH_DEV_AUTOMATION_TESTS
+	if (GAVBOITRasterProbe)
+	{
+		GAVBOITRasterProbe->RegistryProxyCount = Proxies.Num();
+		GAVBOITRasterProbe->AcceptedProxyCount = Proxies.Num();
+	}
+#endif
+
 	if (Proxies.IsEmpty())
 	{
+#if WITH_EDITOR || WITH_DEV_AUTOMATION_TESTS
+		if (GAVBOITRasterProbe) GAVBOITRasterProbe->SkipReason = EAVBOITRasterSkipReason::NoProxies;
+#endif
 		return;
 	}
 
@@ -58,6 +109,16 @@ void FAVBOITRasterRenderer::AddPasses(
 	PassInputs.SceneDepth = Inputs.SceneTextures->GetParameters()->SceneDepthTexture;
 	PassInputs.SceneColor = Inputs.SceneTextures->GetParameters()->SceneColorTexture;
 	PassInputs.FragmentCoverageCounter = nullptr;
+	PassInputs.RasterDebugPixelBuffer = nullptr;
+
+#if WITH_EDITOR || WITH_DEV_AUTOMATION_TESTS
+	if (GAVBOITRasterProbe && GAVBOITRasterProbe->RequestedDebugPixel.X >= 0)
+	{
+		PassInputs.DebugPixel = GAVBOITRasterProbe->RequestedDebugPixel;
+		PassInputs.FragmentCoverageCounter = GraphBuilder.CreateBuffer(FRDGBufferDesc::CreateBufferDesc(4, 1), TEXT("AVBOIT.FragmentCoverageCounter"));
+		PassInputs.RasterDebugPixelBuffer = GraphBuilder.CreateBuffer(FRDGBufferDesc::CreateStructuredDesc(sizeof(FAVBOITRasterDebugPixelData), 1), TEXT("AVBOIT.RasterDebugPixelBuffer"));
+	}
+#endif
 
 	PassInputs.DrawData.Reserve(Proxies.Num());
 	for (FAVBOITTestMeshSceneProxy* Proxy : Proxies)
@@ -94,9 +155,45 @@ FAVBOITRasterPassOutputs FAVBOITRasterRenderer::AddCorePasses(
 	// 1. Allocate RDG Textures
 	// We allocate matching SceneDepth extent to prevent ViewRectMin offset issues from causing out of bounds
 	FIntPoint TextureExtent = SceneDepthTexture->Desc.Extent;
+	if (TextureExtent.X <= 0 || TextureExtent.Y <= 0)
+	{
+		return Outputs;
+	}
+	UE_LOG(LogTemp, Warning, TEXT("AVBOIT TextureExtent: %d x %d, ExtinctionElements: %lld"), TextureExtent.X, TextureExtent.Y, (long long)TextureExtent.X * TextureExtent.Y * 64);
 
-	FRDGBufferDesc ExtinctionDesc = FRDGBufferDesc::CreateStructuredDesc(4, TextureExtent.X * TextureExtent.Y * 64);
+	
+	uint32 ExtinctionElements = TextureExtent.X * TextureExtent.Y * 64;
+	if (true)
+	{
+		ExtinctionElements = 1024;
+	}
+	FRDGBufferDesc ExtinctionDesc = FRDGBufferDesc::CreateStructuredDesc(4, ExtinctionElements);
+
 	Outputs.ExtinctionVolume = GraphBuilder.CreateBuffer(ExtinctionDesc, TEXT("AVBOIT.Outputs.ExtinctionVolume"));
+	if (!Outputs.ExtinctionVolume)
+	{
+		UE_LOG(LogTemp, Fatal, TEXT("AVBOIT: ExtinctionVolume Buffer is NULL!"));
+	}
+	FRDGBufferUAVRef ExtUAV = GraphBuilder.CreateUAV(Outputs.ExtinctionVolume);
+	if (!ExtUAV)
+	{
+		UE_LOG(LogTemp, Fatal, TEXT("AVBOIT: ExtinctionVolume UAV is NULL!"));
+	}
+
+	FRDGBufferRef DummyCoverage = GraphBuilder.CreateBuffer(FRDGBufferDesc::CreateBufferDesc(4, 1), TEXT("DummyCoverage"));
+	FRDGBufferRef DummyDebugPixel = GraphBuilder.CreateBuffer(FRDGBufferDesc::CreateStructuredDesc(sizeof(FAVBOITRasterDebugPixelData), 1), TEXT("DummyDebugPixel"));
+	FRDGBufferUAVRef DummyCoverageUAV = GraphBuilder.CreateUAV(DummyCoverage, PF_R32_UINT);
+	FRDGBufferUAVRef DummyDebugPixelUAV = GraphBuilder.CreateUAV(DummyDebugPixel);
+	if (!DummyCoverageUAV || !DummyDebugPixelUAV)
+	{
+		UE_LOG(LogTemp, Fatal, TEXT("AVBOIT: Dummy UAVs are NULL!"));
+	}
+
+	UE_LOG(LogTemp, Warning, TEXT("AVBOIT: ExtinctionVolume Handle = %d"), Outputs.ExtinctionVolume ? Outputs.ExtinctionVolume->GetHandle().GetIndex() : -1);
+	UE_LOG(LogTemp, Warning, TEXT("AVBOIT: ExtUAV Handle = %d"), ExtUAV ? ExtUAV->GetHandle().GetIndex() : -1);
+	UE_LOG(LogTemp, Warning, TEXT("AVBOIT: DummyCoverage Handle = %d"), DummyCoverage ? DummyCoverage->GetHandle().GetIndex() : -1);
+	UE_LOG(LogTemp, Warning, TEXT("AVBOIT: DummyDebugPixel Handle = %d"), DummyDebugPixel ? DummyDebugPixel->GetHandle().GetIndex() : -1);
+
 
 	FRDGTextureDesc TransmittanceDesc = FRDGTextureDesc::Create2DArray(
 		TextureExtent,
@@ -123,7 +220,7 @@ FAVBOITRasterPassOutputs FAVBOITRasterRenderer::AddCorePasses(
 		PassParameters->ZNear = 10.0f;
 		PassParameters->ZFar = 1000.0f;
 		PassParameters->FragmentCount = 0;
-		PassParameters->OutExtinctionVolume = GraphBuilder.CreateUAV(Outputs.ExtinctionVolume);
+		PassParameters->OutExtinctionVolume = ExtUAV;
 		PassParameters->OutTransmittanceVolume = GraphBuilder.CreateUAV(Outputs.TransmittanceVolume);
 		PassParameters->OutResultTexture = GraphBuilder.CreateUAV(Outputs.ColorAccumulation);
 
@@ -150,6 +247,7 @@ FAVBOITRasterPassOutputs FAVBOITRasterRenderer::AddCorePasses(
 	float ZNear = Inputs.ZNear;
 	float ZFar = Inputs.ZFar; // Typical empirical or from view
 	// Pass 2: Splat
+	if (Inputs.DrawData.Num() > 0)
 	{
 
 		
@@ -170,6 +268,11 @@ FAVBOITRasterPassOutputs FAVBOITRasterRenderer::AddCorePasses(
 			{
 				PSParams->FragmentCoverageCounter = GraphBuilder.CreateUAV(Inputs.FragmentCoverageCounter, PF_R32_UINT);
 				PSParams->OutDebugPixelBuffer = GraphBuilder.CreateUAV(Inputs.RasterDebugPixelBuffer);
+			}
+			else
+			{
+				PSParams->FragmentCoverageCounter = DummyCoverageUAV;
+				PSParams->OutDebugPixelBuffer = DummyDebugPixelUAV;
 			}
 
 			PSParams->RenderTargets.DepthStencil = FDepthStencilBinding(SceneDepthTexture, ERenderTargetLoadAction::ELoad, FExclusiveDepthStencil::DepthRead_StencilNop);
@@ -252,6 +355,10 @@ FAVBOITRasterPassOutputs FAVBOITRasterRenderer::AddCorePasses(
 		PassParameters->ZFar = 1000.0f;
 		PassParameters->FragmentCount = 0;
 		PassParameters->InExtinctionVolume = GraphBuilder.CreateSRV(Outputs.ExtinctionVolume);
+		if (!PassParameters->InExtinctionVolume)
+		{
+			UE_LOG(LogTemp, Fatal, TEXT("AVBOIT: InExtinctionVolume SRV is NULL!"));
+		}
 		PassParameters->OutTransmittanceVolume = GraphBuilder.CreateUAV(Outputs.TransmittanceVolume);
 
 		TShaderMapRef<FAVBOITIntegrateCS> ComputeShader(GetGlobalShaderMap(GMaxRHIFeatureLevel));
@@ -271,6 +378,7 @@ FAVBOITRasterPassOutputs FAVBOITRasterRenderer::AddCorePasses(
 	}
 
 	// Pass 4: ForwardShade
+	if (Inputs.DrawData.Num() > 0)
 	{
 		TArray<FAVBOITRasterForwardPS::FParameters*> ForwardPSParams;
 		TArray<FAVBOITRasterForwardVS::FParameters*> ForwardVSParams;
@@ -345,6 +453,31 @@ FAVBOITRasterPassOutputs FAVBOITRasterRenderer::AddCorePasses(
 		});
 	}
 
+#if WITH_EDITOR || WITH_DEV_AUTOMATION_TESTS
+	if (GAVBOITRasterProbe)
+	{
+		GAVBOITRasterProbe->bClearPassScheduled = true;
+		GAVBOITRasterProbe->bSplatPassScheduled = true;
+		GAVBOITRasterProbe->bIntegratePassScheduled = true;
+		GAVBOITRasterProbe->bForwardPassScheduled = true;
+		GAVBOITRasterProbe->SplatDrawCount = Inputs.DrawData.Num();
+		GAVBOITRasterProbe->ForwardDrawCount = Inputs.DrawData.Num();
+		GAVBOITRasterProbe->SkipReason = EAVBOITRasterSkipReason::Executed;
+	}
+#endif
+
+
+	FRDGTextureRef SceneColorBefore = nullptr;
+#if WITH_EDITOR || WITH_DEV_AUTOMATION_TESTS
+	if (GAVBOITRasterProbe && GAVBOITRasterProbe->RequestedDebugPixel.X >= 0 && Inputs.FragmentCoverageCounter != nullptr && Inputs.RasterDebugPixelBuffer != nullptr && Inputs.DrawData.Num() > 0)
+	{
+		FRDGTextureDesc CopyDesc = SceneColorTexture->Desc;
+		CopyDesc.Flags |= TexCreate_RenderTargetable;
+		SceneColorBefore = GraphBuilder.CreateTexture(CopyDesc, TEXT("AVBOIT.SceneColorBefore"));
+		AddCopyTexturePass(GraphBuilder, SceneColorTexture, SceneColorBefore);
+	}
+#endif
+
 	// Pass 5: Composite
 	// In-place modification of SceneColor using Hardware Blend
 	{
@@ -366,8 +499,61 @@ FAVBOITRasterPassOutputs FAVBOITRasterRenderer::AddCorePasses(
 			ViewRect,
 			BlendState
 		);
+
 		Outputs.CompositeOutput = PassParameters->RenderTargets[0].GetTexture();
 	}
+
+#if WITH_EDITOR || WITH_DEV_AUTOMATION_TESTS
+	if (GAVBOITRasterProbe && GAVBOITRasterProbe->RequestedDebugPixel.X >= 0 && Inputs.FragmentCoverageCounter != nullptr && Inputs.RasterDebugPixelBuffer != nullptr && Inputs.DrawData.Num() > 0)
+	{
+		GAVBOITRasterProbe->bCompositePassScheduled = true;
+		GAVBOITRasterProbe->CompositeDrawCount = 1;
+		GAVBOITRasterProbe->bDebugReadbackScheduled = true;
+
+		FRDGBufferDesc BufDesc = FRDGBufferDesc::CreateStructuredDesc(sizeof(FAVBOITRasterDebugPayload), 1);
+		FRDGBufferRef OutDebugBuffer = GraphBuilder.CreateBuffer(BufDesc, TEXT("AVBOIT.DebugBuffer"));
+		// AddClearUAVPass(GraphBuilder, GraphBuilder.CreateUAV(OutDebugBuffer), 0);
+
+		auto* DebugParams = GraphBuilder.AllocParameters<FAVBOITRasterDebugExtractCS::FParameters>();
+		DebugParams->ViewResolution = FVector2f(TextureExtent.X, TextureExtent.Y);
+		DebugParams->ExtinctionVolume = GraphBuilder.CreateSRV(Outputs.ExtinctionVolume);
+		DebugParams->TransmittanceVolume = GraphBuilder.CreateSRV(Outputs.TransmittanceVolume);
+		DebugParams->ColorAccumulation = Outputs.ColorAccumulation;
+		DebugParams->SceneColorBefore = SceneColorBefore ? SceneColorBefore : SceneColorTexture;
+		DebugParams->SceneColorAfter = SceneColorTexture;
+		// The struct may expect DebugPixel instead of TargetPixel:
+		DebugParams->DebugPixel = GAVBOITRasterProbe->RequestedDebugPixel;
+		DebugParams->FragmentCoverageCounter = GraphBuilder.CreateSRV(Inputs.FragmentCoverageCounter ? Inputs.FragmentCoverageCounter : GraphBuilder.CreateBuffer(FRDGBufferDesc::CreateBufferDesc(4, 1), TEXT("Dummy")), PF_R32_UINT);
+		DebugParams->RasterDebugPixelBuffer = GraphBuilder.CreateSRV(Inputs.RasterDebugPixelBuffer ? Inputs.RasterDebugPixelBuffer : GraphBuilder.CreateBuffer(FRDGBufferDesc::CreateStructuredDesc(sizeof(FAVBOITRasterDebugPixelData), 1), TEXT("Dummy")));
+		DebugParams->OutDebugPayload = GraphBuilder.CreateUAV(OutDebugBuffer);
+		DebugParams->TextureExtent = TextureExtent;
+		DebugParams->ViewRectMin = Inputs.ViewRect.Min;
+		DebugParams->ViewRectMax = Inputs.ViewRect.Max;
+
+		TShaderMapRef<FAVBOITRasterDebugExtractCS> DebugComputeShader(GetGlobalShaderMap(GMaxRHIFeatureLevel));
+		FComputeShaderUtils::AddPass(
+			GraphBuilder,
+			RDG_EVENT_NAME("AVBOIT.Raster.DebugExtract"),
+			DebugComputeShader,
+			DebugParams,
+			FIntVector(1, 1, 1)
+		);
+
+		FRHIGPUBufferReadback* Readback = new FRHIGPUBufferReadback(TEXT("AVBOITRasterReadback"));
+		AddEnqueueCopyPass(GraphBuilder, Readback, OutDebugBuffer, sizeof(FAVBOITRasterDebugPayload));
+
+		FAVBOITRasterExecutionProbe* LocalProbe = GAVBOITRasterProbe;
+		if (LocalProbe)
+		{
+			// Instead of locking inside the RDG pass, we store the readback to poll on the RenderThread later.
+			if (LocalProbe->PendingReadback)
+			{
+				delete LocalProbe->PendingReadback;
+			}
+			LocalProbe->PendingReadback = Readback;
+		}
+	}
+#endif
 	
 	return Outputs;
 }

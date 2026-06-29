@@ -29,6 +29,7 @@ void FAVBOITRasterVertexBuffer::InitRHI(FRHICommandListBase& RHICmdList)
 	Vertices[3] = FVector3f(-50.f,  50.f, 0.f);
 
 	FRHIBufferCreateDesc CreateDesc(TEXT("AVBOITRasterVertexBuffer"), Vertices.GetResourceDataSize(), 0, BUF_Static | BUF_VertexBuffer);
+	CreateDesc.SetInitialState(ERHIAccess::VertexOrIndexBuffer);
 	CreateDesc.SetInitActionResourceArray(&Vertices);
 	VertexBufferRHI = RHICmdList.CreateBuffer(CreateDesc);
 }
@@ -41,6 +42,7 @@ void FAVBOITRasterIndexBuffer::InitRHI(FRHICommandListBase& RHICmdList)
 	Indices[3] = 0; Indices[4] = 2; Indices[5] = 3;
 
 	FRHIBufferCreateDesc CreateDesc(TEXT("AVBOITRasterIndexBuffer"), Indices.GetResourceDataSize(), sizeof(uint16), BUF_Static | BUF_IndexBuffer);
+	CreateDesc.SetInitialState(ERHIAccess::VertexOrIndexBuffer);
 	CreateDesc.SetInitActionResourceArray(&Indices);
 	IndexBufferRHI = RHICmdList.CreateBuffer(CreateDesc);
 }

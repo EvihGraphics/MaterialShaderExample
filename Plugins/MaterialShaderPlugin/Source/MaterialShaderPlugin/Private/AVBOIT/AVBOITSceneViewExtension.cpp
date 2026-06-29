@@ -101,9 +101,32 @@ void FAVBOITSceneViewExtension::SubscribeToPostProcessingPass(
 }
 
 #include "AVBOIT/Raster/AVBOITRasterRenderer.h"
+#include "RHIGPUReadback.h"
+#include "AVBOIT/Raster/AVBOITRasterShaders.h"
 
 void FAVBOITSceneViewExtension::PrePostProcessPass_RenderThread(FRDGBuilder& GraphBuilder, const FSceneView& View, const FPostProcessingInputs& Inputs)
 {
+#if WITH_EDITOR || WITH_DEV_AUTOMATION_TESTS
+	if (GAVBOITRasterProbe && GAVBOITRasterProbe->PendingReadback)
+	{
+		if (GAVBOITRasterProbe->PendingReadback->IsReady())
+		{
+			if (GAVBOITRasterProbe->ReadbackPayload)
+			{
+				void* Data = GAVBOITRasterProbe->PendingReadback->Lock(sizeof(FAVBOITRasterDebugPayload));
+				if (Data)
+				{
+					FMemory::Memcpy(GAVBOITRasterProbe->ReadbackPayload, Data, sizeof(FAVBOITRasterDebugPayload));
+					GAVBOITRasterProbe->PendingReadback->Unlock();
+					GAVBOITRasterProbe->bReadbackReady = true;
+				}
+			}
+			delete GAVBOITRasterProbe->PendingReadback;
+			GAVBOITRasterProbe->PendingReadback = nullptr;
+		}
+	}
+#endif
+
 	if (FAVBOITRasterRenderer::IsEnabled())
 	{
 		FAVBOITRasterRenderer::AddPasses(GraphBuilder, View, Inputs);
@@ -115,7 +138,7 @@ FScreenPassTexture FAVBOITSceneViewExtension::AddSmokePass(
 	const FSceneView& View,
 	const FPostProcessMaterialInputs& Inputs) const
 {
-	if (!AVBOIT::Smoke::IsEnabled())
+	if (AVBOIT::Smoke::GetDebugMode() < 2)
 	{
 		return Inputs.ReturnUntouchedSceneColorForPostProcessing(GraphBuilder);
 	}
