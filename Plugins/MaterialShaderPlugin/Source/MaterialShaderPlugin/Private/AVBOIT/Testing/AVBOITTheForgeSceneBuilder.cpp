@@ -8,6 +8,7 @@
 #include "Misc/FileHelper.h"
 #include "Misc/Paths.h"
 #include "Serialization/JsonSerializer.h"
+#include "AVBOIT/Raster/AVBOITTestMeshComponent.h"
 
 static const FName THE_FORGE_TAG = TEXT("AVBOIT_TheForgeIntegration");
 
@@ -87,18 +88,39 @@ void FAVBOITTheForgeSceneBuilder::BuildSceneFromContract(UWorld* World)
 			FVector Scale = ForgeToUEScale(Obj->GetArrayField(TEXT("ForgeScale")));
 			FLinearColor Color = ParseColor(Obj->GetArrayField(TEXT("Color")));
 
-			AStaticMeshActor* Actor = World->SpawnActor<AStaticMeshActor>(Pos, FRotator::ZeroRotator);
-			Actor->Tags.Add(THE_FORGE_TAG);
-			Actor->SetActorLabel(Name);
-			
-			UStaticMeshComponent* SMC = Actor->GetStaticMeshComponent();
-			SMC->SetStaticMesh(Type == TEXT("Cube") ? CubeMesh : SphereMesh);
-			SMC->SetWorldScale3D(Scale);
-			
-			UMaterialInstanceDynamic* MID = UMaterialInstanceDynamic::Create(BaseMat, SMC);
-			MID->SetVectorParameterValue(TEXT("Color"), Color);
-			// Assume it's unlit translucent for testing or simple opaque depending on alpha
-			SMC->SetMaterial(0, MID);
+			if (Type == TEXT("Quad") || Color.A < 1.0f)
+			{
+				// Spawn as UAVBOITTestMeshComponent for Raster Base parity
+				AActor* Actor = World->SpawnActor<AActor>(Pos, FRotator::ZeroRotator);
+				Actor->Tags.Add(THE_FORGE_TAG);
+				Actor->SetActorLabel(Name);
+
+				USceneComponent* RootComp = NewObject<USceneComponent>(Actor);
+				Actor->SetRootComponent(RootComp);
+				RootComp->SetWorldScale3D(Scale);
+				RootComp->RegisterComponent();
+
+				UAVBOITTestMeshComponent* TestMesh = NewObject<UAVBOITTestMeshComponent>(Actor);
+				TestMesh->SetupAttachment(RootComp);
+				TestMesh->MaterialParams.Color = Color;
+				TestMesh->MaterialParams.Alpha = Color.A;
+				TestMesh->bIsTransparent = (Color.A < 1.0f);
+				TestMesh->RegisterComponent();
+			}
+			else
+			{
+				AStaticMeshActor* Actor = World->SpawnActor<AStaticMeshActor>(Pos, FRotator::ZeroRotator);
+				Actor->Tags.Add(THE_FORGE_TAG);
+				Actor->SetActorLabel(Name);
+				
+				UStaticMeshComponent* SMC = Actor->GetStaticMeshComponent();
+				SMC->SetStaticMesh(Type == TEXT("Cube") ? CubeMesh : SphereMesh);
+				SMC->SetWorldScale3D(Scale);
+				
+				UMaterialInstanceDynamic* MID = UMaterialInstanceDynamic::Create(BaseMat, SMC);
+				MID->SetVectorParameterValue(TEXT("Color"), Color);
+				SMC->SetMaterial(0, MID);
+			}
 		}
 	}
 

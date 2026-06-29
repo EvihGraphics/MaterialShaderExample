@@ -62,16 +62,17 @@ try {
     
     # 6. Execute Parity Automation
     Write-Host "Running Parity Validation (This requires PIE and Commandlets)..."
-    $EditorCmd = "$UERoot\Engine\Binaries\Win64\UnrealEditor-Cmd.exe"
-    $ExecArgs = "`"$ProjectPath`" -ExecCmds=`"Automation RunTests AVBOIT.Parity; Quit`" -unattended -nopause -NoUI -nosound -windowed -resx=$ResolutionX -resy=$ResolutionY"
+    $EditorCmd = "$UERoot\Engine\Binaries\Win64\UnrealEditor.exe"
+    $ExecArgs = "`"$ProjectPath`" -ExecCmds=`"Automation RunTests AVBOIT.Parity`" -unattended -nopause -NoUI -nosound -windowed -resx=$ResolutionX -resy=$ResolutionY"
     
     $TestLog = Join-Path $CurrentEvidenceDir "Automation.log"
-    $process = Start-Process -FilePath $EditorCmd -ArgumentList $ExecArgs -Wait -NoNewWindow -PassThru -RedirectStandardOutput $TestLog -RedirectStandardError $TestLog
+    $TestLogErr = Join-Path $CurrentEvidenceDir "Automation.err.log"
+    $process = Start-Process -FilePath $EditorCmd -ArgumentList $ExecArgs -Wait -NoNewWindow -PassThru -RedirectStandardOutput $TestLog -RedirectStandardError $TestLogErr
     
-    if ($process.ExitCode -ne 0) { throw "Automation Execution Failed" }
+    if ($process.ExitCode -ne 0) { throw "Automation Execution Failed with exit code $($process.ExitCode)" }
     
     # 13. Log Scan
-    $Errors = Get-Content $TestLog | Where-Object { $_ -match "Error:" }
+    $Errors = Get-Content $TestLog, $TestLogErr -ErrorAction SilentlyContinue | Where-Object { $_ -match "Error:" }
     if ($Errors) { throw "Found errors in log: $($Errors[0])" }
     
     $Result.Passed = $true
