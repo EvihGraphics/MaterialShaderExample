@@ -18,6 +18,9 @@ struct FAVBOITNiagaraSpriteDrawData
 	FVector2f SubImageSize = FVector2f(1.0f, 1.0f);
 	bool bSubImageBlend = false;
 	bool bDefaultDrawSuppressed = false;
+	bool bTintEnabled = false;
+	bool bTintVisibleFallbackDrawUsed = false;
+	FLinearColor TintColor = FLinearColor::White;
 };
 
 struct FAVBOITNiagaraFrameStats

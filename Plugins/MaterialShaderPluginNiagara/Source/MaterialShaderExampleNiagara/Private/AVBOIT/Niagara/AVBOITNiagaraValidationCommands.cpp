@@ -1,5 +1,6 @@
 #include "AVBOIT/Niagara/AVBOITNiagaraValidationCommands.h"
 
+#include "AVBOIT/Niagara/AVBOITNiagaraCVars.h"
 #include "AVBOIT/Niagara/AVBOITNiagaraSceneData.h"
 #include "AVBOIT/Niagara/AVBOITNiagaraSpriteRendererProperties.h"
 #include "Camera/CameraActor.h"
@@ -30,6 +31,10 @@
 #include "UObject/UObjectIterator.h"
 #include "UObject/UnrealType.h"
 #include "UnrealClient.h"
+#include "Widgets/Colors/SColorBlock.h"
+#include "Widgets/Colors/SColorPicker.h"
+#include "Widgets/Input/SButton.h"
+#include "Widgets/Input/SCheckBox.h"
 #include "Widgets/Input/SComboBox.h"
 #include "Widgets/Layout/SBorder.h"
 #include "Widgets/Layout/SBox.h"
@@ -220,6 +225,7 @@ namespace
 						NewObject<UNiagaraAVBOITSpriteRendererProperties>(SpriteRenderer->GetOuter(), NAME_None, RF_Transient);
 					CopySpriteRendererProperties(SpriteRenderer, AVBOITRenderer);
 					AVBOITRenderer->SetFlags(RF_Transient);
+					AVBOITRenderer->CaptureRuntimeSourceMaterial();
 					Renderers[RendererIndex] = AVBOITRenderer;
 
 					ConvertedCount++;
@@ -500,6 +506,16 @@ namespace
 		return Root;
 	}
 
+	TSharedRef<FJsonObject> BuildLinearColorJson(const FLinearColor& Color)
+	{
+		TSharedRef<FJsonObject> Object = MakeShared<FJsonObject>();
+		Object->SetNumberField(TEXT("R"), Color.R);
+		Object->SetNumberField(TEXT("G"), Color.G);
+		Object->SetNumberField(TEXT("B"), Color.B);
+		Object->SetNumberField(TEXT("A"), Color.A);
+		return Object;
+	}
+
 	enum class EAVBOITCaptureMode : uint8
 	{
 		EngineDefault,
@@ -554,10 +570,12 @@ namespace
 		case EAVBOITCaptureMode::EngineDefault:
 			SetCVarInt(TEXT("r.AVBOIT.Enable"), 0);
 			SetCVarInt(TEXT("r.AVBOIT.Niagara.Enable"), 0);
+			AVBOITNiagara::SetTintEnabled(false);
 			break;
 		case EAVBOITCaptureMode::PluginBypass:
 			SetCVarInt(TEXT("r.AVBOIT.Enable"), 1);
 			SetCVarInt(TEXT("r.AVBOIT.Niagara.Enable"), 0);
+			AVBOITNiagara::SetTintEnabled(false);
 			break;
 		case EAVBOITCaptureMode::AVBOITNiagaraUnlit:
 			SetCVarInt(TEXT("r.AVBOIT.Enable"), 1);
@@ -572,6 +590,7 @@ namespace
 			SetCVarInt(TEXT("r.AVBOIT.Niagara.UnlitOnly"), 1);
 			SetCVarInt(TEXT("r.AVBOIT.Niagara.Debug"), 1);
 			SetCVarInt(TEXT("r.AVBOIT.Niagara.CaptureInputs"), 1);
+			AVBOITNiagara::SetTintEnabled(false);
 			break;
 		}
 	}
@@ -726,6 +745,9 @@ namespace
 			DrawObject->SetNumberField(TEXT("SubImageSizeY"), Draw.SubImageSize.Y);
 			DrawObject->SetBoolField(TEXT("SubImageBlend"), Draw.bSubImageBlend);
 			DrawObject->SetBoolField(TEXT("DefaultDrawSuppressed"), Draw.bDefaultDrawSuppressed);
+			DrawObject->SetBoolField(TEXT("TintEnabled"), Draw.bTintEnabled);
+			DrawObject->SetBoolField(TEXT("TintVisibleFallbackDrawUsed"), Draw.bTintVisibleFallbackDrawUsed);
+			DrawObject->SetObjectField(TEXT("TintColorLinear"), BuildLinearColorJson(Draw.TintColor));
 			DrawArray.Add(MakeShared<FJsonValueObject>(DrawObject));
 		}
 		Root->SetArrayField(TEXT("Draws"), DrawArray);
@@ -738,7 +760,123 @@ namespace
 	TSharedPtr<SWidget> GInteractiveOverlayWidget;
 	TSharedPtr<SWidget> GInteractiveOverlayViewportContent;
 
+	struct FAVBOITRuntimeTintMaterialState
+	{
+		int32 RendererCount = 0;
+		int32 ActiveMaterialOverrideCount = 0;
+		bool bChanged = false;
+	};
+
+	FAVBOITRuntimeTintMaterialState UpdateRuntimeTintMaterials(UWorld* World, bool bApplyChanges)
+	{
+		FAVBOITRuntimeTintMaterialState State;
+		if (!World)
+		{
+			return State;
+		}
+
+		const bool bShouldTint =
+			GInteractiveMode == EAVBOITCaptureMode::AVBOITNiagaraUnlit &&
+			AVBOITNiagara::IsTintEnabled();
+		const FLinearColor TintColor = AVBOITNiagara::GetTintColor();
+		TSet<UNiagaraSystem*> ChangedSystems;
+		TSet<UNiagaraSystem*> VisitedSystems;
+
+		for (UNiagaraComponent* Component : GetNiagaraComponents(World))
+		{
+			UNiagaraSystem* System = Component ? Component->GetAsset() : nullptr;
+			if (!System || VisitedSystems.Contains(System))
+			{
+				continue;
+			}
+			VisitedSystems.Add(System);
+
+			for (FNiagaraEmitterHandle& Handle : System->GetEmitterHandles())
+			{
+				if (!Handle.GetIsEnabled())
+				{
+					continue;
+				}
+
+				FVersionedNiagaraEmitterData* EmitterData = Handle.GetEmitterData();
+				if (!EmitterData)
+				{
+					continue;
+				}
+
+				TArray<UNiagaraRendererProperties*>& Renderers =
+					const_cast<TArray<UNiagaraRendererProperties*>&>(EmitterData->GetRenderers());
+				for (UNiagaraRendererProperties* Renderer : Renderers)
+				{
+					UNiagaraAVBOITSpriteRendererProperties* AVBOITRenderer =
+						Cast<UNiagaraAVBOITSpriteRendererProperties>(Renderer);
+					if (!AVBOITRenderer)
+					{
+						continue;
+					}
+
+					State.RendererCount++;
+					if (bApplyChanges)
+					{
+						const bool bRendererChanged = bShouldTint
+							? AVBOITRenderer->ApplyRuntimeTintMaterial(TintColor)
+							: AVBOITRenderer->ClearRuntimeTintMaterial();
+						if (bRendererChanged)
+						{
+							ChangedSystems.Add(System);
+						}
+					}
+
+					if (AVBOITRenderer->IsRuntimeTintMaterialActive())
+					{
+						State.ActiveMaterialOverrideCount++;
+					}
+				}
+			}
+		}
+
+		if (bApplyChanges && ChangedSystems.Num() > 0)
+		{
+			for (UNiagaraSystem* System : ChangedSystems)
+			{
+				if (!System)
+				{
+					continue;
+				}
+
+				System->CacheFromCompiledData();
+				if (UPackage* Package = System->GetOutermost())
+				{
+					Package->SetDirtyFlag(false);
+				}
+			}
+
+			for (UNiagaraComponent* Component : GetNiagaraComponents(World))
+			{
+				if (Component && ChangedSystems.Contains(Component->GetAsset()))
+				{
+					Component->ReinitializeSystem();
+				}
+			}
+
+			State.bChanged = true;
+		}
+
+		return State;
+	}
+
+	FAVBOITRuntimeTintMaterialState ApplyInteractiveTintToWorld(UWorld* World)
+	{
+		return UpdateRuntimeTintMaterials(World, true);
+	}
+
+	FAVBOITRuntimeTintMaterialState ReadRuntimeTintMaterialState(UWorld* World)
+	{
+		return UpdateRuntimeTintMaterials(World, false);
+	}
+
 	void ApplyInteractiveMode(EAVBOITCaptureMode Mode, const TCHAR* Context);
+	void SaveInteractiveStatus(const TCHAR* Context, const FString& ExplicitOutput);
 
 	class SAVBOITNiagaraModeOverlay final : public SCompoundWidget
 	{
@@ -793,6 +931,61 @@ namespace
 							]
 							+ SVerticalBox::Slot()
 							.AutoHeight()
+							.Padding(FMargin(0.0f, 8.0f, 0.0f, 0.0f))
+							[
+								SNew(SVerticalBox)
+								.IsEnabled(this, &SAVBOITNiagaraModeOverlay::AreTintControlsEnabled)
+								+ SVerticalBox::Slot()
+								.AutoHeight()
+								[
+									SNew(SHorizontalBox)
+									+ SHorizontalBox::Slot()
+									.AutoWidth()
+									.VAlign(VAlign_Center)
+									.Padding(FMargin(0.0f, 0.0f, 8.0f, 0.0f))
+									[
+										SNew(SColorBlock)
+										.Color(this, &SAVBOITNiagaraModeOverlay::GetTintColor)
+										.Size(FVector2D(32.0f, 16.0f))
+									]
+									+ SHorizontalBox::Slot()
+									.FillWidth(1.0f)
+									.VAlign(VAlign_Center)
+									[
+										SNew(SCheckBox)
+										.IsChecked(this, &SAVBOITNiagaraModeOverlay::GetTintCheckState)
+										.OnCheckStateChanged(this, &SAVBOITNiagaraModeOverlay::HandleTintEnabledChanged)
+										[
+											SNew(STextBlock)
+											.Text(FText::FromString(TEXT("Enable Tint")))
+											.ColorAndOpacity(FLinearColor::White)
+										]
+									]
+								]
+								+ SVerticalBox::Slot()
+								.AutoHeight()
+								.Padding(FMargin(0.0f, 5.0f, 0.0f, 0.0f))
+								[
+									SNew(SHorizontalBox)
+									+ SHorizontalBox::Slot()
+									.AutoWidth()
+									[
+										SNew(SButton)
+										.Text(FText::FromString(TEXT("Pick Color")))
+										.OnClicked(this, &SAVBOITNiagaraModeOverlay::HandlePickColorClicked)
+									]
+									+ SHorizontalBox::Slot()
+									.AutoWidth()
+									.Padding(FMargin(6.0f, 0.0f, 0.0f, 0.0f))
+									[
+										SNew(SButton)
+										.Text(FText::FromString(TEXT("Reset")))
+										.OnClicked(this, &SAVBOITNiagaraModeOverlay::HandleResetTintClicked)
+									]
+								]
+							]
+							+ SVerticalBox::Slot()
+							.AutoHeight()
 							.Padding(FMargin(0.0f, 6.0f, 0.0f, 0.0f))
 							[
 								SNew(STextBlock)
@@ -828,6 +1021,59 @@ namespace
 			ApplyInteractiveMode(Mode, TEXT("OverlayDropdown"));
 		}
 
+		bool AreTintControlsEnabled() const
+		{
+			return GInteractiveMode == EAVBOITCaptureMode::AVBOITNiagaraUnlit;
+		}
+
+		FLinearColor GetTintColor() const
+		{
+			return AVBOITNiagara::GetTintColor();
+		}
+
+		ECheckBoxState GetTintCheckState() const
+		{
+			return AVBOITNiagara::IsTintEnabled() ? ECheckBoxState::Checked : ECheckBoxState::Unchecked;
+		}
+
+		void HandleTintEnabledChanged(ECheckBoxState NewState)
+		{
+			AVBOITNiagara::SetTintEnabled(AreTintControlsEnabled() && NewState == ECheckBoxState::Checked);
+			ApplyInteractiveTintToWorld(FindRuntimeWorld());
+			SaveInteractiveStatus(TEXT("TintEnableOverlay"), FString());
+		}
+
+		void HandleTintColorCommitted(FLinearColor NewColor)
+		{
+			AVBOITNiagara::SetTintColor(NewColor);
+			if (AreTintControlsEnabled())
+			{
+				AVBOITNiagara::SetTintEnabled(true);
+			}
+			ApplyInteractiveTintToWorld(FindRuntimeWorld());
+			SaveInteractiveStatus(TEXT("TintColorOverlay"), FString());
+		}
+
+		FReply HandlePickColorClicked()
+		{
+			FColorPickerArgs PickerArgs;
+			PickerArgs.ParentWidget = AsShared();
+			PickerArgs.bUseAlpha = true;
+			PickerArgs.bClampValue = true;
+			PickerArgs.InitialColor = AVBOITNiagara::GetTintColor();
+			PickerArgs.OnColorCommitted = FOnLinearColorValueChanged::CreateSP(this, &SAVBOITNiagaraModeOverlay::HandleTintColorCommitted);
+			OpenColorPicker(PickerArgs);
+			return FReply::Handled();
+		}
+
+		FReply HandleResetTintClicked()
+		{
+			AVBOITNiagara::ResetTint();
+			ApplyInteractiveTintToWorld(FindRuntimeWorld());
+			SaveInteractiveStatus(TEXT("TintResetOverlay"), FString());
+			return FReply::Handled();
+		}
+
 		FText GetSelectedModeText() const
 		{
 			return FText::FromString(CaptureModeDisplayName(GInteractiveMode));
@@ -837,9 +1083,10 @@ namespace
 		{
 			const FAVBOITEngineViewModeContract ViewModeContract = ReadEngineViewModeContract();
 			return FText::FromString(FString::Printf(
-				TEXT("Mode: %s\n%s"),
+				TEXT("Mode: %s\n%s\nTint: %s"),
 				*CaptureModeDisplayName(GInteractiveMode),
-				ViewModeContract.bVerifiedViewModeIsUnlit ? TEXT("Unlit verified") : TEXT("Unlit not verified")));
+				ViewModeContract.bVerifiedViewModeIsUnlit ? TEXT("Unlit verified") : TEXT("Unlit not verified"),
+				AVBOITNiagara::IsTintEnabled() ? TEXT("enabled") : TEXT("off")));
 		}
 
 		TArray<TSharedPtr<FString>> ModeOptions;
@@ -886,6 +1133,7 @@ namespace
 	{
 		const FAVBOITEngineViewModeContract ViewModeContract = ReadEngineViewModeContract();
 		const FAVBOITNiagaraFrameStats Stats = FAVBOITNiagaraSceneData::Get().GetLastCompletedStats();
+		const FAVBOITRuntimeTintMaterialState TintMaterialState = ReadRuntimeTintMaterialState(FindRuntimeWorld());
 
 		TSharedRef<FJsonObject> Root = MakeShared<FJsonObject>();
 		Root->SetStringField(TEXT("GeneratedUtc"), FDateTime::UtcNow().ToIso8601());
@@ -893,6 +1141,11 @@ namespace
 		Root->SetStringField(TEXT("Mode"), CaptureModeName(GInteractiveMode));
 		Root->SetBoolField(TEXT("EditorViewportUsed"), false);
 		AddViewModeFields(Root, ViewModeContract);
+		Root->SetBoolField(TEXT("TintEnabled"), AVBOITNiagara::IsTintEnabled());
+		Root->SetObjectField(TEXT("TintColorLinear"), BuildLinearColorJson(AVBOITNiagara::GetTintColor()));
+		Root->SetBoolField(TEXT("TintMaterialOverrideActive"), TintMaterialState.ActiveMaterialOverrideCount > 0);
+		Root->SetNumberField(TEXT("TintMaterialOverrideActiveCount"), TintMaterialState.ActiveMaterialOverrideCount);
+		Root->SetNumberField(TEXT("TintMaterialOverrideRendererCount"), TintMaterialState.RendererCount);
 
 		TSharedRef<FJsonObject> CVars = MakeShared<FJsonObject>();
 		CVars->SetNumberField(TEXT("r.AVBOIT.Enable"), GetCVarInt(TEXT("r.AVBOIT.Enable")));
@@ -900,6 +1153,11 @@ namespace
 		CVars->SetNumberField(TEXT("r.AVBOIT.Niagara.UnlitOnly"), GetCVarInt(TEXT("r.AVBOIT.Niagara.UnlitOnly")));
 		CVars->SetNumberField(TEXT("r.AVBOIT.Niagara.Debug"), GetCVarInt(TEXT("r.AVBOIT.Niagara.Debug")));
 		CVars->SetNumberField(TEXT("r.AVBOIT.Niagara.CaptureInputs"), GetCVarInt(TEXT("r.AVBOIT.Niagara.CaptureInputs")));
+		CVars->SetNumberField(TEXT("r.AVBOIT.Niagara.Tint.Enable"), GetCVarInt(TEXT("r.AVBOIT.Niagara.Tint.Enable")));
+		CVars->SetNumberField(TEXT("r.AVBOIT.Niagara.Tint.R"), GetCVarFloat(TEXT("r.AVBOIT.Niagara.Tint.R")));
+		CVars->SetNumberField(TEXT("r.AVBOIT.Niagara.Tint.G"), GetCVarFloat(TEXT("r.AVBOIT.Niagara.Tint.G")));
+		CVars->SetNumberField(TEXT("r.AVBOIT.Niagara.Tint.B"), GetCVarFloat(TEXT("r.AVBOIT.Niagara.Tint.B")));
+		CVars->SetNumberField(TEXT("r.AVBOIT.Niagara.Tint.A"), GetCVarFloat(TEXT("r.AVBOIT.Niagara.Tint.A")));
 		CVars->SetNumberField(TEXT("r.ScreenPercentage"), GetCVarFloat(TEXT("r.ScreenPercentage")));
 		CVars->SetNumberField(TEXT("r.ForceDebugViewModes"), GetCVarInt(TEXT("r.ForceDebugViewModes")));
 		Root->SetObjectField(TEXT("CVars"), CVars);
@@ -941,14 +1199,17 @@ namespace
 		void Start()
 		{
 			HideInteractiveOverlay();
+			AVBOITNiagara::ResetTint();
 			IFileManager::Get().MakeDirectory(*Root, true);
 			GInteractiveStatusRoot = Root;
 
 			World = FindRuntimeWorld();
+			ApplyInteractiveTintToWorld(World.Get());
 			SaveJsonObject(Root / TEXT("FeatureManifest.json"), BuildFeatureManifest(World.Get()));
 
 			TArray<FString> ConvertedRenderers;
 			ConvertedRendererCount = ConvertWorldSpriteRenderers(World.Get(), ConvertedRenderers);
+			ApplyInteractiveTintToWorld(World.Get());
 
 			TSharedRef<FJsonObject> Conversion = MakeShared<FJsonObject>();
 			Conversion->SetStringField(TEXT("GeneratedUtc"), FDateTime::UtcNow().ToIso8601());
@@ -1201,14 +1462,19 @@ namespace
 	{
 		const TMap<FString, FString> KeyValues = ParseKeyValueArgs(Args);
 		const FString Output = KeyValues.FindRef(TEXT("output"));
+		UWorld* World = FindRuntimeWorld();
 		TArray<FString> ConvertedRenderers;
-		const int32 Converted = ConvertWorldSpriteRenderers(FindRuntimeWorld(), ConvertedRenderers);
+		const int32 Converted = ConvertWorldSpriteRenderers(World, ConvertedRenderers);
+		const FAVBOITRuntimeTintMaterialState TintMaterialState = ApplyInteractiveTintToWorld(World);
 
 		if (!Output.IsEmpty())
 		{
 			TSharedRef<FJsonObject> Root = MakeShared<FJsonObject>();
 			Root->SetStringField(TEXT("GeneratedUtc"), FDateTime::UtcNow().ToIso8601());
 			Root->SetNumberField(TEXT("ConvertedRendererCount"), Converted);
+			Root->SetBoolField(TEXT("TintMaterialOverrideActive"), TintMaterialState.ActiveMaterialOverrideCount > 0);
+			Root->SetNumberField(TEXT("TintMaterialOverrideActiveCount"), TintMaterialState.ActiveMaterialOverrideCount);
+			Root->SetNumberField(TEXT("TintMaterialOverrideRendererCount"), TintMaterialState.RendererCount);
 			Root->SetBoolField(TEXT("TransientRuntimeOnly"), true);
 			TArray<TSharedPtr<FJsonValue>> ConvertedArray;
 			for (const FString& Name : ConvertedRenderers)
@@ -1244,15 +1510,18 @@ namespace
 		ApplyCaptureMode(Mode);
 		const FAVBOITEngineViewModeContract ViewModeContract = ForceEngineUnlitViewMode();
 		GInteractiveMode = Mode;
+		const FAVBOITRuntimeTintMaterialState TintMaterialState = ApplyInteractiveTintToWorld(World);
 		SaveInteractiveStatus(Context);
 
 		UE_LOG(
 			LogTemp,
 			Display,
-			TEXT("AVBOIT.Niagara mode=%s requestedViewMode=Unlit verifiedViewMode=%s verifiedUnlit=%s statusRoot=%s"),
+			TEXT("AVBOIT.Niagara mode=%s requestedViewMode=Unlit verifiedViewMode=%s verifiedUnlit=%s tintMaterialActive=%d/%d statusRoot=%s"),
 			CaptureModeName(Mode),
 			*ViewModeContract.VerifiedViewMode,
 			ViewModeContract.bVerifiedViewModeIsUnlit ? TEXT("true") : TEXT("false"),
+			TintMaterialState.ActiveMaterialOverrideCount,
+			TintMaterialState.RendererCount,
 			*GInteractiveStatusRoot);
 	}
 
@@ -1304,15 +1573,113 @@ namespace
 		}
 
 		const FAVBOITEngineViewModeContract ViewModeContract = ReadEngineViewModeContract();
+		const FLinearColor TintColor = AVBOITNiagara::GetTintColor();
+		const FAVBOITRuntimeTintMaterialState TintMaterialState = ReadRuntimeTintMaterialState(FindRuntimeWorld());
 		UE_LOG(
 			LogTemp,
 			Display,
-			TEXT("AVBOIT.Niagara.Status mode=%s viewMode=%s verifiedUnlit=%s draws=%d particles=%d"),
+			TEXT("AVBOIT.Niagara.Status mode=%s viewMode=%s verifiedUnlit=%s tint=%s tintColor=(R=%0.3f,G=%0.3f,B=%0.3f,A=%0.3f) tintMaterialActive=%d/%d draws=%d particles=%d"),
 			CaptureModeName(GInteractiveMode),
 			*ViewModeContract.VerifiedViewMode,
 			ViewModeContract.bVerifiedViewModeIsUnlit ? TEXT("true") : TEXT("false"),
+			AVBOITNiagara::IsTintEnabled() ? TEXT("enabled") : TEXT("off"),
+			TintColor.R,
+			TintColor.G,
+			TintColor.B,
+			TintColor.A,
+			TintMaterialState.ActiveMaterialOverrideCount,
+			TintMaterialState.RendererCount,
 			FAVBOITNiagaraSceneData::Get().GetLastCompletedStats().SpriteDrawCount,
 			FAVBOITNiagaraSceneData::Get().GetLastCompletedStats().ParticleCount);
+	}
+
+	bool ParseBoolToken(const FString& Token, bool& bOutValue)
+	{
+		if (Token.Equals(TEXT("1")) || Token.Equals(TEXT("true"), ESearchCase::IgnoreCase) || Token.Equals(TEXT("on"), ESearchCase::IgnoreCase) || Token.Equals(TEXT("enable"), ESearchCase::IgnoreCase) || Token.Equals(TEXT("enabled"), ESearchCase::IgnoreCase))
+		{
+			bOutValue = true;
+			return true;
+		}
+		if (Token.Equals(TEXT("0")) || Token.Equals(TEXT("false"), ESearchCase::IgnoreCase) || Token.Equals(TEXT("off"), ESearchCase::IgnoreCase) || Token.Equals(TEXT("disable"), ESearchCase::IgnoreCase) || Token.Equals(TEXT("disabled"), ESearchCase::IgnoreCase))
+		{
+			bOutValue = false;
+			return true;
+		}
+		return false;
+	}
+
+	void CommandTintColor(const TArray<FString>& Args)
+	{
+		FLinearColor Color = AVBOITNiagara::GetTintColor();
+		const TMap<FString, FString> KeyValues = ParseKeyValueArgs(Args);
+		if (KeyValues.Contains(TEXT("r")) && KeyValues.Contains(TEXT("g")) && KeyValues.Contains(TEXT("b")))
+		{
+			Color.R = FCString::Atof(*KeyValues.FindRef(TEXT("r")));
+			Color.G = FCString::Atof(*KeyValues.FindRef(TEXT("g")));
+			Color.B = FCString::Atof(*KeyValues.FindRef(TEXT("b")));
+			Color.A = KeyValues.Contains(TEXT("a")) ? FCString::Atof(*KeyValues.FindRef(TEXT("a"))) : Color.A;
+		}
+		else if (Args.Num() >= 3)
+		{
+			Color.R = FCString::Atof(*Args[0]);
+			Color.G = FCString::Atof(*Args[1]);
+			Color.B = FCString::Atof(*Args[2]);
+			Color.A = Args.Num() >= 4 ? FCString::Atof(*Args[3]) : Color.A;
+		}
+		else
+		{
+			UE_LOG(LogTemp, Error, TEXT("AVBOIT.Niagara.TintColor expects r g b [a] or r=<v> g=<v> b=<v> [a=<v>]."));
+			return;
+		}
+
+		AVBOITNiagara::SetTintColor(Color);
+		AVBOITNiagara::SetTintEnabled(true);
+		const FAVBOITRuntimeTintMaterialState TintMaterialState = ApplyInteractiveTintToWorld(FindRuntimeWorld());
+		SaveInteractiveStatus(TEXT("TintColorCommand"), FString());
+
+		const FLinearColor AppliedColor = AVBOITNiagara::GetTintColor();
+		UE_LOG(
+			LogTemp,
+			Display,
+			TEXT("AVBOIT.Niagara tint color set to linear RGBA=(%0.3f,%0.3f,%0.3f,%0.3f), tintMaterialActive=%d/%d."),
+			AppliedColor.R,
+			AppliedColor.G,
+			AppliedColor.B,
+			AppliedColor.A,
+			TintMaterialState.ActiveMaterialOverrideCount,
+			TintMaterialState.RendererCount);
+	}
+
+	void CommandTintEnable(const TArray<FString>& Args)
+	{
+		FString Token;
+		if (Args.Num() > 0 && !Args[0].Contains(TEXT("=")))
+		{
+			Token = Args[0];
+		}
+		else
+		{
+			const TMap<FString, FString> KeyValues = ParseKeyValueArgs(Args);
+			Token = KeyValues.Contains(TEXT("enable")) ? KeyValues.FindRef(TEXT("enable")) : KeyValues.FindRef(TEXT("enabled"));
+		}
+
+		bool bEnabled = false;
+		if (!ParseBoolToken(Token, bEnabled))
+		{
+			UE_LOG(LogTemp, Error, TEXT("AVBOIT.Niagara.TintEnable expects 0|1, true|false, on|off, enable|disable."));
+			return;
+		}
+
+		AVBOITNiagara::SetTintEnabled(bEnabled);
+		const FAVBOITRuntimeTintMaterialState TintMaterialState = ApplyInteractiveTintToWorld(FindRuntimeWorld());
+		SaveInteractiveStatus(TEXT("TintEnableCommand"), FString());
+		UE_LOG(
+			LogTemp,
+			Display,
+			TEXT("AVBOIT.Niagara tint %s, tintMaterialActive=%d/%d."),
+			bEnabled ? TEXT("enabled") : TEXT("disabled"),
+			TintMaterialState.ActiveMaterialOverrideCount,
+			TintMaterialState.RendererCount);
 	}
 
 	void CommandShowOverlay(const TArray<FString>& /*Args*/)
@@ -1410,6 +1777,18 @@ void FAVBOITNiagaraValidationCommands::RegisterCommands()
 		TEXT("AVBOIT.Niagara.Status"),
 		TEXT("Logs or writes the current Niagara parity mode, CVars, view-mode contract, and AVBOIT draw status."),
 		FConsoleCommandWithArgsDelegate::CreateStatic(&CommandStatus),
+		ECVF_Default));
+
+	RegisteredCommands.Add(ConsoleManager.RegisterConsoleCommand(
+		TEXT("AVBOIT.Niagara.TintColor"),
+		TEXT("Sets the runtime AVBOIT Niagara plugin tint color and enables tint. Usage: AVBOIT.Niagara.TintColor r g b [a]"),
+		FConsoleCommandWithArgsDelegate::CreateStatic(&CommandTintColor),
+		ECVF_Default));
+
+	RegisteredCommands.Add(ConsoleManager.RegisterConsoleCommand(
+		TEXT("AVBOIT.Niagara.TintEnable"),
+		TEXT("Enables or disables runtime AVBOIT Niagara plugin tint. Usage: AVBOIT.Niagara.TintEnable 0|1"),
+		FConsoleCommandWithArgsDelegate::CreateStatic(&CommandTintEnable),
 		ECVF_Default));
 
 	RegisteredCommands.Add(ConsoleManager.RegisterConsoleCommand(

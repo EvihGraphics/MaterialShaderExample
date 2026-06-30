@@ -64,7 +64,15 @@ void FNiagaraRendererAVBOITSprites::GetDynamicMeshElements(
 	DrawData.SortMode = static_cast<int32>(SortMode);
 	DrawData.SubImageSize = SubImageSize;
 	DrawData.bSubImageBlend = bSubImageBlend;
-	DrawData.bDefaultDrawSuppressed = true;
+	DrawData.bTintEnabled = AVBOITNiagara::IsTintEnabled();
+	DrawData.TintColor = AVBOITNiagara::GetTintColor();
+	DrawData.bTintVisibleFallbackDrawUsed = DrawData.bTintEnabled;
+	DrawData.bDefaultDrawSuppressed = !DrawData.bTintVisibleFallbackDrawUsed;
 
 	FAVBOITNiagaraSceneData::Get().RegisterDraw_RenderThread(DrawData);
+
+	if (DrawData.bTintVisibleFallbackDrawUsed)
+	{
+		FNiagaraRendererSprites::GetDynamicMeshElements(Views, ViewFamily, VisibilityMap, Collector, SceneProxy);
+	}
 }

@@ -25,6 +25,7 @@ public class MaterialShaderExampleNiagara : ModuleRules
 		PrivateDependencyModuleNames.AddRange(new string[]
 		{
 			"ApplicationCore",
+			"AppFramework",
 			"ImageWrapper",
 			"InputCore",
 			"Json",

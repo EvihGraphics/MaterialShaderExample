@@ -4,6 +4,8 @@
 
 namespace
 {
+	const FLinearColor DefaultTintColor(0.0f, 0.85f, 1.0f, 1.0f);
+
 	TAutoConsoleVariable<int32> CVarAVBOITEnable(
 		TEXT("r.AVBOIT.Enable"),
 		0,
@@ -43,6 +45,47 @@ namespace
 		0,
 		TEXT("Persist captured Niagara input summaries with the validation evidence."),
 		ECVF_Default);
+
+	TAutoConsoleVariable<int32> CVarAVBOITNiagaraTintEnable(
+		TEXT("r.AVBOIT.Niagara.Tint.Enable"),
+		0,
+		TEXT("Enable runtime debug tint for AVBOIT Niagara plugin rendering.\n")
+		TEXT(" 0: Preserve source color\n")
+		TEXT(" 1: Replace RGB with r.AVBOIT.Niagara.Tint.R/G/B while preserving alpha\n"),
+		ECVF_RenderThreadSafe);
+
+	TAutoConsoleVariable<float> CVarAVBOITNiagaraTintR(
+		TEXT("r.AVBOIT.Niagara.Tint.R"),
+		DefaultTintColor.R,
+		TEXT("Runtime AVBOIT Niagara debug tint linear red channel."),
+		ECVF_RenderThreadSafe);
+
+	TAutoConsoleVariable<float> CVarAVBOITNiagaraTintG(
+		TEXT("r.AVBOIT.Niagara.Tint.G"),
+		DefaultTintColor.G,
+		TEXT("Runtime AVBOIT Niagara debug tint linear green channel."),
+		ECVF_RenderThreadSafe);
+
+	TAutoConsoleVariable<float> CVarAVBOITNiagaraTintB(
+		TEXT("r.AVBOIT.Niagara.Tint.B"),
+		DefaultTintColor.B,
+		TEXT("Runtime AVBOIT Niagara debug tint linear blue channel."),
+		ECVF_RenderThreadSafe);
+
+	TAutoConsoleVariable<float> CVarAVBOITNiagaraTintA(
+		TEXT("r.AVBOIT.Niagara.Tint.A"),
+		DefaultTintColor.A,
+		TEXT("Runtime AVBOIT Niagara debug tint alpha multiplier/control channel."),
+		ECVF_RenderThreadSafe);
+
+	FLinearColor ClampTintColor(const FLinearColor& Color)
+	{
+		return FLinearColor(
+			FMath::Clamp(Color.R, 0.0f, 1.0f),
+			FMath::Clamp(Color.G, 0.0f, 1.0f),
+			FMath::Clamp(Color.B, 0.0f, 1.0f),
+			FMath::Clamp(Color.A, 0.0f, 1.0f));
+	}
 }
 
 namespace AVBOITNiagara
@@ -75,5 +118,39 @@ namespace AVBOITNiagara
 	bool ShouldCaptureInputs()
 	{
 		return CVarAVBOITNiagaraCaptureInputs.GetValueOnAnyThread() > 0;
+	}
+
+	bool IsTintEnabled()
+	{
+		return CVarAVBOITNiagaraTintEnable.GetValueOnAnyThread() > 0;
+	}
+
+	FLinearColor GetTintColor()
+	{
+		return ClampTintColor(FLinearColor(
+			CVarAVBOITNiagaraTintR.GetValueOnAnyThread(),
+			CVarAVBOITNiagaraTintG.GetValueOnAnyThread(),
+			CVarAVBOITNiagaraTintB.GetValueOnAnyThread(),
+			CVarAVBOITNiagaraTintA.GetValueOnAnyThread()));
+	}
+
+	void SetTintEnabled(bool bEnabled)
+	{
+		CVarAVBOITNiagaraTintEnable->Set(bEnabled ? 1 : 0, ECVF_SetByConsole);
+	}
+
+	void SetTintColor(const FLinearColor& Color)
+	{
+		const FLinearColor ClampedColor = ClampTintColor(Color);
+		CVarAVBOITNiagaraTintR->Set(ClampedColor.R, ECVF_SetByConsole);
+		CVarAVBOITNiagaraTintG->Set(ClampedColor.G, ECVF_SetByConsole);
+		CVarAVBOITNiagaraTintB->Set(ClampedColor.B, ECVF_SetByConsole);
+		CVarAVBOITNiagaraTintA->Set(ClampedColor.A, ECVF_SetByConsole);
+	}
+
+	void ResetTint()
+	{
+		SetTintColor(DefaultTintColor);
+		SetTintEnabled(false);
 	}
 }
