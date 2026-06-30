@@ -11,7 +11,7 @@
 
 // https://mcro.de/c/rdg
 
-DEFINE_GPU_STAT(TrianglePass)
+DEFINE_GPU_STAT(TrianglePass);
 
 FHelloTriangleViewExtension::FHelloTriangleViewExtension(const FAutoRegister& AutoRegister)
     : FSceneViewExtensionBase(AutoRegister)

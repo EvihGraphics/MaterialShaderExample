@@ -11,7 +11,8 @@ public class HelloTriangle : ModuleRules
         PublicIncludePaths.AddRange(
             new string[] {
 				// ... add public include paths required here ...
-				EngineDirectory + "/Source/Runtime/Renderer/Private"
+				EngineDirectory + "/Source/Runtime/Renderer/Private",
+				EngineDirectory + "/Source/Runtime/Renderer/Internal"
             }
             );
 

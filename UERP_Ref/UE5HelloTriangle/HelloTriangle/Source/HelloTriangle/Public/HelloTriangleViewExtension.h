@@ -3,7 +3,7 @@
 #include "SceneViewExtension.h"
 #include "RenderResource.h"
 
-DECLARE_GPU_STAT_NAMED_EXTERN(TrianglePass, TEXT("TrianglePass"))
+DECLARE_GPU_STAT_NAMED_EXTERN(TrianglePass, TEXT("TrianglePass"));
 
 class HELLOTRIANGLE_API FHelloTriangleViewExtension : public FSceneViewExtensionBase
 {

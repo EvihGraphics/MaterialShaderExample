@@ -8,9 +8,29 @@ param (
 
 $ErrorActionPreference = "Stop"
 $RepoRoot = (git rev-parse --show-toplevel).Trim()
-$StagingRoot = Join-Path $RepoRoot "Saved/UERP_RefBuild/Staging"
-$HarnessRoot = Join-Path $RepoRoot "Saved/UERP_RefBuild/Harness"
+$BuildScratchRoot = Join-Path (Split-Path -Path $RepoRoot -Qualifier) "_UERPRefBuild"
+$StagingRoot = Join-Path $BuildScratchRoot "S"
+$HarnessRoot = Join-Path $BuildScratchRoot "H"
 $EvidenceDir = Join-Path $RepoRoot "LocalVisualResults/UE57/HIVE_4090x2/UERP_Ref"
+$Utf8NoBom = New-Object System.Text.UTF8Encoding($false)
+
+function Write-JsonFileUtf8NoBom {
+    param (
+        [Parameter(Mandatory=$true)] [object]$Value,
+        [Parameter(Mandatory=$true)] [string]$Path
+    )
+
+    [System.IO.File]::WriteAllText($Path, ($Value | ConvertTo-Json -Depth 16), $Utf8NoBom)
+}
+
+function Write-TextFileUtf8NoBom {
+    param (
+        [Parameter(Mandatory=$true)] [string]$Value,
+        [Parameter(Mandatory=$true)] [string]$Path
+    )
+
+    [System.IO.File]::WriteAllText($Path, $Value, $Utf8NoBom)
+}
 
 if ($Clean) {
     if (Test-Path $StagingRoot) { Remove-Item -Recurse -Force $StagingRoot }
@@ -42,6 +62,14 @@ foreach ($Ref in $RefsToBuild) {
     $RefSourceDir = Join-Path $RepoRoot "UERP_Ref/$($Ref.Name)"
     $LogFile = Join-Path $RefEvidence "BuildOutput.log"
     $ExitCode = 0
+    $EffectiveRepositoryType = $Ref.RepositoryType
+    $ProjectDescriptor = Get-ChildItem -Path $RefSourceDir -Filter "*.uproject" -Recurse | Select-Object -First 1
+    $PluginDescriptor = Get-ChildItem -Path $RefSourceDir -Filter "*.uplugin" -Recurse | Select-Object -First 1
+
+    if ($EffectiveRepositoryType -eq "Project" -and -not $ProjectDescriptor -and $PluginDescriptor) {
+        $EffectiveRepositoryType = "Plugin"
+        "Manifest marks this reference as Project, but no .uproject exists. Built as plugin harness." | Out-File (Join-Path $RefEvidence "CompatibilityChanges.md")
+    }
     
     # 1. Gather info
     $SelectedCommit = (git -C $RefSourceDir rev-parse HEAD)
@@ -49,7 +77,7 @@ foreach ($Ref in $RefsToBuild) {
     
     @{ UERoot=$UERoot; Time=$Timestamp; Machine=$env:COMPUTERNAME } | ConvertTo-Json | Out-File (Join-Path $RefEvidence "Environment.json")
     
-    if ($Ref.RepositoryType -eq "Project") {
+    if ($EffectiveRepositoryType -eq "Project") {
         # Build Project
         $ProjStaging = Join-Path $StagingRoot $Ref.Name
         New-Item -ItemType Directory -Force -Path $ProjStaging | Out-Null
@@ -71,16 +99,75 @@ foreach ($Ref in $RefsToBuild) {
             $CmdArgs -join " " | Out-File (Join-Path $RefEvidence "BuildCommand.txt")
             
             Write-Host "Running: $BuildBat $CmdArgs"
-            $process = Start-Process -FilePath $BuildBat -ArgumentList $CmdArgs -Wait -NoNewWindow -PassThru -RedirectStandardOutput $LogFile -RedirectStandardError $LogFile
+            $ErrorLogFile = Join-Path $RefEvidence "BuildError.log"
+            $process = Start-Process -FilePath $BuildBat -ArgumentList $CmdArgs -Wait -NoNewWindow -PassThru -RedirectStandardOutput $LogFile -RedirectStandardError $ErrorLogFile
             $ExitCode = $process.ExitCode
         } else {
             Write-Error "No uproject found in $ProjStaging"
             $ExitCode = -1
         }
-    } elseif ($Ref.RepositoryType -eq "Plugin") {
+    } elseif ($EffectiveRepositoryType -eq "Plugin") {
         # Build Plugin via dummy project harness
         $ProjHarness = Join-Path $HarnessRoot $Ref.Name
         New-Item -ItemType Directory -Force -Path $ProjHarness | Out-Null
+
+        $SourcePluginDescriptor = $PluginDescriptor
+        if (-not $SourcePluginDescriptor) {
+            Write-Error "No uplugin found in $RefSourceDir"
+            $ExitCode = -1
+            continue
+        }
+        $PluginName = $SourcePluginDescriptor.BaseName
+
+        $SourceDir = Join-Path $ProjHarness "Source/Harness"
+        New-Item -ItemType Directory -Force -Path $SourceDir | Out-Null
+        Write-TextFileUtf8NoBom -Path (Join-Path $ProjHarness "Source/Harness.Target.cs") -Value @'
+using UnrealBuildTool;
+using System.Collections.Generic;
+
+public class HarnessTarget : TargetRules
+{
+    public HarnessTarget(TargetInfo Target) : base(Target)
+    {
+        Type = TargetType.Game;
+        DefaultBuildSettings = BuildSettingsVersion.Latest;
+        IncludeOrderVersion = EngineIncludeOrderVersion.Latest;
+        ExtraModuleNames.Add("Harness");
+    }
+}
+'@
+        Write-TextFileUtf8NoBom -Path (Join-Path $ProjHarness "Source/HarnessEditor.Target.cs") -Value @'
+using UnrealBuildTool;
+using System.Collections.Generic;
+
+public class HarnessEditorTarget : TargetRules
+{
+    public HarnessEditorTarget(TargetInfo Target) : base(Target)
+    {
+        Type = TargetType.Editor;
+        DefaultBuildSettings = BuildSettingsVersion.Latest;
+        IncludeOrderVersion = EngineIncludeOrderVersion.Latest;
+        ExtraModuleNames.Add("Harness");
+    }
+}
+'@
+        Write-TextFileUtf8NoBom -Path (Join-Path $SourceDir "Harness.Build.cs") -Value @'
+using UnrealBuildTool;
+
+public class Harness : ModuleRules
+{
+    public Harness(ReadOnlyTargetRules Target) : base(Target)
+    {
+        PCHUsage = PCHUsageMode.UseExplicitOrSharedPCHs;
+        PublicDependencyModuleNames.AddRange(new string[] { "Core", "CoreUObject", "Engine" });
+    }
+}
+'@
+        Write-TextFileUtf8NoBom -Path (Join-Path $SourceDir "Harness.cpp") -Value @'
+#include "Modules/ModuleManager.h"
+
+IMPLEMENT_PRIMARY_GAME_MODULE(FDefaultGameModuleImpl, Harness, "Harness");
+'@
         
         # Create minimal uproject
         $UProjectContent = @{
@@ -88,13 +175,16 @@ foreach ($Ref in $RefsToBuild) {
             EngineAssociation = "5.7"
             Category = ""
             Description = ""
+            Modules = @(
+                @{ Name = "Harness"; Type = "Runtime"; LoadingPhase = "Default" }
+            )
             Plugins = @(
-                @{ Name = $Ref.Name; Enabled = $true }
+                @{ Name = $PluginName; Enabled = $true }
             )
         }
-        $UProjectContent | ConvertTo-Json | Out-File (Join-Path $ProjHarness "Harness.uproject")
+        Write-JsonFileUtf8NoBom -Value $UProjectContent -Path (Join-Path $ProjHarness "Harness.uproject")
         
-        $PluginDir = Join-Path $ProjHarness "Plugins/$($Ref.Name)"
+        $PluginDir = Join-Path $ProjHarness "Plugins/$PluginName"
         New-Item -ItemType Directory -Force -Path $PluginDir | Out-Null
         Copy-Item -Recurse -Force "$RefSourceDir\*" $PluginDir
         
@@ -112,7 +202,8 @@ foreach ($Ref in $RefsToBuild) {
         $CmdArgs -join " " | Out-File (Join-Path $RefEvidence "BuildCommand.txt")
         
         Write-Host "Running: $BuildBat $CmdArgs"
-        $process = Start-Process -FilePath $BuildBat -ArgumentList $CmdArgs -Wait -NoNewWindow -PassThru -RedirectStandardOutput $LogFile
+        $ErrorLogFile = Join-Path $RefEvidence "BuildError.log"
+        $process = Start-Process -FilePath $BuildBat -ArgumentList $CmdArgs -Wait -NoNewWindow -PassThru -RedirectStandardOutput $LogFile -RedirectStandardError $ErrorLogFile
         $ExitCode = $process.ExitCode
     }
     
@@ -121,7 +212,9 @@ foreach ($Ref in $RefsToBuild) {
     $BuildResult | ConvertTo-Json | Out-File (Join-Path $RefEvidence "BuildResult.json")
     
     # Simple log scan
-    $LogContent = Get-Content $LogFile -ErrorAction SilentlyContinue
+    $LogContent = @()
+    $LogContent += Get-Content $LogFile -ErrorAction SilentlyContinue
+    $LogContent += Get-Content (Join-Path $RefEvidence "BuildError.log") -ErrorAction SilentlyContinue
     $Errors = $LogContent | Where-Object { $_ -match "error" -and $_ -notmatch "0 error" }
     $Warnings = $LogContent | Where-Object { $_ -match "warning" -and $_ -notmatch "0 warning" }
     @{ ErrorCount = @($Errors).Count; WarningCount = @($Warnings).Count; Snippets = ($Errors | Select-Object -First 5) } | ConvertTo-Json | Out-File (Join-Path $RefEvidence "LogScan.json")
