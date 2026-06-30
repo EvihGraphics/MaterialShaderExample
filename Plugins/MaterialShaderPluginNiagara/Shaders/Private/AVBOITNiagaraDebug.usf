@@ -1,0 +1,20 @@
+// Minimal UE-4.2C Niagara AVBOIT evidence shader.
+
+#include "/Engine/Public/Platform.ush"
+
+RWTexture2D<float4> OutTexture;
+int2 TextureExtent;
+int PassId;
+
+[numthreads(8, 8, 1)]
+void MainCS(uint3 DispatchThreadId : SV_DispatchThreadID)
+{
+	int2 Pixel = int2(DispatchThreadId.xy);
+	if (Pixel.x >= TextureExtent.x || Pixel.y >= TextureExtent.y)
+	{
+		return;
+	}
+
+	float Marker = (float)(PassId + 1) / 8.0f;
+	OutTexture[Pixel] = float4(Marker, 0.25f, 1.0f - Marker, 1.0f);
+}

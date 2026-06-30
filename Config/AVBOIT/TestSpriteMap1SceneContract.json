@@ -1,0 +1,114 @@
+{
+  "ContractName": "UE-4.2C Niagara Sprite Unlit Parity Scene Contract",
+  "Map": "/Game/NiagaraExamples/Utilities/SpriteGeneration/TestSpriteMap1",
+  "HostProjectName": "ContentExamples",
+  "AllowedRunModes": [
+    "PIE",
+    "Standalone",
+    "Game"
+  ],
+  "PrimaryRunMode": "Game",
+  "Resolution": {
+    "Width": 1920,
+    "Height": 1080
+  },
+  "EngineViewModeContract": {
+    "RequestedViewMode": "Unlit",
+    "RequireVerifiedViewMode": "Unlit",
+    "RequireLightingShowFlagDisabled": true,
+    "RequireLightFunctionsDisabled": true,
+    "RequireDynamicShadowsDisabled": true,
+    "RequireAtmosphereDisabled": true,
+    "RequireFogDisabled": true,
+    "DebugViewModesMustBeAvailable": true,
+    "RuntimeReadOnlyCVar": "r.ForceDebugViewModes",
+    "FailureStatus": "blocked-local"
+  },
+  "ResultRetention": {
+    "FullEvidenceRoot": "LocalVisualResults/TempResults/UE57/HIVE_4090x2/UE4-2C-NiagaraSprite-UnlitParity/<stamp>",
+    "KeyResultsRoot": "LocalVisualResults/KeyResults/UE57/HIVE_4090x2/UE4-2C-NiagaraSprite-UnlitParity/<stamp>",
+    "PromoteCaptureTimeSeconds": 4.0,
+    "PromoteModes": [
+      "EngineDefault",
+      "PluginBypass",
+      "AVBOITNiagaraUnlit",
+      "DebugBuffers"
+    ]
+  },
+  "CaptureTimesSeconds": [
+    0.5,
+    1.0,
+    2.0,
+    4.0
+  ],
+  "NiagaraStateContract": {
+    "Mode": "DesiredAge",
+    "SeekDeltaSeconds": 0.016666667,
+    "LockDesiredAgeDeltaTimeToSeekDelta": true,
+    "CanRenderWhileSeeking": true,
+    "RequireSameParticleStateProof": true
+  },
+  "CaptureModes": [
+    {
+      "Name": "EngineDefault",
+      "CVars": {
+        "r.AVBOIT.Enable": 0,
+        "r.AVBOIT.Niagara.Enable": 0
+      }
+    },
+    {
+      "Name": "PluginBypass",
+      "CVars": {
+        "r.AVBOIT.Enable": 1,
+        "r.AVBOIT.Niagara.Enable": 0
+      }
+    },
+    {
+      "Name": "AVBOITNiagaraUnlit",
+      "CVars": {
+        "r.AVBOIT.Enable": 1,
+        "r.AVBOIT.Niagara.Enable": 1,
+        "r.AVBOIT.Niagara.UnlitOnly": 1
+      }
+    },
+    {
+      "Name": "DebugBuffers",
+      "CVars": {
+        "r.AVBOIT.Enable": 1,
+        "r.AVBOIT.Niagara.Enable": 1,
+        "r.AVBOIT.Niagara.UnlitOnly": 1,
+        "r.AVBOIT.Niagara.Debug": 1,
+        "r.AVBOIT.Niagara.CaptureInputs": 1
+      }
+    }
+  ],
+  "ValidationGates": {
+    "BypassPixelIdentityRequired": true,
+    "SingleLayerCoverageIoU": 0.995,
+    "SingleLayerMAE": 0.00392156863,
+    "SingleLayerMaxError": 0.0117647059,
+    "FullMapCoverageIoU": 0.98,
+    "FullMapSSIM": 0.97,
+    "MissingRendererCount": 0,
+    "UnexpectedRendererCount": 0,
+    "RequiredRDGPasses": [
+      "AVBOIT.Niagara.Clear",
+      "AVBOIT.Niagara.SpriteSplat",
+      "AVBOIT.Niagara.Integrate",
+      "AVBOIT.Niagara.ForwardUnlit",
+      "AVBOIT.Niagara.Composite"
+    ],
+    "HardFailLogPatterns": [
+      "Fatal error",
+      "Assertion failed",
+      "RDG",
+      "RHI",
+      "shader binding",
+      "GPU crash",
+      "Invalid socket handle",
+      "duplicate draw",
+      "no AVBOIT sprite draws"
+    ]
+  },
+  "ResultRule": "Do not write SUCCESS, COMPLETED, or passed-local until all validation gates pass."
+}

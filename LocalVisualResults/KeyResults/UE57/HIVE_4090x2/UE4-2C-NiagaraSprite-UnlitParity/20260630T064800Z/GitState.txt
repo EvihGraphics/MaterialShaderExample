@@ -1,0 +1,10 @@
+﻿## AVBOIT开发...origin/AVBOIT开发
+ M UE5_AVBOIT_Agent_Guidance_Package_v1/docs/checkpoints/CHECKPOINT_INDEX.md
+ M UE5_AVBOIT_Agent_Guidance_Package_v1/docs/plan/CURRENT.md
+?? Config/AVBOIT/TestSpriteMap1Camera.json
+?? Config/AVBOIT/TestSpriteMap1SceneContract.json
+?? LocalVisualResults/UE57/
+?? Plugins/MaterialShaderPluginNiagara/
+?? Scripts/Deploy-AVBOITPluginToContentExamples.ps1
+?? Scripts/Run-AVBOITNiagaraSpriteUnlitParity.ps1
+?? UE5_AVBOIT_Agent_Guidance_Package_v1/docs/checkpoints/archive/CHECKPOINT-0042-20260630T051016Z-UE-4-2C-NIAGARA-SPRITE-UNLIT-PARITY.md

@@ -1,0 +1,16 @@
+﻿{
+    "GeneratedUtc":  "2026-06-30T06:49:11.7824533Z",
+    "BypassVsEngineDefaultFinal":  {
+                                       "Reference":  "D:\\Users\\l3d\\Documents\\AVBOIT\\MaterialShaderExample_AVBOIT\\LocalVisualResults\\TempResults\\UE57\\HIVE_4090x2\\UE4-2C-NiagaraSprite-UnlitParity\\20260630T064800Z\\13_EngineDefault_4000ms.png",
+                                       "Candidate":  "D:\\Users\\l3d\\Documents\\AVBOIT\\MaterialShaderExample_AVBOIT\\LocalVisualResults\\TempResults\\UE57\\HIVE_4090x2\\UE4-2C-NiagaraSprite-UnlitParity\\20260630T064800Z\\14_PluginBypass_4000ms.png",
+                                       "PixelIdentical":  false,
+                                       "Width":  1920,
+                                       "Height":  1080,
+                                       "MAE":  0.0029282161552892762,
+                                       "MaxError":  0.34509803921568627,
+                                       "DifferingPixelCount":  194331,
+                                       "Reason":  "Images differ; UE-4.2C remains partial until material/pixel equivalence work is complete."
+                                   },
+    "Status":  "partial",
+    "SuccessWithheld":  true
+}

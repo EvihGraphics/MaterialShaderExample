@@ -1,0 +1,41 @@
+{
+  "ContractName": "UE-4.2C TestSpriteMap1 PlayerCameraManager Runtime Camera",
+  "Authority": "UserProvidedPlayerCameraManager0Transform",
+  "Map": "/Game/NiagaraExamples/Utilities/SpriteGeneration/TestSpriteMap1",
+  "RuntimeOnly": true,
+  "EditorViewportAllowed": false,
+  "Transform": {
+    "RelativeLocation": {
+      "X": -2798.789173,
+      "Y": 36.62605,
+      "Z": 457.510006
+    },
+    "RelativeRotation": {
+      "Pitch": 17.254463,
+      "Yaw": -8.130192,
+      "Roll": 0.0
+    },
+    "RelativeScale3D": {
+      "X": 1.0,
+      "Y": 1.0,
+      "Z": 1.0
+    },
+    "Mobility": "Movable"
+  },
+  "RuntimeCaptureFields": [
+    "FOV",
+    "AspectRatio",
+    "ProjectionMode",
+    "NearPlane",
+    "ViewRect",
+    "ScreenPercentage",
+    "Exposure",
+    "PostProcessSettings"
+  ],
+  "Requirements": [
+    "Automation must enter PIE, Standalone, or -game mode before capture.",
+    "Automation must set the active PlayerController/PlayerCameraManager view target or a temporary runtime CameraActor.",
+    "FOV must be read from PlayerCameraManager->GetFOVAngle() at runtime and persisted with the capture evidence.",
+    "Do not save or submit any modification to Epic TestSpriteMap1.umap or dependent assets."
+  ]
+}
