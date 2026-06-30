@@ -1,53 +1,66 @@
-# CURRENT - UE-4.2D Native OIT-Guided AVBOIT Foundation
+# CURRENT - UE-4.2E Real Niagara Sprite Draw Bridge and Shared AVBOIT Core
 
-Generated UTC: 20260630T171030Z
+Generated UTC: 2026-06-30T19:02:06Z
 
 ## Active Stage
 
-- Stage: UE-4.2D Native OIT-Guided AVBOIT Foundation
-- StageStatus: partial
+- Stage: UE-4.2E Real Niagara Sprite Draw Bridge and Shared AVBOIT Core
+- StageStatus: blocked-local
 - OverallProjectStatus: partial
 - Branch: AVBOIT开发
-- Local HEAD: e04b1f3abdfaadd6a00ec3e38ad61f8762e6b080
-- Remote HEAD: e04b1f3abdfaadd6a00ec3e38ad61f8762e6b080
+- Local HEAD at stage start: `a661bc4f69e5159e996f06dd14c4f754c2208948`
+- Remote HEAD at stage start: `a661bc4f69e5159e996f06dd14c4f754c2208948`
 - Dirty-tree condition: untracked `LocalVisualResults/UE57/` is preserved and must not be staged as acceptance evidence.
 
-## Current Implementation Boundary
+## Implementation Boundary
 
-- Plugin-first only. No UE5.7 engine source changes are allowed for this stage.
+- Plugin-first only. No UE5.7 engine source changes are applied.
+- If a real Niagara Sprite VF/material draw bridge is required, use `Patches/UE57/NiagaraAVBOITMinimalHook.patch` as a proposal only.
 - Epic `TestSpriteMap1.umap` and dependent assets must remain unmodified.
-- Existing UE-4.2C KeyResults remain partial and superseded for UE-4.2D acceptance.
-- UE-4.2D KeyResults promotion is blocked until real Niagara AVBOIT draw packets, SceneColor composite, and GPU readback gates pass.
+- KeyResults promotion is milestone-only and forbidden for blocked-local/foundation/probe evidence.
 
 ## Landed This Stage
 
-- Runtime modes expanded to `EngineDefault`, `UESortedPixelsOIT`, `AVBOITNiagaraUnlit`, and `BufferOverview`.
-- UE Sorted Pixels OIT mode is guarded by runtime detection of `r.OIT.SortedPixels`.
-- Niagara AVBOIT status now records StageStatus, PromotionEligible, KnownBlockingAPIs, CVar state, particle hash, frame-graph resource state, default fallback use, and SceneColor composite status.
-- Default Niagara sprite draw fallback is no longer accepted as AVBOIT proof in the plugin path.
-- Niagara foundation RDG resources are named and scheduled: Extinction, Transmittance, ColorAccumulation, AlphaAccumulation, CompositeScratch, and BufferOverview.
-- Runner supports UE-4.2D phase switches and writes `TempResultsManifest.json`, `GPUCaptureManifest.json`, and `PromotionDecision.json`; UE-4.2D promotion is withheld by policy.
+- Added shared AVBOIT core public contracts in `MaterialShaderPlugin/Public/AVBOIT/Core/AVBOITCoreTypes.h`.
+- Expanded runtime modes to `EngineDefault`, `UESortedPixelsOIT`, `PluginIdentity`, `PluginAVBOIT`, and `BufferOverview`; old `AVBOITUnlit` remains an alias.
+- Added 4.2E CVars for core identity/fixed-slice modes, shared buffer overview/debug slice, and real VF/material/particle-hash/SceneColor gates.
+- Split Niagara renderer metadata hash from particle attribute hash.
+- Status and renderer manifests now report `NiagaraDrawFeasibility`, depth/slice contract, frame graph contract, blocking private UE symbols, and patch proposal.
+- Runner supports UE-4.2E phase switches and writes required TempResults contract JSON placeholders without promoting KeyResults.
+
+## Current Blocking APIs / Gaps
+
+- Real Niagara sprite VF/material/mesh batch construction remains inside UE private `NiagaraRendererSprites.cpp`.
+- Current plugin-only adapter can observe particle counts and renderer metadata, but cannot prove a real `FMeshBatch`, `FVertexFactory`, or `FMaterialRenderProxy`.
+- `PluginIdentity` and `PluginAVBOIT` therefore remain blocked-local until the minimal hook or another legal draw-packet API exists.
+- The current scene extension still records foundation RDG scratch resources; it does not prove final SceneColor composite.
+- GPU readback, RenderDoc/PIX capture, comparison images, and shader tint gates are contracted but not passed.
 
 ## Local Validation
 
-- Build: `ContentExamplesEditor Win64 Development` completed with exit code 0 on 2026-06-30T17:27Z.
-- Status smoke: `UnrealEditor.exe -game` entered `BufferOverview`, wrote `Status.json`, verified Engine `Unlit`, and exited with code 0.
-- Smoke evidence root: `LocalVisualResults/TempResults/UE57/HIVE_4090x2/UE4-2D-NativeOIT-Guided-AVBOIT/20260630T172741Z-status-smoke`
+- Build: `ContentExamplesEditor Win64 Development` completed with exit code 0 on 2026-06-30T19:07Z.
+- Status smoke: `UnrealEditor.exe -game` entered `PluginIdentity`, wrote `Status.json`, verified Engine `Unlit`, and exited with code 0.
+- Smoke evidence root: `LocalVisualResults/TempResults/UE57/HIVE_4090x2/UE4-2E-Real-Niagara-Sprite-AVBOIT/20260630T190816Z-status-smoke`
 - Smoke log hard-fail scan: no fatal/assert/RDG/RHI/shader binding/GPU crash/Invalid socket handle/duplicate draw/no AVBOIT sprite draws matches.
+- Smoke status: `StageStatus=blocked-local`, `PromotionEligible=false`.
 
-## Known Blocking APIs / Gaps
+## New Knowledge / Patch Files
 
-- The plugin-first path has renderer/material metadata and particle counts, but not a public Niagara sprite material/VF draw packet hook sufficient to build true AVBOIT splats.
-- `AVBOIT.Niagara.Composite` currently writes a scratch foundation resource, not final `SceneColor`.
-- GPU readback counters for Extinction/Transmittance/Accumulation are contract fields but are not populated by real readback yet.
-- Tint is kept as runtime CVar and overlay state, but acceptance requires consumption in the AVBOIT ForwardUnlit shader, not MID/default Niagara fallback.
+- `docs/knowledge/ue5_avboit/UE42E_ACTUAL_STATE_AUDIT_20260630T190206Z.md`
+- `docs/knowledge/ue5_avboit/NIAGARA_SPRITE_DRAW_FEASIBILITY_UE57.md`
+- `docs/knowledge/ue5_avboit/UE57_SORTED_PIXELS_OIT_CALL_GRAPH_UE42E.md`
+- `docs/knowledge/ue5_avboit/THE_FORGE_TO_UE42E_AVBOIT_CONTRACT.md`
+- `docs/knowledge/ue5_avboit/UERP_REF_UE42E_SOURCE_MAPPING.md`
+- `Patches/UE57/NiagaraAVBOITMinimalHook.patch`
 
 ## Validation Command
 
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File Scripts\Run-AVBOITNiagaraSpriteUnlitParity.ps1 `
   -ContentExamplesProject "D:\Users\l3d\Documents\Unreal Projects\ContentExamples\ContentExamples.uproject" `
-  -RunNativeOITStudy -RunCoreBufferBringup -RunTestSpriteMap1 -CaptureBufferOverview
+  -RunCoreRefactorValidation -RunIdentityBringup -RunTestSpriteMap1 `
+  -RequireRealVertexFactory -RequireRealMaterial -RequireParticleAttributeHash `
+  -RequireRealAVBOITDraw -RequireSceneColorComposite
 ```
 
-Expected current result: `blocked-local` or `partial`; not `SUCCESS`, `COMPLETED`, or `passed-local`.
+Expected current result: `blocked-local`; not `SUCCESS`, `COMPLETED`, or `passed-local`.

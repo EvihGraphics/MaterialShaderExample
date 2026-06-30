@@ -46,6 +46,22 @@ namespace
 		TEXT("Persist captured Niagara input summaries with the validation evidence."),
 		ECVF_Default);
 
+	TAutoConsoleVariable<int32> CVarAVBOITCoreIdentityEnable(
+		TEXT("r.AVBOIT.Core.Identity.Enable"),
+		0,
+		TEXT("Enable the UE-4.2E plugin identity path contract.\n")
+		TEXT(" 0: Disabled\n")
+		TEXT(" 1: Require the Niagara adapter to provide a real identity draw packet\n"),
+		ECVF_RenderThreadSafe);
+
+	TAutoConsoleVariable<int32> CVarAVBOITCoreFixedSliceEnable(
+		TEXT("r.AVBOIT.Core.FixedSlice.Enable"),
+		0,
+		TEXT("Enable the UE-4.2E fixed-slice AVBOIT frame graph contract.\n")
+		TEXT(" 0: Disabled\n")
+		TEXT(" 1: Clear -> SpriteSplat -> Integrate -> ForwardUnlit -> Composite\n"),
+		ECVF_RenderThreadSafe);
+
 	TAutoConsoleVariable<int32> CVarAVBOITNiagaraBufferOverview(
 		TEXT("r.AVBOIT.Niagara.BufferOverview"),
 		0,
@@ -60,12 +76,48 @@ namespace
 		TEXT("AVBOIT Niagara debug slice index used by buffer overview/readback paths."),
 		ECVF_RenderThreadSafe);
 
+	TAutoConsoleVariable<int32> CVarAVBOITBufferOverview(
+		TEXT("r.AVBOIT.BufferOverview"),
+		0,
+		TEXT("Shared AVBOIT buffer overview mode used by adapters."),
+		ECVF_RenderThreadSafe);
+
+	TAutoConsoleVariable<int32> CVarAVBOITDebugSlice(
+		TEXT("r.AVBOIT.DebugSlice"),
+		0,
+		TEXT("Shared AVBOIT debug slice index used by buffer overview/readback paths."),
+		ECVF_RenderThreadSafe);
+
 	TAutoConsoleVariable<int32> CVarAVBOITNiagaraRequireRealDraw(
 		TEXT("r.AVBOIT.Niagara.RequireRealDraw"),
 		0,
 		TEXT("Require a real AVBOIT Niagara draw packet before scheduling UE-4.2D passes.\n")
 		TEXT(" 0: Allow foundation/resource evidence\n")
 		TEXT(" 1: Block fallback-only/foundation-only passes\n"),
+		ECVF_RenderThreadSafe);
+
+	TAutoConsoleVariable<int32> CVarAVBOITNiagaraRequireRealVertexFactory(
+		TEXT("r.AVBOIT.Niagara.RequireRealVertexFactory"),
+		0,
+		TEXT("Require the Niagara adapter to prove a real Niagara sprite vertex factory contract."),
+		ECVF_RenderThreadSafe);
+
+	TAutoConsoleVariable<int32> CVarAVBOITNiagaraRequireRealMaterial(
+		TEXT("r.AVBOIT.Niagara.RequireRealMaterial"),
+		0,
+		TEXT("Require the Niagara adapter to prove a real MaterialRenderProxy contract."),
+		ECVF_RenderThreadSafe);
+
+	TAutoConsoleVariable<int32> CVarAVBOITNiagaraRequireParticleAttributeHash(
+		TEXT("r.AVBOIT.Niagara.RequireParticleAttributeHash"),
+		0,
+		TEXT("Require the Niagara adapter to hash Position/Size/Rotation/Facing/SubUV/Color/Alpha/Material/Sim state."),
+		ECVF_RenderThreadSafe);
+
+	TAutoConsoleVariable<int32> CVarAVBOITNiagaraRequireSceneColorComposite(
+		TEXT("r.AVBOIT.Niagara.RequireSceneColorComposite"),
+		0,
+		TEXT("Require the plugin identity/AVBOIT path to composite into SceneColor."),
 		ECVF_RenderThreadSafe);
 
 	TAutoConsoleVariable<int32> CVarAVBOITNiagaraTintEnable(
@@ -142,19 +194,49 @@ namespace AVBOITNiagara
 		return CVarAVBOITNiagaraCaptureInputs.GetValueOnAnyThread() > 0;
 	}
 
+	bool IsCoreIdentityEnabled()
+	{
+		return CVarAVBOITCoreIdentityEnable.GetValueOnAnyThread() > 0;
+	}
+
+	bool IsCoreFixedSliceEnabled()
+	{
+		return CVarAVBOITCoreFixedSliceEnable.GetValueOnAnyThread() > 0;
+	}
+
 	bool IsBufferOverviewEnabled()
 	{
-		return CVarAVBOITNiagaraBufferOverview.GetValueOnAnyThread() > 0;
+		return CVarAVBOITNiagaraBufferOverview.GetValueOnAnyThread() > 0 || CVarAVBOITBufferOverview.GetValueOnAnyThread() > 0;
 	}
 
 	int32 GetDebugSlice()
 	{
-		return CVarAVBOITNiagaraDebugSlice.GetValueOnAnyThread();
+		return CVarAVBOITDebugSlice.GetValueOnAnyThread() != 0 ? CVarAVBOITDebugSlice.GetValueOnAnyThread() : CVarAVBOITNiagaraDebugSlice.GetValueOnAnyThread();
 	}
 
 	bool ShouldRequireRealDraw()
 	{
 		return CVarAVBOITNiagaraRequireRealDraw.GetValueOnAnyThread() > 0;
+	}
+
+	bool ShouldRequireRealVertexFactory()
+	{
+		return CVarAVBOITNiagaraRequireRealVertexFactory.GetValueOnAnyThread() > 0;
+	}
+
+	bool ShouldRequireRealMaterial()
+	{
+		return CVarAVBOITNiagaraRequireRealMaterial.GetValueOnAnyThread() > 0;
+	}
+
+	bool ShouldRequireParticleAttributeHash()
+	{
+		return CVarAVBOITNiagaraRequireParticleAttributeHash.GetValueOnAnyThread() > 0;
+	}
+
+	bool ShouldRequireSceneColorComposite()
+	{
+		return CVarAVBOITNiagaraRequireSceneColorComposite.GetValueOnAnyThread() > 0;
 	}
 
 	bool IsTintEnabled()

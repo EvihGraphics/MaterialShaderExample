@@ -3,6 +3,7 @@
 #include "AVBOIT/Niagara/AVBOITNiagaraCVars.h"
 #include "AVBOIT/Niagara/AVBOITNiagaraSceneData.h"
 #include "AVBOIT/Niagara/AVBOITNiagaraSpriteRendererProperties.h"
+#include "AVBOIT/Core/AVBOITCoreTypes.h"
 #include "Camera/CameraActor.h"
 #include "Camera/CameraComponent.h"
 #include "Camera/CameraTypes.h"
@@ -521,11 +522,71 @@ namespace
 		return Object;
 	}
 
+	TSharedRef<FJsonObject> BuildDepthSliceContractJson()
+	{
+		const AVBOIT::Core::FDepthSliceContract Contract;
+		TSharedRef<FJsonObject> Object = MakeShared<FJsonObject>();
+		Object->SetStringField(TEXT("DepthMapping"), Contract.DepthMapping);
+		Object->SetStringField(TEXT("TransmittanceDirection"), Contract.TransmittanceDirection);
+		Object->SetNumberField(TEXT("DownsampleFactor"), Contract.DownsampleFactor);
+		Object->SetNumberField(TEXT("SliceCount"), Contract.SliceCount);
+		Object->SetNumberField(TEXT("BrightnessMultiplier"), Contract.BrightnessMultiplier);
+		Object->SetBoolField(TEXT("ExposureOrGammaBoostAllowed"), Contract.bExposureOrGammaBoostAllowed);
+		return Object;
+	}
+
+	TSharedRef<FJsonObject> BuildFrameGraphContractJson(const FAVBOITNiagaraFrameStats& Stats)
+	{
+		AVBOIT::Core::FFrameGraphContract Contract;
+		Contract.bCompositeWritesSceneColor = Stats.bCompositeWritesSceneColor;
+		Contract.bUsesScratchOnlyComposite = !Stats.bCompositeWritesSceneColor;
+
+		TSharedRef<FJsonObject> Object = MakeShared<FJsonObject>();
+		Object->SetBoolField(TEXT("Clear"), Contract.bClear);
+		Object->SetBoolField(TEXT("SpriteSplat"), Contract.bSpriteSplat);
+		Object->SetBoolField(TEXT("Integrate"), Contract.bIntegrate);
+		Object->SetBoolField(TEXT("ForwardUnlit"), Contract.bForwardUnlit);
+		Object->SetBoolField(TEXT("Composite"), Contract.bComposite);
+		Object->SetBoolField(TEXT("CompositeWritesSceneColor"), Contract.bCompositeWritesSceneColor);
+		Object->SetBoolField(TEXT("UsesScratchOnlyComposite"), Contract.bUsesScratchOnlyComposite);
+		Object->SetBoolField(TEXT("FoundationProbeOnly"), !Stats.bRealAVBOITDraw || !Stats.bCompositeWritesSceneColor);
+		return Object;
+	}
+
+	TSharedRef<FJsonObject> BuildNiagaraDrawFeasibilityJson()
+	{
+		TSharedRef<FJsonObject> Object = MakeShared<FJsonObject>();
+		Object->SetBoolField(TEXT("PluginOnlyRealDrawPossible"), false);
+		Object->SetBoolField(TEXT("EnginePatchRequired"), true);
+		Object->SetStringField(TEXT("PatchProposal"), TEXT("Patches/UE57/NiagaraAVBOITMinimalHook.patch"));
+		Object->SetStringField(TEXT("UEPrivateSource"), TEXT("Engine/Plugins/FX/Niagara/Source/Niagara/Private/NiagaraRendererSprites.cpp"));
+		Object->SetStringField(TEXT("PublicHeaderSurface"), TEXT("Engine/Plugins/FX/Niagara/Source/Niagara/Public/NiagaraRenderer.h and NiagaraSpriteRendererProperties.h"));
+
+		TArray<TSharedPtr<FJsonValue>> PrivateSymbols;
+		const TArray<FString> PrivateSymbolNames = {
+			TEXT("FNiagaraDynamicDataSprites"),
+			TEXT("PrepareParticleSpriteRenderData"),
+			TEXT("PrepareParticleRenderBuffers"),
+			TEXT("SetupVertexFactory"),
+			TEXT("CreateViewUniformBuffer"),
+			TEXT("FNiagaraRendererSprites::CreateMeshBatchForView")
+		};
+		for (const FString& Symbol : PrivateSymbolNames)
+		{
+			PrivateSymbols.Add(MakeShared<FJsonValueString>(Symbol));
+		}
+		Object->SetArrayField(TEXT("BlockingPrivateSymbols"), PrivateSymbols);
+		Object->SetStringField(TEXT("Conclusion"), TEXT("Plugin-only code can observe particle counts and renderer metadata, but cannot legally reuse the real Niagara sprite VF/MaterialRenderProxy/FMeshBatch path without an engine hook."));
+		return Object;
+	}
+
 	enum class EAVBOITCaptureMode : uint8
 	{
 		EngineDefault,
 		UESortedPixelsOIT,
 		PluginBypass,
+		PluginIdentity,
+		PluginAVBOIT,
 		AVBOITNiagaraUnlit,
 		DebugBuffers,
 		BufferOverview
@@ -541,6 +602,10 @@ namespace
 			return TEXT("UESortedPixelsOIT");
 		case EAVBOITCaptureMode::PluginBypass:
 			return TEXT("PluginBypass");
+		case EAVBOITCaptureMode::PluginIdentity:
+			return TEXT("PluginIdentity");
+		case EAVBOITCaptureMode::PluginAVBOIT:
+			return TEXT("PluginAVBOIT");
 		case EAVBOITCaptureMode::AVBOITNiagaraUnlit:
 			return TEXT("AVBOITNiagaraUnlit");
 		case EAVBOITCaptureMode::DebugBuffers:
@@ -562,6 +627,10 @@ namespace
 			return IsCVarRegistered(TEXT("r.OIT.SortedPixels")) ? TEXT("UE Sorted Pixels OIT") : TEXT("UE Sorted Pixels OIT (unavailable)");
 		case EAVBOITCaptureMode::PluginBypass:
 			return TEXT("Plugin Bypass");
+		case EAVBOITCaptureMode::PluginIdentity:
+			return TEXT("Plugin Identity");
+		case EAVBOITCaptureMode::PluginAVBOIT:
+			return TEXT("Plugin AVBOIT");
 		case EAVBOITCaptureMode::AVBOITNiagaraUnlit:
 			return TEXT("Plugin AVBOIT Unlit");
 		case EAVBOITCaptureMode::DebugBuffers:
@@ -579,6 +648,9 @@ namespace
 		SetCVarInt(TEXT("r.RDG.Debug"), 1);
 		SetCVarInt(TEXT("r.RDG.EmitDrawEvents"), 1);
 		SetCVarFloat(TEXT("r.ScreenPercentage"), 100.0f);
+		SetCVarInt(TEXT("r.AVBOIT.Core.Identity.Enable"), 0);
+		SetCVarInt(TEXT("r.AVBOIT.Core.FixedSlice.Enable"), 0);
+		SetCVarInt(TEXT("r.AVBOIT.BufferOverview"), 0);
 
 		switch (Mode)
 		{
@@ -586,6 +658,7 @@ namespace
 			SetCVarInt(TEXT("r.AVBOIT.Enable"), 0);
 			SetCVarInt(TEXT("r.AVBOIT.Niagara.Enable"), 0);
 			SetCVarInt(TEXT("r.AVBOIT.Niagara.BufferOverview"), 0);
+			SetCVarInt(TEXT("r.AVBOIT.Niagara.Debug"), 0);
 			if (IsCVarRegistered(TEXT("r.OIT.SortedPixels")))
 			{
 				SetCVarInt(TEXT("r.OIT.SortedPixels"), 0);
@@ -596,6 +669,7 @@ namespace
 			SetCVarInt(TEXT("r.AVBOIT.Enable"), 0);
 			SetCVarInt(TEXT("r.AVBOIT.Niagara.Enable"), 0);
 			SetCVarInt(TEXT("r.AVBOIT.Niagara.BufferOverview"), 0);
+			SetCVarInt(TEXT("r.AVBOIT.Niagara.Debug"), 0);
 			if (IsCVarRegistered(TEXT("r.OIT.SortedPixels")))
 			{
 				SetCVarInt(TEXT("r.OIT.SortedPixels"), 1);
@@ -606,8 +680,23 @@ namespace
 			SetCVarInt(TEXT("r.AVBOIT.Enable"), 1);
 			SetCVarInt(TEXT("r.AVBOIT.Niagara.Enable"), 0);
 			SetCVarInt(TEXT("r.AVBOIT.Niagara.BufferOverview"), 0);
+			SetCVarInt(TEXT("r.AVBOIT.Niagara.Debug"), 0);
 			AVBOITNiagara::SetTintEnabled(false);
 			break;
+		case EAVBOITCaptureMode::PluginIdentity:
+			SetCVarInt(TEXT("r.AVBOIT.Enable"), 1);
+			SetCVarInt(TEXT("r.AVBOIT.Niagara.Enable"), 1);
+			SetCVarInt(TEXT("r.AVBOIT.Niagara.UnlitOnly"), 1);
+			SetCVarInt(TEXT("r.AVBOIT.Niagara.Debug"), 0);
+			SetCVarInt(TEXT("r.AVBOIT.Niagara.BufferOverview"), 0);
+			SetCVarInt(TEXT("r.AVBOIT.Niagara.CaptureInputs"), 1);
+			SetCVarInt(TEXT("r.AVBOIT.Core.Identity.Enable"), 1);
+			if (IsCVarRegistered(TEXT("r.OIT.SortedPixels")))
+			{
+				SetCVarInt(TEXT("r.OIT.SortedPixels"), 0);
+			}
+			break;
+		case EAVBOITCaptureMode::PluginAVBOIT:
 		case EAVBOITCaptureMode::AVBOITNiagaraUnlit:
 			SetCVarInt(TEXT("r.AVBOIT.Enable"), 1);
 			SetCVarInt(TEXT("r.AVBOIT.Niagara.Enable"), 1);
@@ -615,6 +704,7 @@ namespace
 			SetCVarInt(TEXT("r.AVBOIT.Niagara.Debug"), 0);
 			SetCVarInt(TEXT("r.AVBOIT.Niagara.BufferOverview"), 0);
 			SetCVarInt(TEXT("r.AVBOIT.Niagara.CaptureInputs"), 0);
+			SetCVarInt(TEXT("r.AVBOIT.Core.FixedSlice.Enable"), 1);
 			if (IsCVarRegistered(TEXT("r.OIT.SortedPixels")))
 			{
 				SetCVarInt(TEXT("r.OIT.SortedPixels"), 0);
@@ -627,6 +717,8 @@ namespace
 			SetCVarInt(TEXT("r.AVBOIT.Niagara.Debug"), 1);
 			SetCVarInt(TEXT("r.AVBOIT.Niagara.BufferOverview"), 1);
 			SetCVarInt(TEXT("r.AVBOIT.Niagara.CaptureInputs"), 1);
+			SetCVarInt(TEXT("r.AVBOIT.Core.FixedSlice.Enable"), 1);
+			SetCVarInt(TEXT("r.AVBOIT.BufferOverview"), 1);
 			AVBOITNiagara::SetTintEnabled(false);
 			break;
 		case EAVBOITCaptureMode::BufferOverview:
@@ -636,6 +728,8 @@ namespace
 			SetCVarInt(TEXT("r.AVBOIT.Niagara.Debug"), 1);
 			SetCVarInt(TEXT("r.AVBOIT.Niagara.BufferOverview"), 1);
 			SetCVarInt(TEXT("r.AVBOIT.Niagara.CaptureInputs"), 1);
+			SetCVarInt(TEXT("r.AVBOIT.Core.FixedSlice.Enable"), 1);
+			SetCVarInt(TEXT("r.AVBOIT.BufferOverview"), 1);
 			if (IsCVarRegistered(TEXT("r.OIT.SortedPixels")))
 			{
 				SetCVarInt(TEXT("r.OIT.SortedPixels"), 0);
@@ -663,9 +757,19 @@ namespace
 			OutMode = EAVBOITCaptureMode::PluginBypass;
 			return true;
 		}
+		if (Mode.Equals(TEXT("PluginIdentity"), ESearchCase::IgnoreCase) || Mode.Equals(TEXT("Plugin Identity"), ESearchCase::IgnoreCase) || Mode.Equals(TEXT("Identity"), ESearchCase::IgnoreCase))
+		{
+			OutMode = EAVBOITCaptureMode::PluginIdentity;
+			return true;
+		}
+		if (Mode.Equals(TEXT("PluginAVBOIT"), ESearchCase::IgnoreCase) || Mode.Equals(TEXT("Plugin AVBOIT"), ESearchCase::IgnoreCase) || Mode.Equals(TEXT("AVBOIT"), ESearchCase::IgnoreCase))
+		{
+			OutMode = EAVBOITCaptureMode::PluginAVBOIT;
+			return true;
+		}
 		if (Mode.Equals(TEXT("AVBOITUnlit"), ESearchCase::IgnoreCase) || Mode.Equals(TEXT("AVBOITNiagaraUnlit"), ESearchCase::IgnoreCase) || Mode.Equals(TEXT("Plugin AVBOIT Unlit"), ESearchCase::IgnoreCase) || Mode.Equals(TEXT("Plugin"), ESearchCase::IgnoreCase))
 		{
-			OutMode = EAVBOITCaptureMode::AVBOITNiagaraUnlit;
+			OutMode = EAVBOITCaptureMode::PluginAVBOIT;
 			return true;
 		}
 		if (Mode.Equals(TEXT("DebugBuffers"), ESearchCase::IgnoreCase) || Mode.Equals(TEXT("Debug"), ESearchCase::IgnoreCase))
@@ -752,6 +856,9 @@ namespace
 	{
 		TSharedRef<FJsonObject> Root = MakeShared<FJsonObject>();
 		Root->SetStringField(TEXT("GeneratedUtc"), FDateTime::UtcNow().ToIso8601());
+		Root->SetStringField(TEXT("Stage"), TEXT("UE-4.2E Real Niagara Sprite Draw Bridge"));
+		Root->SetStringField(TEXT("StageStatus"), TEXT("blocked-local"));
+		Root->SetBoolField(TEXT("PromotionEligible"), false);
 
 		const FAVBOITNiagaraFrameStats Stats = FAVBOITNiagaraSceneData::Get().GetLastCompletedStats();
 		Root->SetNumberField(TEXT("FrameNumber"), Stats.FrameNumber);
@@ -768,7 +875,13 @@ namespace
 		Root->SetBoolField(TEXT("TintConsumedInForwardShader"), Stats.bTintConsumedInForwardShader);
 		Root->SetBoolField(TEXT("CompositeWritesSceneColor"), Stats.bCompositeWritesSceneColor);
 		Root->SetStringField(TEXT("ParticleStateHash"), Stats.ParticleStateHash.HashString);
+		Root->SetStringField(TEXT("RendererMetadataHash"), Stats.RendererMetadataHash.HashString);
+		Root->SetStringField(TEXT("ParticleAttributeHash"), Stats.ParticleAttributeHash.HashString);
+		Root->SetBoolField(TEXT("ParticleAttributeHashComplete"), Stats.ParticleAttributeHash.bDeterministicStateVerified);
 		Root->SetBoolField(TEXT("DeterministicParticleStateVerified"), Stats.ParticleStateHash.bDeterministicStateVerified);
+		Root->SetObjectField(TEXT("DepthSliceContract"), BuildDepthSliceContractJson());
+		Root->SetObjectField(TEXT("FrameGraphContract"), BuildFrameGraphContractJson(Stats));
+		Root->SetObjectField(TEXT("NiagaraDrawFeasibility"), BuildNiagaraDrawFeasibilityJson());
 
 		TSharedRef<FJsonObject> Readback = MakeShared<FJsonObject>();
 		Readback->SetBoolField(TEXT("FrameGraphResourcesAllocated"), Stats.BufferReadbackStats.bFrameGraphResourcesAllocated);
@@ -834,8 +947,22 @@ namespace
 			DrawObject->SetBoolField(TEXT("HasParticleBuffer"), Draw.bHasParticleBuffer);
 			DrawObject->SetBoolField(TEXT("HasMaterialContract"), Draw.bHasMaterialContract);
 			DrawObject->SetBoolField(TEXT("HasVertexFactoryContract"), Draw.bHasVertexFactoryContract);
+			DrawObject->SetBoolField(TEXT("HasMaterialRenderProxy"), Draw.bHasMaterialRenderProxy);
+			DrawObject->SetBoolField(TEXT("HasMeshBatch"), Draw.bHasMeshBatch);
+			DrawObject->SetBoolField(TEXT("CanRenderIdentity"), Draw.bCanRenderIdentity);
+			DrawObject->SetBoolField(TEXT("CanRenderAVBOIT"), Draw.bCanRenderAVBOIT);
+			DrawObject->SetBoolField(TEXT("PrivateApiBlocked"), Draw.bPrivateApiBlocked);
+			DrawObject->SetStringField(TEXT("RendererMetadataHash"), Draw.RendererMetadataHashString);
+			DrawObject->SetStringField(TEXT("ParticleAttributeHash"), Draw.ParticleAttributeHashString);
+			DrawObject->SetBoolField(TEXT("ParticleAttributeHashComplete"), Draw.bParticleAttributeHashComplete);
 			DrawObject->SetStringField(TEXT("ParticleStateHash"), Draw.ParticleStateHashString);
 			DrawObject->SetStringField(TEXT("KnownBlockingApi"), Draw.KnownBlockingApi);
+			TArray<TSharedPtr<FJsonValue>> BlockingReasons;
+			for (const FString& BlockingReason : Draw.BlockingReasons)
+			{
+				BlockingReasons.Add(MakeShared<FJsonValueString>(BlockingReason));
+			}
+			DrawObject->SetArrayField(TEXT("BlockingReasons"), BlockingReasons);
 			DrawObject->SetObjectField(TEXT("TintColorLinear"), BuildLinearColorJson(Draw.TintColor));
 			DrawArray.Add(MakeShared<FJsonValueObject>(DrawObject));
 		}
@@ -973,7 +1100,8 @@ namespace
 
 			ModeOptions.Add(MakeShared<FString>(TEXT("Engine Default")));
 			ModeOptions.Add(MakeShared<FString>(TEXT("UE Sorted Pixels OIT")));
-			ModeOptions.Add(MakeShared<FString>(TEXT("Plugin AVBOIT Unlit")));
+			ModeOptions.Add(MakeShared<FString>(TEXT("Plugin Identity")));
+			ModeOptions.Add(MakeShared<FString>(TEXT("Plugin AVBOIT")));
 			ModeOptions.Add(MakeShared<FString>(TEXT("AVBOIT Buffer Overview")));
 
 			ChildSlot
@@ -1099,14 +1227,16 @@ namespace
 				return;
 			}
 
-			EAVBOITCaptureMode Mode = EAVBOITCaptureMode::AVBOITNiagaraUnlit;
+			EAVBOITCaptureMode Mode = EAVBOITCaptureMode::PluginAVBOIT;
 			TryParseCaptureMode(*NewSelection, Mode);
 			ApplyInteractiveMode(Mode, TEXT("OverlayDropdown"));
 		}
 
 		bool AreTintControlsEnabled() const
 		{
-			return GInteractiveMode == EAVBOITCaptureMode::AVBOITNiagaraUnlit;
+			return GInteractiveMode == EAVBOITCaptureMode::PluginIdentity ||
+				GInteractiveMode == EAVBOITCaptureMode::PluginAVBOIT ||
+				GInteractiveMode == EAVBOITCaptureMode::AVBOITNiagaraUnlit;
 		}
 
 		FLinearColor GetTintColor() const
@@ -1221,8 +1351,8 @@ namespace
 		TSharedRef<FJsonObject> Root = MakeShared<FJsonObject>();
 		Root->SetStringField(TEXT("GeneratedUtc"), FDateTime::UtcNow().ToIso8601());
 		Root->SetStringField(TEXT("Context"), Context ? Context : TEXT("Runtime"));
-		Root->SetStringField(TEXT("Stage"), TEXT("UE-4.2D Native OIT-Guided AVBOIT Foundation"));
-		Root->SetStringField(TEXT("StageStatus"), TEXT("partial"));
+		Root->SetStringField(TEXT("Stage"), TEXT("UE-4.2E Real Niagara Sprite Draw Bridge and Shared AVBOIT Core"));
+		Root->SetStringField(TEXT("StageStatus"), TEXT("blocked-local"));
 		Root->SetStringField(TEXT("OverallProjectStatus"), TEXT("partial"));
 		Root->SetBoolField(TEXT("PromotionEligible"), false);
 		Root->SetStringField(TEXT("Mode"), CaptureModeName(GInteractiveMode));
@@ -1233,15 +1363,26 @@ namespace
 		Root->SetBoolField(TEXT("TintMaterialOverrideActive"), TintMaterialState.ActiveMaterialOverrideCount > 0);
 		Root->SetNumberField(TEXT("TintMaterialOverrideActiveCount"), TintMaterialState.ActiveMaterialOverrideCount);
 		Root->SetNumberField(TEXT("TintMaterialOverrideRendererCount"), TintMaterialState.RendererCount);
+		Root->SetObjectField(TEXT("DepthSliceContract"), BuildDepthSliceContractJson());
+		Root->SetObjectField(TEXT("FrameGraphContract"), BuildFrameGraphContractJson(Stats));
+		Root->SetObjectField(TEXT("NiagaraDrawFeasibility"), BuildNiagaraDrawFeasibilityJson());
 
 		TSharedRef<FJsonObject> CVars = MakeShared<FJsonObject>();
 		CVars->SetNumberField(TEXT("r.AVBOIT.Enable"), GetCVarInt(TEXT("r.AVBOIT.Enable")));
+		CVars->SetNumberField(TEXT("r.AVBOIT.Core.Identity.Enable"), GetCVarInt(TEXT("r.AVBOIT.Core.Identity.Enable")));
+		CVars->SetNumberField(TEXT("r.AVBOIT.Core.FixedSlice.Enable"), GetCVarInt(TEXT("r.AVBOIT.Core.FixedSlice.Enable")));
+		CVars->SetNumberField(TEXT("r.AVBOIT.BufferOverview"), GetCVarInt(TEXT("r.AVBOIT.BufferOverview")));
+		CVars->SetNumberField(TEXT("r.AVBOIT.DebugSlice"), GetCVarInt(TEXT("r.AVBOIT.DebugSlice")));
 		CVars->SetNumberField(TEXT("r.AVBOIT.Niagara.Enable"), GetCVarInt(TEXT("r.AVBOIT.Niagara.Enable")));
 		CVars->SetNumberField(TEXT("r.AVBOIT.Niagara.UnlitOnly"), GetCVarInt(TEXT("r.AVBOIT.Niagara.UnlitOnly")));
 		CVars->SetNumberField(TEXT("r.AVBOIT.Niagara.Debug"), GetCVarInt(TEXT("r.AVBOIT.Niagara.Debug")));
 		CVars->SetNumberField(TEXT("r.AVBOIT.Niagara.BufferOverview"), GetCVarInt(TEXT("r.AVBOIT.Niagara.BufferOverview")));
 		CVars->SetNumberField(TEXT("r.AVBOIT.Niagara.DebugSlice"), GetCVarInt(TEXT("r.AVBOIT.Niagara.DebugSlice")));
 		CVars->SetNumberField(TEXT("r.AVBOIT.Niagara.RequireRealDraw"), GetCVarInt(TEXT("r.AVBOIT.Niagara.RequireRealDraw")));
+		CVars->SetNumberField(TEXT("r.AVBOIT.Niagara.RequireRealVertexFactory"), GetCVarInt(TEXT("r.AVBOIT.Niagara.RequireRealVertexFactory")));
+		CVars->SetNumberField(TEXT("r.AVBOIT.Niagara.RequireRealMaterial"), GetCVarInt(TEXT("r.AVBOIT.Niagara.RequireRealMaterial")));
+		CVars->SetNumberField(TEXT("r.AVBOIT.Niagara.RequireParticleAttributeHash"), GetCVarInt(TEXT("r.AVBOIT.Niagara.RequireParticleAttributeHash")));
+		CVars->SetNumberField(TEXT("r.AVBOIT.Niagara.RequireSceneColorComposite"), GetCVarInt(TEXT("r.AVBOIT.Niagara.RequireSceneColorComposite")));
 		CVars->SetNumberField(TEXT("r.AVBOIT.Niagara.CaptureInputs"), GetCVarInt(TEXT("r.AVBOIT.Niagara.CaptureInputs")));
 		CVars->SetNumberField(TEXT("r.AVBOIT.Niagara.Tint.Enable"), GetCVarInt(TEXT("r.AVBOIT.Niagara.Tint.Enable")));
 		CVars->SetNumberField(TEXT("r.AVBOIT.Niagara.Tint.R"), GetCVarFloat(TEXT("r.AVBOIT.Niagara.Tint.R")));
@@ -1271,6 +1412,9 @@ namespace
 		Root->SetBoolField(TEXT("TintConsumedInForwardShader"), Stats.bTintConsumedInForwardShader);
 		Root->SetBoolField(TEXT("CompositeWritesSceneColor"), Stats.bCompositeWritesSceneColor);
 		Root->SetStringField(TEXT("ParticleStateHash"), Stats.ParticleStateHash.HashString);
+		Root->SetStringField(TEXT("RendererMetadataHash"), Stats.RendererMetadataHash.HashString);
+		Root->SetStringField(TEXT("ParticleAttributeHash"), Stats.ParticleAttributeHash.HashString);
+		Root->SetBoolField(TEXT("ParticleAttributeHashComplete"), Stats.ParticleAttributeHash.bDeterministicStateVerified);
 		Root->SetBoolField(TEXT("DeterministicParticleStateVerified"), Stats.ParticleStateHash.bDeterministicStateVerified);
 
 		TSharedRef<FJsonObject> Readback = MakeShared<FJsonObject>();
@@ -1286,9 +1430,10 @@ namespace
 		Root->SetObjectField(TEXT("BufferReadbackStats"), Readback);
 
 		TArray<TSharedPtr<FJsonValue>> KnownBlockingApis;
-		KnownBlockingApis.Add(MakeShared<FJsonValueString>(TEXT("Plugin-first UE-4.2D path does not yet have a public Niagara sprite material/VF draw packet hook; default FNiagaraRendererSprites fallback is no longer accepted as AVBOIT proof.")));
-		KnownBlockingApis.Add(MakeShared<FJsonValueString>(TEXT("AVBOIT.Niagara.Composite currently writes CompositeScratch foundation resource, not SceneColor; hard gate remains partial.")));
-		KnownBlockingApis.Add(MakeShared<FJsonValueString>(TEXT("GPU readback counters for Extinction/Transmittance/Accumulation are contract fields but not populated by real readback yet.")));
+		KnownBlockingApis.Add(MakeShared<FJsonValueString>(TEXT("UE-4.2E plugin-first path cannot construct the real Niagara sprite VF/MaterialRenderProxy/FMeshBatch because required symbols live in NiagaraRendererSprites.cpp private implementation.")));
+		KnownBlockingApis.Add(MakeShared<FJsonValueString>(TEXT("Patches/UE57/NiagaraAVBOITMinimalHook.patch documents the minimal engine hook required to expose a legal real draw packet.")));
+		KnownBlockingApis.Add(MakeShared<FJsonValueString>(TEXT("Foundation probe shader writes RDG scratch resources and PassId evidence only; it is not accepted as PluginIdentity, Fixed-Slice AVBOIT, or SceneColor composite proof.")));
+		KnownBlockingApis.Add(MakeShared<FJsonValueString>(TEXT("GPU readback counters for Extinction/Transmittance/Accumulation remain contract fields until real resources are consumed by identity/AVBOIT draws.")));
 		Root->SetArrayField(TEXT("KnownBlockingAPIs"), KnownBlockingApis);
 		return Root;
 	}
@@ -1661,7 +1806,7 @@ namespace
 		EAVBOITCaptureMode Mode = EAVBOITCaptureMode::EngineDefault;
 		if (!TryParseCaptureMode(ModeToken, Mode))
 		{
-			UE_LOG(LogTemp, Error, TEXT("AVBOIT.Niagara.Mode expects EngineDefault, UESortedPixelsOIT, AVBOITUnlit, BufferOverview, PluginBypass, or DebugBuffers."));
+			UE_LOG(LogTemp, Error, TEXT("AVBOIT.Niagara.Mode expects EngineDefault, UESortedPixelsOIT, PluginIdentity, PluginAVBOIT, BufferOverview, PluginBypass, or DebugBuffers."));
 			return;
 		}
 
@@ -1671,9 +1816,9 @@ namespace
 	void CommandToggleDefaultPlugin(const TArray<FString>& Args)
 	{
 		const EAVBOITCaptureMode NextMode =
-			GInteractiveMode == EAVBOITCaptureMode::AVBOITNiagaraUnlit
+			GInteractiveMode == EAVBOITCaptureMode::PluginAVBOIT || GInteractiveMode == EAVBOITCaptureMode::AVBOITNiagaraUnlit
 				? EAVBOITCaptureMode::EngineDefault
-				: EAVBOITCaptureMode::AVBOITNiagaraUnlit;
+				: EAVBOITCaptureMode::PluginAVBOIT;
 		ApplyInteractiveMode(NextMode, TEXT("ToggleDefaultPlugin"));
 	}
 
@@ -1699,7 +1844,7 @@ namespace
 		UE_LOG(
 			LogTemp,
 			Display,
-			TEXT("AVBOIT.Niagara.Status mode=%s viewMode=%s verifiedUnlit=%s tint=%s tintColor=(R=%0.3f,G=%0.3f,B=%0.3f,A=%0.3f) tintMaterialActive=%d/%d draws=%d particles=%d realDraw=%s compositeSceneColor=%s ueSortedPixelsRegistered=%s"),
+			TEXT("AVBOIT.Niagara.Status mode=%s viewMode=%s verifiedUnlit=%s tint=%s tintColor=(R=%0.3f,G=%0.3f,B=%0.3f,A=%0.3f) tintMaterialActive=%d/%d draws=%d particles=%d realDraw=%s compositeSceneColor=%s rendererMetadataHash=%s particleAttributeHash=%s particleAttributeComplete=%s ueSortedPixelsRegistered=%s"),
 			CaptureModeName(GInteractiveMode),
 			*ViewModeContract.VerifiedViewMode,
 			ViewModeContract.bVerifiedViewModeIsUnlit ? TEXT("true") : TEXT("false"),
@@ -1714,6 +1859,9 @@ namespace
 			Stats.ParticleCount,
 			Stats.bRealAVBOITDraw ? TEXT("true") : TEXT("false"),
 			Stats.bCompositeWritesSceneColor ? TEXT("true") : TEXT("false"),
+			*Stats.RendererMetadataHash.HashString,
+			*Stats.ParticleAttributeHash.HashString,
+			Stats.ParticleAttributeHash.bDeterministicStateVerified ? TEXT("true") : TEXT("false"),
 			IsCVarRegistered(TEXT("r.OIT.SortedPixels")) ? TEXT("true") : TEXT("false"));
 	}
 
@@ -1850,12 +1998,12 @@ namespace
 			SaveJsonObject(GInteractiveStatusRoot / TEXT("FeatureManifestAfterConversion.json"), BuildFeatureManifest(World));
 		}
 
-		EAVBOITCaptureMode Mode = EAVBOITCaptureMode::AVBOITNiagaraUnlit;
-		const FString ModeToken = KeyValues.Contains(TEXT("mode")) ? KeyValues.FindRef(TEXT("mode")) : TEXT("AVBOITUnlit");
+		EAVBOITCaptureMode Mode = EAVBOITCaptureMode::PluginAVBOIT;
+		const FString ModeToken = KeyValues.Contains(TEXT("mode")) ? KeyValues.FindRef(TEXT("mode")) : TEXT("PluginAVBOIT");
 		TryParseCaptureMode(ModeToken, Mode);
 		ApplyInteractiveMode(Mode, TEXT("InteractiveStart"));
 		ShowInteractiveOverlay();
-		UE_LOG(LogTemp, Display, TEXT("AVBOIT.Niagara.Interactive ready. Use the viewport overlay or AVBOIT.Niagara.Mode EngineDefault|UESortedPixelsOIT|AVBOITUnlit|BufferOverview."));
+		UE_LOG(LogTemp, Display, TEXT("AVBOIT.Niagara.Interactive ready. Use the viewport overlay or AVBOIT.Niagara.Mode EngineDefault|UESortedPixelsOIT|PluginIdentity|PluginAVBOIT|BufferOverview."));
 	}
 }
 
@@ -1880,20 +2028,20 @@ void FAVBOITNiagaraValidationCommands::RegisterCommands()
 		ECVF_Default));
 
 	RegisteredCommands.Add(ConsoleManager.RegisterConsoleCommand(
-			TEXT("AVBOIT.Niagara.CaptureParity"),
-		TEXT("Captures UE-4.2C EngineDefault, PluginBypass, AVBOITUnlit, and debug-buffer evidence; UE-4.2D status remains partial unless hard gates pass."),
+		TEXT("AVBOIT.Niagara.CaptureParity"),
+		TEXT("Captures UE-4.2C/4.2E EngineDefault, PluginBypass, legacy AVBOITUnlit, and debug-buffer evidence; UE-4.2E status remains partial/blocked-local unless hard gates pass."),
 		FConsoleCommandWithArgsDelegate::CreateStatic(&CommandCaptureParity),
 		ECVF_Default));
 
 	RegisteredCommands.Add(ConsoleManager.RegisterConsoleCommand(
 			TEXT("AVBOIT.Niagara.Mode"),
-		TEXT("Runtime switch for UE-4.2D Niagara modes. Usage: AVBOIT.Niagara.Mode EngineDefault|UESortedPixelsOIT|AVBOITUnlit|BufferOverview"),
+		TEXT("Runtime switch for UE-4.2E Niagara modes. Usage: AVBOIT.Niagara.Mode EngineDefault|UESortedPixelsOIT|PluginIdentity|PluginAVBOIT|BufferOverview"),
 		FConsoleCommandWithArgsDelegate::CreateStatic(&CommandMode),
 		ECVF_Default));
 
 	RegisteredCommands.Add(ConsoleManager.RegisterConsoleCommand(
 		TEXT("AVBOIT.Niagara.ToggleDefaultPlugin"),
-		TEXT("Toggles runtime rendering between EngineDefault and AVBOITUnlit while preserving the fixed camera and Engine Unlit view mode."),
+		TEXT("Toggles runtime rendering between EngineDefault and PluginAVBOIT while preserving the fixed camera and Engine Unlit view mode."),
 		FConsoleCommandWithArgsDelegate::CreateStatic(&CommandToggleDefaultPlugin),
 		ECVF_Default));
 
@@ -1928,8 +2076,8 @@ void FAVBOITNiagaraValidationCommands::RegisterCommands()
 		ECVF_Default));
 
 	RegisteredCommands.Add(ConsoleManager.RegisterConsoleCommand(
-			TEXT("AVBOIT.Niagara.Interactive"),
-		TEXT("Starts a non-exiting UE-4.2D interactive TestSpriteMap1 session with transient conversion, fixed camera, Engine Unlit mode, and runtime overlay."),
+		TEXT("AVBOIT.Niagara.Interactive"),
+		TEXT("Starts a non-exiting UE-4.2E interactive TestSpriteMap1 session with transient conversion, fixed camera, Engine Unlit mode, and runtime overlay."),
 		FConsoleCommandWithArgsDelegate::CreateStatic(&CommandInteractive),
 		ECVF_Default));
 }

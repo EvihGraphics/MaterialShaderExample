@@ -62,6 +62,18 @@ void FAVBOITNiagaraSceneData::RegisterDraw_RenderThread(const FAVBOITNiagaraSpri
 	ActiveStats.ParticleStateHash.DrawCount = ActiveStats.SpriteDrawCount;
 	ActiveStats.ParticleStateHash.ParticleCount = ActiveStats.ParticleCount;
 	ActiveStats.ParticleStateHash.HashString = FString::Printf(TEXT("0x%08x"), ActiveStats.ParticleStateHash.Hash);
+	ActiveStats.RendererMetadataHash.Hash = HashCombine(ActiveStats.RendererMetadataHash.Hash, DrawData.RendererMetadataHash);
+	ActiveStats.RendererMetadataHash.DrawCount = ActiveStats.SpriteDrawCount;
+	ActiveStats.RendererMetadataHash.ParticleCount = ActiveStats.ParticleCount;
+	ActiveStats.RendererMetadataHash.HashString = FString::Printf(TEXT("0x%08x"), ActiveStats.RendererMetadataHash.Hash);
+	if (DrawData.bParticleAttributeHashComplete)
+	{
+		ActiveStats.ParticleAttributeHash.Hash = HashCombine(ActiveStats.ParticleAttributeHash.Hash, DrawData.ParticleAttributeHash);
+		ActiveStats.ParticleAttributeHash.DrawCount = ActiveStats.SpriteDrawCount;
+		ActiveStats.ParticleAttributeHash.ParticleCount = ActiveStats.ParticleCount;
+		ActiveStats.ParticleAttributeHash.HashString = FString::Printf(TEXT("0x%08x"), ActiveStats.ParticleAttributeHash.Hash);
+		ActiveStats.ParticleAttributeHash.bDeterministicStateVerified = true;
+	}
 	LastCompletedStats = ActiveStats;
 	LastCompletedDraws = ActiveDraws;
 }

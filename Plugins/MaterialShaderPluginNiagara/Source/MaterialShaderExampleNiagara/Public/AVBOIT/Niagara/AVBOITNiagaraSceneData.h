@@ -25,9 +25,20 @@ struct FAVBOITNiagaraSpriteDrawData
 	bool bHasParticleBuffer = false;
 	bool bHasMaterialContract = false;
 	bool bHasVertexFactoryContract = false;
+	bool bHasMaterialRenderProxy = false;
+	bool bHasMeshBatch = false;
+	bool bCanRenderIdentity = false;
+	bool bCanRenderAVBOIT = false;
+	bool bPrivateApiBlocked = false;
+	uint32 RendererMetadataHash = 0;
+	FString RendererMetadataHashString;
+	uint32 ParticleAttributeHash = 0;
+	FString ParticleAttributeHashString;
+	bool bParticleAttributeHashComplete = false;
 	uint32 ParticleStateHash = 0;
 	FString ParticleStateHashString;
 	FString KnownBlockingApi;
+	TArray<FString> BlockingReasons;
 	FLinearColor TintColor = FLinearColor::White;
 };
 
@@ -70,6 +81,8 @@ struct FAVBOITNiagaraFrameStats
 	bool bCompositeWritesSceneColor = false;
 	FAVBOITBufferReadbackStats BufferReadbackStats;
 	FAVBOITParticleStateHash ParticleStateHash;
+	FAVBOITParticleStateHash RendererMetadataHash;
+	FAVBOITParticleStateHash ParticleAttributeHash;
 };
 
 class MATERIALSHADEREXAMPLENIAGARA_API FAVBOITNiagaraSceneData

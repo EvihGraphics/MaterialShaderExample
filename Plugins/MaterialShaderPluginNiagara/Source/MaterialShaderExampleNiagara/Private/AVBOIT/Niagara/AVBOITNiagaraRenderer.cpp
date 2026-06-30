@@ -10,6 +10,12 @@
 
 namespace
 {
+	const TCHAR* NiagaraSpritePrivateApiBlocker =
+		TEXT("UE-4.2E plugin-first adapter is blocked by Niagara private sprite draw internals: ")
+		TEXT("FNiagaraDynamicDataSprites, PrepareParticleSpriteRenderData, PrepareParticleRenderBuffers, ")
+		TEXT("SetupVertexFactory, CreateViewUniformBuffer, and FNiagaraRendererSprites::CreateMeshBatchForView ")
+		TEXT("are implemented in NiagaraRendererSprites.cpp without a public hook for external real VF/MaterialRenderProxy/FMeshBatch reuse.");
+
 	uint32 HashDrawPacketField(uint32 Seed, const FString& Value)
 	{
 		return HashCombine(Seed, GetTypeHash(Value));
@@ -95,20 +101,32 @@ void FNiagaraRendererAVBOITSprites::GetDynamicMeshElements(
 	DrawData.bHasParticleBuffer = ParticleData != nullptr;
 	DrawData.bHasMaterialContract = !MaterialPath.IsEmpty();
 	DrawData.bHasVertexFactoryContract = false;
+	DrawData.bHasMaterialRenderProxy = false;
+	DrawData.bHasMeshBatch = false;
+	DrawData.bCanRenderIdentity = false;
+	DrawData.bCanRenderAVBOIT = false;
+	DrawData.bPrivateApiBlocked = true;
 	DrawData.bRealAVBOITDrawPacket = false;
-	DrawData.KnownBlockingApi = TEXT("Plugin-first UE-4.2D bridge has Niagara particle counts and renderer/material metadata, but no public Niagara sprite material/VF draw packet hook yet.");
+	DrawData.KnownBlockingApi = NiagaraSpritePrivateApiBlocker;
+	DrawData.BlockingReasons.Add(DrawData.KnownBlockingApi);
+	DrawData.BlockingReasons.Add(TEXT("Patches/UE57/NiagaraAVBOITMinimalHook.patch is required before PluginIdentity or PluginAVBOIT can prove real SceneColor draws."));
 
-	uint32 PacketHash = 0;
-	PacketHash = HashDrawPacketField(PacketHash, DrawData.SystemName);
-	PacketHash = HashDrawPacketField(PacketHash, DrawData.MaterialPath);
-	PacketHash = HashDrawPacketField(PacketHash, DrawData.ParticleCount);
-	PacketHash = HashDrawPacketField(PacketHash, DrawData.FacingMode);
-	PacketHash = HashDrawPacketField(PacketHash, DrawData.Alignment);
-	PacketHash = HashDrawPacketField(PacketHash, DrawData.SortMode);
-	PacketHash = HashDrawPacketFloat(PacketHash, DrawData.SubImageSize.X);
-	PacketHash = HashDrawPacketFloat(PacketHash, DrawData.SubImageSize.Y);
-	DrawData.ParticleStateHash = PacketHash;
-	DrawData.ParticleStateHashString = FString::Printf(TEXT("0x%08x"), PacketHash);
+	uint32 MetadataHash = 0;
+	MetadataHash = HashDrawPacketField(MetadataHash, DrawData.SystemName);
+	MetadataHash = HashDrawPacketField(MetadataHash, DrawData.MaterialPath);
+	MetadataHash = HashDrawPacketField(MetadataHash, DrawData.ParticleCount);
+	MetadataHash = HashDrawPacketField(MetadataHash, DrawData.FacingMode);
+	MetadataHash = HashDrawPacketField(MetadataHash, DrawData.Alignment);
+	MetadataHash = HashDrawPacketField(MetadataHash, DrawData.SortMode);
+	MetadataHash = HashDrawPacketFloat(MetadataHash, DrawData.SubImageSize.X);
+	MetadataHash = HashDrawPacketFloat(MetadataHash, DrawData.SubImageSize.Y);
+	DrawData.RendererMetadataHash = MetadataHash;
+	DrawData.RendererMetadataHashString = FString::Printf(TEXT("0x%08x"), MetadataHash);
+	DrawData.ParticleStateHash = MetadataHash;
+	DrawData.ParticleStateHashString = DrawData.RendererMetadataHashString;
+	DrawData.ParticleAttributeHash = 0;
+	DrawData.ParticleAttributeHashString = TEXT("unavailable-plugin-only-private-api-blocked");
+	DrawData.bParticleAttributeHashComplete = false;
 
 	FAVBOITNiagaraSceneData::Get().RegisterDraw_RenderThread(DrawData);
 }

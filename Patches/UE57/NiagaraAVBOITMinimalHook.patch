@@ -1,0 +1,56 @@
+diff --git a/Engine/Plugins/FX/Niagara/Source/Niagara/Public/NiagaraRenderer.h b/Engine/Plugins/FX/Niagara/Source/Niagara/Public/NiagaraRenderer.h
+index 000000000000..000000000000 100644
+--- a/Engine/Plugins/FX/Niagara/Source/Niagara/Public/NiagaraRenderer.h
++++ b/Engine/Plugins/FX/Niagara/Source/Niagara/Public/NiagaraRenderer.h
+@@
++// AVBOIT plugin hook proposal only. This patch is not applied by the plugin.
++// Goal: expose the already-built Niagara sprite mesh packet without forcing
++// external plugins to copy private NiagaraRendererSprites.cpp implementation.
++struct FNiagaraSpriteExternalDrawPacket
++{
++	const FSceneView* View = nullptr;
++	const FNiagaraSceneProxy* SceneProxy = nullptr;
++	const FMaterialRenderProxy* MaterialRenderProxy = nullptr;
++	const FVertexFactory* VertexFactory = nullptr;
++	const FMeshBatch* MeshBatch = nullptr;
++	const FNiagaraDataBuffer* ParticleData = nullptr;
++	int32 ParticleCount = 0;
++	int32 ViewIndex = INDEX_NONE;
++	bool bMaterialIsUnlit = false;
++};
++
++DECLARE_MULTICAST_DELEGATE_OneParam(FNiagaraSpriteExternalDrawPacketDelegate, const FNiagaraSpriteExternalDrawPacket&);
++
++NIAGARA_API FNiagaraSpriteExternalDrawPacketDelegate& OnNiagaraSpriteExternalDrawPacket();
+diff --git a/Engine/Plugins/FX/Niagara/Source/Niagara/Private/NiagaraRendererSprites.cpp b/Engine/Plugins/FX/Niagara/Source/Niagara/Private/NiagaraRendererSprites.cpp
+index 000000000000..000000000000 100644
+--- a/Engine/Plugins/FX/Niagara/Source/Niagara/Private/NiagaraRendererSprites.cpp
++++ b/Engine/Plugins/FX/Niagara/Source/Niagara/Private/NiagaraRendererSprites.cpp
+@@
++FNiagaraSpriteExternalDrawPacketDelegate& OnNiagaraSpriteExternalDrawPacket()
++{
++	static FNiagaraSpriteExternalDrawPacketDelegate Delegate;
++	return Delegate;
++}
+@@
+ 	// Existing private path builds ParticleSpriteRenderData, vertex factory,
+ 	// material proxy, mesh batch, and then submits Collector.AddMesh().
+ 	FMeshBatch& MeshBatch = Collector.AllocateMesh();
+ 	CreateMeshBatchForView(..., MeshBatch, ...);
++
++	if (OnNiagaraSpriteExternalDrawPacket().IsBound())
++	{
++		FNiagaraSpriteExternalDrawPacket Packet;
++		Packet.View = View;
++		Packet.SceneProxy = SceneProxy;
++		Packet.MaterialRenderProxy = MaterialRenderProxy;
++		Packet.VertexFactory = MeshBatch.VertexFactory;
++		Packet.MeshBatch = &MeshBatch;
++		Packet.ParticleData = ParticleData;
++		Packet.ParticleCount = ParticleData ? ParticleData->GetNumInstances() : 0;
++		Packet.ViewIndex = ViewIndex;
++		Packet.bMaterialIsUnlit = Material && Material->GetShadingModels().HasShadingModel(MSM_Unlit);
++		OnNiagaraSpriteExternalDrawPacket().Broadcast(Packet);
++	}
+ 	Collector.AddMesh(ViewIndex, MeshBatch);
+

@@ -6,16 +6,42 @@ param(
     [string]$Map = "/Game/NiagaraExamples/Utilities/SpriteGeneration/TestSpriteMap1",
     [int]$Width = 1920,
     [int]$Height = 1080,
+    [int]$ResolutionX = 0,
+    [int]$ResolutionY = 0,
+    [string]$TheForgeRoot = "",
     [double[]]$CaptureTimes = @(0.5, 1.0, 2.0, 4.0),
     [switch]$Clean,
     [switch]$SkipBuild,
     [switch]$Interactive,
     [switch]$RunNativeOITStudy,
     [switch]$RunCoreBufferBringup,
+    [switch]$RunCoreRefactorValidation,
+    [switch]$RunIdentityBringup,
+    [switch]$RunCoreQuad,
     [switch]$RunSingleNiagaraSprite,
     [switch]$RunTestSpriteMap1,
     [switch]$RunTintMatrix,
+    [switch]$CompareUESortedPixelsOIT,
     [switch]$CaptureBufferOverview,
+    [switch]$BufferOverview,
+    [switch]$DumpAllBuffers,
+    [switch]$CaptureGPU,
+    [switch]$GPUCapture,
+    [switch]$RequireRealVertexFactory,
+    [switch]$RequireRealMaterial,
+    [switch]$RequireParticleAttributeHash,
+    [switch]$RequireIdentityParity,
+    [switch]$RequireRealAVBOITDraw,
+    [switch]$RequireNonZeroBuffers,
+    [switch]$RequireSceneColorComposite,
+    [switch]$RequireComparisonImages,
+    [switch]$PromoteMilestone,
+    [string]$MilestoneName = "",
+    [Alias("TempResultsRoot")]
+    [string]$TempResultsRootOverride = "",
+    [Alias("KeyResultsRoot")]
+    [string]$KeyResultsRootOverride = "",
+    [switch]$SkipInteractiveOverlay,
     [switch]$NoKeyResultsPromotion,
     [int]$TimeoutSeconds = 900
 )
@@ -100,6 +126,8 @@ if ([string]::IsNullOrWhiteSpace($MaterialShaderRepo)) {
 $UERoot = Resolve-FullPath $UERoot
 $MaterialShaderRepo = Resolve-FullPath $MaterialShaderRepo
 $ContentExamplesProject = Resolve-FullPath $ContentExamplesProject
+if ($ResolutionX -gt 0) { $Width = $ResolutionX }
+if ($ResolutionY -gt 0) { $Height = $ResolutionY }
 $hostProjectRoot = Split-Path -Parent $ContentExamplesProject
 $engineExe = Join-Path $UERoot "Engine\Binaries\Win64\UnrealEditor.exe"
 $buildBat = Join-Path $UERoot "Engine\Build\BatchFiles\Build.bat"
@@ -108,10 +136,13 @@ if (-not (Test-Path $engineExe)) { throw "UnrealEditor.exe not found: $engineExe
 if (-not (Test-Path $ContentExamplesProject)) { throw "ContentExamples project missing: $ContentExamplesProject" }
 
 $stamp = (Get-Date).ToUniversalTime().ToString("yyyyMMddTHHmmssZ")
+$isUE42E = $RunCoreRefactorValidation -or $RunIdentityBringup -or $RunCoreQuad -or $CompareUESortedPixelsOIT -or $DumpAllBuffers -or $CaptureGPU -or $GPUCapture -or $RequireRealVertexFactory -or $RequireRealMaterial -or $RequireParticleAttributeHash -or $RequireIdentityParity -or $RequireRealAVBOITDraw -or $RequireNonZeroBuffers -or $RequireSceneColorComposite -or $RequireComparisonImages -or $PromoteMilestone
 $isUE42D = $RunNativeOITStudy -or $RunCoreBufferBringup -or $RunSingleNiagaraSprite -or $RunTestSpriteMap1 -or $RunTintMatrix -or $CaptureBufferOverview
-$phaseName = if ($isUE42D) { "UE4-2D-NativeOIT-Guided-AVBOIT" } else { "UE4-2C-NiagaraSprite-UnlitParity" }
-$evidenceRoot = Join-Path $MaterialShaderRepo "LocalVisualResults\TempResults\UE57\HIVE_4090x2\$phaseName\$stamp"
-$keyResultsPhaseRoot = Join-Path $MaterialShaderRepo "LocalVisualResults\KeyResults\UE57\HIVE_4090x2\$phaseName"
+$isUE42D = $isUE42D -and (-not $isUE42E)
+$phaseName = if ($isUE42E) { "UE4-2E-Real-Niagara-Sprite-AVBOIT" } elseif ($isUE42D) { "UE4-2D-NativeOIT-Guided-AVBOIT" } else { "UE4-2C-NiagaraSprite-UnlitParity" }
+$tempPhaseRoot = if ([string]::IsNullOrWhiteSpace($TempResultsRootOverride)) { Join-Path $MaterialShaderRepo "LocalVisualResults\TempResults\UE57\HIVE_4090x2\$phaseName" } else { Resolve-FullPath $TempResultsRootOverride }
+$keyResultsPhaseRoot = if ([string]::IsNullOrWhiteSpace($KeyResultsRootOverride)) { Join-Path $MaterialShaderRepo "LocalVisualResults\KeyResults\UE57\HIVE_4090x2\$phaseName" } else { Resolve-FullPath $KeyResultsRootOverride }
+$evidenceRoot = Join-Path $tempPhaseRoot $stamp
 $keyResultsRoot = Join-Path $keyResultsPhaseRoot $stamp
 if ($Clean -and (Test-Path $evidenceRoot)) {
     Remove-Item -LiteralPath $evidenceRoot -Recurse -Force
@@ -136,12 +167,25 @@ if (-not $SkipBuild) {
 }
 
 $timesArg = ($CaptureTimes | ForEach-Object { $_.ToString([Globalization.CultureInfo]::InvariantCulture) }) -join "|"
-$interactiveMode = if ($CaptureBufferOverview) { "BufferOverview" } else { "AVBOITUnlit" }
-$execCmds = if ($Interactive) {
-    "AVBOIT.Niagara.Interactive root=$evidenceRoot mode=$interactiveMode,AVBOIT.Niagara.Status"
+$interactiveMode = if ($CaptureBufferOverview -or $BufferOverview) { "BufferOverview" } elseif ($RunIdentityBringup) { "PluginIdentity" } elseif ($isUE42E) { "PluginAVBOIT" } else { "AVBOITUnlit" }
+$preExecCmds = @()
+if ($RequireRealVertexFactory) { $preExecCmds += "r.AVBOIT.Niagara.RequireRealVertexFactory 1" }
+if ($RequireRealMaterial) { $preExecCmds += "r.AVBOIT.Niagara.RequireRealMaterial 1" }
+if ($RequireParticleAttributeHash) { $preExecCmds += "r.AVBOIT.Niagara.RequireParticleAttributeHash 1" }
+if ($RequireRealAVBOITDraw) { $preExecCmds += "r.AVBOIT.Niagara.RequireRealDraw 1" }
+if ($RequireSceneColorComposite) { $preExecCmds += "r.AVBOIT.Niagara.RequireSceneColorComposite 1" }
+if ($BufferOverview) { $preExecCmds += "r.AVBOIT.BufferOverview 1" }
+if ($DumpAllBuffers) { $preExecCmds += "r.AVBOIT.Niagara.CaptureInputs 1" }
+$mainExecCmd = if ($Interactive) {
+    if ($SkipInteractiveOverlay) {
+        "AVBOIT.Niagara.Interactive root=$evidenceRoot mode=$interactiveMode,AVBOIT.Niagara.HideOverlay,AVBOIT.Niagara.Status"
+    } else {
+        "AVBOIT.Niagara.Interactive root=$evidenceRoot mode=$interactiveMode,AVBOIT.Niagara.Status"
+    }
 } else {
     "AVBOIT.Niagara.CaptureParity root=$evidenceRoot times=$timesArg map=$Map"
 }
+$execCmds = (@($preExecCmds) + @($mainExecCmd)) -join ","
 $logPath = Join-Path $evidenceRoot "UnrealEditor.log"
 $args = @(
     $ContentExamplesProject,
@@ -167,7 +211,7 @@ $windowStyle = if ($Interactive) { "Normal" } else { "Hidden" }
 $process = Start-Process -FilePath $engineExe -ArgumentList $argumentLine -PassThru -WindowStyle $windowStyle
 if ($Interactive) {
     Write-Host "$phaseName interactive session launched. Evidence/status root: $evidenceRoot"
-    Write-Host "Use console commands: AVBOIT.Niagara.Mode EngineDefault|UESortedPixelsOIT|AVBOITUnlit|BufferOverview, AVBOIT.Niagara.Status"
+    Write-Host "Use console commands: AVBOIT.Niagara.Mode EngineDefault|UESortedPixelsOIT|PluginIdentity|PluginAVBOIT|BufferOverview, AVBOIT.Niagara.Status"
     return
 }
 if (-not $process.WaitForExit($TimeoutSeconds * 1000)) {
@@ -280,6 +324,61 @@ if (Test-Path $rendererBindingPath) {
     $failures += "missing RendererBindingManifest.json"
 }
 
+if ($isUE42E) {
+    $materialContract = [pscustomobject]@{
+        GeneratedUtc = (Get-Date).ToUniversalTime().ToString("o")
+        Phase = $phaseName
+        RealMaterialRenderProxyRequired = [bool]$RequireRealMaterial
+        RealMaterialRenderProxyProven = if ($rendererBinding) { @($rendererBinding.Draws | Where-Object { $_.HasMaterialRenderProxy -eq $true }).Count -gt 0 } else { $false }
+        EnginePatchRequired = $true
+        PatchProposal = "Patches/UE57/NiagaraAVBOITMinimalHook.patch"
+        Status = "blocked-local"
+    }
+    $materialContract | ConvertTo-Json -Depth 8 | Set-Content -Path (Join-Path $evidenceRoot "MaterialContract.json") -Encoding UTF8
+
+    $sceneContract = [pscustomobject]@{
+        GeneratedUtc = (Get-Date).ToUniversalTime().ToString("o")
+        Phase = $phaseName
+        Map = $Map
+        RunMode = if ($Interactive) { "Interactive" } else { "Game" }
+        Resolution = [pscustomobject]@{ Width = $Width; Height = $Height }
+        EngineViewModeRequired = "Unlit"
+        FixedCaptureTimesSeconds = $CaptureTimes
+        RuntimeModes = @("EngineDefault", "UESortedPixelsOIT", "PluginIdentity", "PluginAVBOIT", "BufferOverview")
+        KeyResultsPromotionPolicy = "Milestone gates only; no promotion for blocked-local/foundation/probe evidence."
+    }
+    $sceneContract | ConvertTo-Json -Depth 8 | Set-Content -Path (Join-Path $evidenceRoot "SceneContract.json") -Encoding UTF8
+
+    $playerReference = [pscustomobject]@{
+        GeneratedUtc = (Get-Date).ToUniversalTime().ToString("o")
+        Source = "User-provided PlayerCameraManager0 reference"
+        RelativeLocation = [pscustomobject]@{ X = -2798.789173; Y = 36.626050; Z = 457.510006 }
+        RelativeRotation = [pscustomobject]@{ Pitch = 17.254463; Yaw = -8.130192; Roll = 0.0 }
+        RelativeScale3D = [pscustomobject]@{ X = 1.0; Y = 1.0; Z = 1.0 }
+        Mobility = "Movable"
+    }
+    $playerReference | ConvertTo-Json -Depth 8 | Set-Content -Path (Join-Path $evidenceRoot "TestSpriteMap1PlayerReference.json") -Encoding UTF8
+
+    $cameraContractRuntime = Join-Path $evidenceRoot "CameraContractRuntime.json"
+    if (Test-Path $cameraContractRuntime) {
+        Copy-Item -Path $cameraContractRuntime -Destination (Join-Path $evidenceRoot "TestSpriteMap1Camera.json") -Force
+        Copy-Item -Path $cameraContractRuntime -Destination (Join-Path $evidenceRoot "FinalCameraPOV.json") -Force
+    } else {
+        $playerReference | ConvertTo-Json -Depth 8 | Set-Content -Path (Join-Path $evidenceRoot "TestSpriteMap1Camera.json") -Encoding UTF8
+        $playerReference | ConvertTo-Json -Depth 8 | Set-Content -Path (Join-Path $evidenceRoot "FinalCameraPOV.json") -Encoding UTF8
+    }
+
+    $keyResultsIndex = [pscustomobject]@{
+        GeneratedUtc = (Get-Date).ToUniversalTime().ToString("o")
+        Phase = $phaseName
+        TempEvidenceRoot = $evidenceRoot
+        KeyResultsPromoted = $false
+        LatestUpdated = $false
+        PromotionPolicy = "PromotionDecision must be eligible before LATEST.txt is updated."
+    }
+    $keyResultsIndex | ConvertTo-Json -Depth 8 | Set-Content -Path (Join-Path $evidenceRoot "KeyResultsIndex.json") -Encoding UTF8
+}
+
 $acceptancePath = Join-Path $evidenceRoot "Acceptance.json"
 if (Test-Path $acceptancePath) {
     $acceptance = Get-Content -Raw $acceptancePath | ConvertFrom-Json
@@ -291,7 +390,7 @@ if (Test-Path $acceptancePath) {
 }
 
 $keyResultsPromoted = $false
-$promotionBlockedByPolicy = $NoKeyResultsPromotion -or $isUE42D
+$promotionBlockedByPolicy = $NoKeyResultsPromotion -or $isUE42D -or ($isUE42E -and (-not $PromoteMilestone))
 if ($process.ExitCode -eq 0 -and $failures.Count -eq 0 -and (-not $promotionBlockedByPolicy)) {
     New-Item -ItemType Directory -Force -Path $keyResultsRoot | Out-Null
     foreach ($item in @($engineFinal, $bypassFinal, $avboitFinal, $debugFinal)) {
@@ -347,22 +446,42 @@ $tempManifest = [pscustomobject]@{
     EvidenceRoot = $evidenceRoot
     RunNativeOITStudy = [bool]$RunNativeOITStudy
     RunCoreBufferBringup = [bool]$RunCoreBufferBringup
+    RunCoreRefactorValidation = [bool]$RunCoreRefactorValidation
+    RunIdentityBringup = [bool]$RunIdentityBringup
+    RunCoreQuad = [bool]$RunCoreQuad
     RunSingleNiagaraSprite = [bool]$RunSingleNiagaraSprite
     RunTestSpriteMap1 = [bool]$RunTestSpriteMap1
     RunTintMatrix = [bool]$RunTintMatrix
+    CompareUESortedPixelsOIT = [bool]$CompareUESortedPixelsOIT
     CaptureBufferOverview = [bool]$CaptureBufferOverview
+    DumpAllBuffers = [bool]$DumpAllBuffers
+    CaptureGPU = [bool]($CaptureGPU -or $GPUCapture)
+    RequireRealVertexFactory = [bool]$RequireRealVertexFactory
+    RequireRealMaterial = [bool]$RequireRealMaterial
+    RequireParticleAttributeHash = [bool]$RequireParticleAttributeHash
+    RequireRealAVBOITDraw = [bool]$RequireRealAVBOITDraw
+    RequireSceneColorComposite = [bool]$RequireSceneColorComposite
     ScreenshotCount = $pngs.Count
     Status = if ($process.ExitCode -eq 0 -and $failures.Count -eq 0) { "partial" } else { "blocked-local" }
 }
 $tempManifest | ConvertTo-Json -Depth 8 | Set-Content -Path (Join-Path $evidenceRoot "TempResultsManifest.json") -Encoding UTF8
 
+$gpuRequiredPasses = $requiredPasses
+$gpuPatchProposal = $null
+$gpuCaptureNote = "UE-4.2D foundation records required pass names, but no RenderDoc/PIX capture is produced by this script yet."
+if ($isUE42E) {
+    $gpuRequiredPasses = @("AVBOIT.Identity.Draw", "AVBOIT.Identity.Composite", "AVBOIT.Clear", "AVBOIT.SpriteSplat", "AVBOIT.Integrate", "AVBOIT.ForwardUnlit", "AVBOIT.Composite")
+    $gpuPatchProposal = "Patches/UE57/NiagaraAVBOITMinimalHook.patch"
+    $gpuCaptureNote = "UE-4.2E records the required real pass names, but PluginIdentity/PluginAVBOIT are blocked by the Niagara private draw hook gap."
+}
 $gpuCaptureManifest = [pscustomobject]@{
     GeneratedUtc = (Get-Date).ToUniversalTime().ToString("o")
     Phase = $phaseName
     RenderDocOrPIXCaptureRequired = $true
     CaptureProduced = $false
-    RequiredPasses = $requiredPasses
-    Note = "UE-4.2D foundation records required pass names, but no RenderDoc/PIX capture is produced by this script yet."
+    RequiredPasses = $gpuRequiredPasses
+    PatchProposal = $gpuPatchProposal
+    Note = $gpuCaptureNote
 }
 $gpuCaptureManifest | ConvertTo-Json -Depth 8 | Set-Content -Path (Join-Path $evidenceRoot "GPUCaptureManifest.json") -Encoding UTF8
 
@@ -373,7 +492,7 @@ $promotionDecision = [pscustomobject]@{
     KeyResultsPromoted = $keyResultsPromoted
     PolicyBlocked = [bool]$promotionBlockedByPolicy
     Failures = $failures
-    Reason = if ($isUE42D) { "UE-4.2D hard gates require real Niagara AVBOIT draw, SceneColor composite, and GPU readback proof before KeyResults promotion." } else { "Promotion withheld only when failures or -NoKeyResultsPromotion are present." }
+    Reason = if ($isUE42E) { "UE-4.2E hard gates require real Niagara sprite VF/material draw, particle attribute hash, SceneColor composite, nonzero readback, comparison images, and GPU capture proof before KeyResults promotion." } elseif ($isUE42D) { "UE-4.2D hard gates require real Niagara AVBOIT draw, SceneColor composite, and GPU readback proof before KeyResults promotion." } else { "Promotion withheld only when failures or -NoKeyResultsPromotion are present." }
 }
 $promotionDecision | ConvertTo-Json -Depth 8 | Set-Content -Path (Join-Path $evidenceRoot "PromotionDecision.json") -Encoding UTF8
 
@@ -388,7 +507,7 @@ $summary = [pscustomobject]@{
     ScreenshotCount = $pngs.Count
     KeyResultsPromoted = $keyResultsPromoted
     Status = if ($process.ExitCode -eq 0 -and $failures.Count -eq 0) { "partial" } else { "blocked-local" }
-    Note = if ($isUE42D) { "UE-4.2D KeyResults promotion is intentionally blocked until real AVBOIT draw, SceneColor composite, and GPU readback gates pass." } else { "The runtime command writes Acceptance.json. SUCCESS/passed-local is intentionally withheld until all UE-4.2C gates pass." }
+    Note = if ($isUE42E) { "UE-4.2E KeyResults promotion is intentionally blocked until the real Niagara draw bridge, shared AVBOIT resources, SceneColor composite, GPU readback, and comparison gates pass." } elseif ($isUE42D) { "UE-4.2D KeyResults promotion is intentionally blocked until real AVBOIT draw, SceneColor composite, and GPU readback gates pass." } else { "The runtime command writes Acceptance.json. SUCCESS/passed-local is intentionally withheld until all UE-4.2C gates pass." }
 }
 $summary | ConvertTo-Json -Depth 8 | Set-Content -Path (Join-Path $evidenceRoot "RunSummary.json") -Encoding UTF8
 if ($keyResultsPromoted) {

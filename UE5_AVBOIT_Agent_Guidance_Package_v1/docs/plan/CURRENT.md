@@ -15,20 +15,20 @@ MaterialShaderExample_AVBOIT
 Latest mirrored checkpoint:
 
 ```text
-docs/checkpoints/archive/CHECKPOINT-0044-20260630T171030Z-UE-4-2D-NATIVE-OIT-GUIDED-AVBOIT-FOUNDATION.md
+docs/checkpoints/archive/CHECKPOINT-0045-20260630T190206Z-UE-4-2E-REAL-NIAGARA-SPRITE-DRAW-BRIDGE.md
 ```
 
 Current mirrored status:
 
 ```text
-partial
+blocked-local
 ```
 
-UE-4.2D is a Plugin-first Native OIT-Guided AVBOIT foundation stage. It records
-the actual current state, blocks old fallback tint/default Niagara draw evidence
-from being treated as AVBOIT success, and withholds KeyResults promotion until
-real Niagara AVBOIT draw packets, SceneColor composite, and GPU readback gates
-are proven.
+UE-4.2E is a Plugin-first real Niagara Sprite draw bridge and shared AVBOIT core
+stage. It adds shared contracts, runtime modes, real-resource gate CVars, and a
+minimal UE5.7 Niagara hook proposal, while explicitly blocking KeyResults
+promotion until real VF/material/particle-attribute hash/SceneColor composite
+and GPU evidence gates pass.
 
-Do not mark `SUCCESS`, `COMPLETED`, or `passed-local` for UE-4.2D in the current
+Do not mark `SUCCESS`, `COMPLETED`, or `passed-local` for UE-4.2E in the current
 state.

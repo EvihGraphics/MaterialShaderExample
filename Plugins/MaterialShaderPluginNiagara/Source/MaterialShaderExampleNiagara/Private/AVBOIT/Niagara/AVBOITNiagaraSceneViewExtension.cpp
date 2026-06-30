@@ -79,7 +79,20 @@ void FAVBOITNiagaraSceneViewExtension::PrePostProcessPass_RenderThread(
 	{
 		return;
 	}
-	if (AVBOITNiagara::ShouldRequireRealDraw() && !Stats.bRealAVBOITDraw)
+
+	bool bAllDrawsHaveVertexFactory = Stats.SpriteDrawCount > 0;
+	bool bAllDrawsHaveMaterialRenderProxy = Stats.SpriteDrawCount > 0;
+	for (const FAVBOITNiagaraSpriteDrawData& Draw : FAVBOITNiagaraSceneData::Get().GetLastCompletedDraws())
+	{
+		bAllDrawsHaveVertexFactory &= Draw.bHasVertexFactoryContract;
+		bAllDrawsHaveMaterialRenderProxy &= Draw.bHasMaterialRenderProxy;
+	}
+
+	if ((AVBOITNiagara::ShouldRequireRealDraw() && !Stats.bRealAVBOITDraw) ||
+		(AVBOITNiagara::ShouldRequireRealVertexFactory() && !bAllDrawsHaveVertexFactory) ||
+		(AVBOITNiagara::ShouldRequireRealMaterial() && !bAllDrawsHaveMaterialRenderProxy) ||
+		(AVBOITNiagara::ShouldRequireParticleAttributeHash() && !Stats.ParticleAttributeHash.bDeterministicStateVerified) ||
+		(AVBOITNiagara::ShouldRequireSceneColorComposite() && !Stats.bCompositeWritesSceneColor))
 	{
 		return;
 	}
