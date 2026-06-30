@@ -8,6 +8,29 @@
 #include "NiagaraSceneProxy.h"
 #include "SceneView.h"
 
+namespace
+{
+	uint32 HashDrawPacketField(uint32 Seed, const FString& Value)
+	{
+		return HashCombine(Seed, GetTypeHash(Value));
+	}
+
+	uint32 HashDrawPacketField(uint32 Seed, uint32 Value)
+	{
+		return HashCombine(Seed, Value);
+	}
+
+	uint32 HashDrawPacketField(uint32 Seed, int32 Value)
+	{
+		return HashCombine(Seed, static_cast<uint32>(Value));
+	}
+
+	uint32 HashDrawPacketFloat(uint32 Seed, float Value)
+	{
+		return HashCombine(Seed, static_cast<uint32>(FMath::RoundToInt(Value * 1000.0f)));
+	}
+}
+
 FNiagaraRendererAVBOITSprites::FNiagaraRendererAVBOITSprites(
 	ERHIFeatureLevel::Type FeatureLevel,
 	const UNiagaraAVBOITSpriteRendererProperties* InProps,
@@ -66,13 +89,26 @@ void FNiagaraRendererAVBOITSprites::GetDynamicMeshElements(
 	DrawData.bSubImageBlend = bSubImageBlend;
 	DrawData.bTintEnabled = AVBOITNiagara::IsTintEnabled();
 	DrawData.TintColor = AVBOITNiagara::GetTintColor();
-	DrawData.bTintVisibleFallbackDrawUsed = DrawData.bTintEnabled;
-	DrawData.bDefaultDrawSuppressed = !DrawData.bTintVisibleFallbackDrawUsed;
+	DrawData.bTintVisibleFallbackDrawUsed = false;
+	DrawData.bDefaultDrawSuppressed = true;
+	DrawData.bDefaultNiagaraFallbackUsed = false;
+	DrawData.bHasParticleBuffer = ParticleData != nullptr;
+	DrawData.bHasMaterialContract = !MaterialPath.IsEmpty();
+	DrawData.bHasVertexFactoryContract = false;
+	DrawData.bRealAVBOITDrawPacket = false;
+	DrawData.KnownBlockingApi = TEXT("Plugin-first UE-4.2D bridge has Niagara particle counts and renderer/material metadata, but no public Niagara sprite material/VF draw packet hook yet.");
+
+	uint32 PacketHash = 0;
+	PacketHash = HashDrawPacketField(PacketHash, DrawData.SystemName);
+	PacketHash = HashDrawPacketField(PacketHash, DrawData.MaterialPath);
+	PacketHash = HashDrawPacketField(PacketHash, DrawData.ParticleCount);
+	PacketHash = HashDrawPacketField(PacketHash, DrawData.FacingMode);
+	PacketHash = HashDrawPacketField(PacketHash, DrawData.Alignment);
+	PacketHash = HashDrawPacketField(PacketHash, DrawData.SortMode);
+	PacketHash = HashDrawPacketFloat(PacketHash, DrawData.SubImageSize.X);
+	PacketHash = HashDrawPacketFloat(PacketHash, DrawData.SubImageSize.Y);
+	DrawData.ParticleStateHash = PacketHash;
+	DrawData.ParticleStateHashString = FString::Printf(TEXT("0x%08x"), PacketHash);
 
 	FAVBOITNiagaraSceneData::Get().RegisterDraw_RenderThread(DrawData);
-
-	if (DrawData.bTintVisibleFallbackDrawUsed)
-	{
-		FNiagaraRendererSprites::GetDynamicMeshElements(Views, ViewFamily, VisibilityMap, Collector, SceneProxy);
-	}
 }

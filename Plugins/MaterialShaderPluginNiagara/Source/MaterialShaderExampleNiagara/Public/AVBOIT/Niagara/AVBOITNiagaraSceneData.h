@@ -20,7 +20,37 @@ struct FAVBOITNiagaraSpriteDrawData
 	bool bDefaultDrawSuppressed = false;
 	bool bTintEnabled = false;
 	bool bTintVisibleFallbackDrawUsed = false;
+	bool bDefaultNiagaraFallbackUsed = false;
+	bool bRealAVBOITDrawPacket = false;
+	bool bHasParticleBuffer = false;
+	bool bHasMaterialContract = false;
+	bool bHasVertexFactoryContract = false;
+	uint32 ParticleStateHash = 0;
+	FString ParticleStateHashString;
+	FString KnownBlockingApi;
 	FLinearColor TintColor = FLinearColor::White;
+};
+
+struct FAVBOITBufferReadbackStats
+{
+	bool bFrameGraphResourcesAllocated = false;
+	bool bCompositeWritesSceneColor = false;
+	bool bExtinctionNonZero = false;
+	bool bTransmittanceBelowOne = false;
+	bool bAccumulationAlphaNonZero = false;
+	int32 ExtinctionNonZeroVoxelCount = 0;
+	float TransmittanceMinimum = 1.0f;
+	float AccumulationAlphaSum = 0.0f;
+	int32 CompositeChangedPixelCount = 0;
+};
+
+struct FAVBOITParticleStateHash
+{
+	uint32 Hash = 0;
+	FString HashString;
+	int32 DrawCount = 0;
+	int32 ParticleCount = 0;
+	bool bDeterministicStateVerified = false;
 };
 
 struct FAVBOITNiagaraFrameStats
@@ -33,6 +63,13 @@ struct FAVBOITNiagaraFrameStats
 	bool bIntegratePassScheduled = false;
 	bool bForwardUnlitPassScheduled = false;
 	bool bCompositePassScheduled = false;
+	bool bBufferOverviewPassScheduled = false;
+	bool bRealAVBOITDraw = false;
+	bool bTintConsumedInForwardShader = false;
+	bool bDefaultNiagaraFallbackUsed = false;
+	bool bCompositeWritesSceneColor = false;
+	FAVBOITBufferReadbackStats BufferReadbackStats;
+	FAVBOITParticleStateHash ParticleStateHash;
 };
 
 class MATERIALSHADEREXAMPLENIAGARA_API FAVBOITNiagaraSceneData
@@ -43,7 +80,8 @@ public:
 	void Reset_RenderThread();
 	void BeginFrame_RenderThread(uint32 InFrameNumber);
 	void RegisterDraw_RenderThread(const FAVBOITNiagaraSpriteDrawData& DrawData);
-	void MarkPassesScheduled_RenderThread();
+	void MarkPassesScheduled_RenderThread(bool bCompositeWritesSceneColor, bool bBufferOverviewScheduled, bool bTintConsumedInForwardShader);
+	void MarkFrameGraphResources_RenderThread(const FAVBOITBufferReadbackStats& Stats);
 
 	FAVBOITNiagaraFrameStats GetLastCompletedStats() const;
 	TArray<FAVBOITNiagaraSpriteDrawData> GetLastCompletedDraws() const;

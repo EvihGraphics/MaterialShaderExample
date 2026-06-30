@@ -56,11 +56,20 @@ void FAVBOITNiagaraSceneData::RegisterDraw_RenderThread(const FAVBOITNiagaraSpri
 	ActiveDraws.Add(DrawData);
 	ActiveStats.SpriteDrawCount++;
 	ActiveStats.ParticleCount += static_cast<int32>(DrawData.ParticleCount);
+	ActiveStats.bRealAVBOITDraw |= DrawData.bRealAVBOITDrawPacket;
+	ActiveStats.bDefaultNiagaraFallbackUsed |= DrawData.bDefaultNiagaraFallbackUsed || DrawData.bTintVisibleFallbackDrawUsed;
+	ActiveStats.ParticleStateHash.Hash = HashCombine(ActiveStats.ParticleStateHash.Hash, DrawData.ParticleStateHash);
+	ActiveStats.ParticleStateHash.DrawCount = ActiveStats.SpriteDrawCount;
+	ActiveStats.ParticleStateHash.ParticleCount = ActiveStats.ParticleCount;
+	ActiveStats.ParticleStateHash.HashString = FString::Printf(TEXT("0x%08x"), ActiveStats.ParticleStateHash.Hash);
 	LastCompletedStats = ActiveStats;
 	LastCompletedDraws = ActiveDraws;
 }
 
-void FAVBOITNiagaraSceneData::MarkPassesScheduled_RenderThread()
+void FAVBOITNiagaraSceneData::MarkPassesScheduled_RenderThread(
+	bool bCompositeWritesSceneColor,
+	bool bBufferOverviewScheduled,
+	bool bTintConsumedInForwardShader)
 {
 	check(IsInRenderingThread() || IsInParallelRenderingThread());
 
@@ -70,6 +79,19 @@ void FAVBOITNiagaraSceneData::MarkPassesScheduled_RenderThread()
 	ActiveStats.bIntegratePassScheduled = true;
 	ActiveStats.bForwardUnlitPassScheduled = true;
 	ActiveStats.bCompositePassScheduled = true;
+	ActiveStats.bBufferOverviewPassScheduled = bBufferOverviewScheduled;
+	ActiveStats.bCompositeWritesSceneColor = bCompositeWritesSceneColor;
+	ActiveStats.bTintConsumedInForwardShader = bTintConsumedInForwardShader;
+	LastCompletedStats = ActiveStats;
+	LastCompletedDraws = ActiveDraws;
+}
+
+void FAVBOITNiagaraSceneData::MarkFrameGraphResources_RenderThread(const FAVBOITBufferReadbackStats& Stats)
+{
+	check(IsInRenderingThread() || IsInParallelRenderingThread());
+
+	FScopeLock Lock(&CriticalSection);
+	ActiveStats.BufferReadbackStats = Stats;
 	LastCompletedStats = ActiveStats;
 	LastCompletedDraws = ActiveDraws;
 }

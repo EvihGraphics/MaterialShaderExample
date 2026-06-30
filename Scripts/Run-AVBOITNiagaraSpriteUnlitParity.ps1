@@ -10,6 +10,13 @@ param(
     [switch]$Clean,
     [switch]$SkipBuild,
     [switch]$Interactive,
+    [switch]$RunNativeOITStudy,
+    [switch]$RunCoreBufferBringup,
+    [switch]$RunSingleNiagaraSprite,
+    [switch]$RunTestSpriteMap1,
+    [switch]$RunTintMatrix,
+    [switch]$CaptureBufferOverview,
+    [switch]$NoKeyResultsPromotion,
     [int]$TimeoutSeconds = 900
 )
 
@@ -101,8 +108,10 @@ if (-not (Test-Path $engineExe)) { throw "UnrealEditor.exe not found: $engineExe
 if (-not (Test-Path $ContentExamplesProject)) { throw "ContentExamples project missing: $ContentExamplesProject" }
 
 $stamp = (Get-Date).ToUniversalTime().ToString("yyyyMMddTHHmmssZ")
-$evidenceRoot = Join-Path $MaterialShaderRepo "LocalVisualResults\TempResults\UE57\HIVE_4090x2\UE4-2C-NiagaraSprite-UnlitParity\$stamp"
-$keyResultsPhaseRoot = Join-Path $MaterialShaderRepo "LocalVisualResults\KeyResults\UE57\HIVE_4090x2\UE4-2C-NiagaraSprite-UnlitParity"
+$isUE42D = $RunNativeOITStudy -or $RunCoreBufferBringup -or $RunSingleNiagaraSprite -or $RunTestSpriteMap1 -or $RunTintMatrix -or $CaptureBufferOverview
+$phaseName = if ($isUE42D) { "UE4-2D-NativeOIT-Guided-AVBOIT" } else { "UE4-2C-NiagaraSprite-UnlitParity" }
+$evidenceRoot = Join-Path $MaterialShaderRepo "LocalVisualResults\TempResults\UE57\HIVE_4090x2\$phaseName\$stamp"
+$keyResultsPhaseRoot = Join-Path $MaterialShaderRepo "LocalVisualResults\KeyResults\UE57\HIVE_4090x2\$phaseName"
 $keyResultsRoot = Join-Path $keyResultsPhaseRoot $stamp
 if ($Clean -and (Test-Path $evidenceRoot)) {
     Remove-Item -LiteralPath $evidenceRoot -Recurse -Force
@@ -127,8 +136,9 @@ if (-not $SkipBuild) {
 }
 
 $timesArg = ($CaptureTimes | ForEach-Object { $_.ToString([Globalization.CultureInfo]::InvariantCulture) }) -join "|"
+$interactiveMode = if ($CaptureBufferOverview) { "BufferOverview" } else { "AVBOITUnlit" }
 $execCmds = if ($Interactive) {
-    "AVBOIT.Niagara.Interactive root=$evidenceRoot mode=AVBOITUnlit,AVBOIT.Niagara.Status"
+    "AVBOIT.Niagara.Interactive root=$evidenceRoot mode=$interactiveMode,AVBOIT.Niagara.Status"
 } else {
     "AVBOIT.Niagara.CaptureParity root=$evidenceRoot times=$timesArg map=$Map"
 }
@@ -156,8 +166,8 @@ $argumentLine = ($args | ForEach-Object { Quote-ProcessArgument $_ }) -join " "
 $windowStyle = if ($Interactive) { "Normal" } else { "Hidden" }
 $process = Start-Process -FilePath $engineExe -ArgumentList $argumentLine -PassThru -WindowStyle $windowStyle
 if ($Interactive) {
-    Write-Host "UE-4.2C interactive session launched. Evidence/status root: $evidenceRoot"
-    Write-Host "Use console commands: AVBOIT.Niagara.ToggleDefaultPlugin, AVBOIT.Niagara.Mode EngineDefault, AVBOIT.Niagara.Mode AVBOITUnlit, AVBOIT.Niagara.Status"
+    Write-Host "$phaseName interactive session launched. Evidence/status root: $evidenceRoot"
+    Write-Host "Use console commands: AVBOIT.Niagara.Mode EngineDefault|UESortedPixelsOIT|AVBOITUnlit|BufferOverview, AVBOIT.Niagara.Status"
     return
 }
 if (-not $process.WaitForExit($TimeoutSeconds * 1000)) {
@@ -255,6 +265,17 @@ if (Test-Path $rendererBindingPath) {
             $failures += "missing RDG pass $pass"
         }
     }
+    if ($isUE42D) {
+        if ($rendererBinding.RealAVBOITDraw -ne $true) {
+            $failures += "UE-4.2D real AVBOIT draw packet is not proven"
+        }
+        if ($rendererBinding.CompositeWritesSceneColor -ne $true) {
+            $failures += "UE-4.2D composite does not write SceneColor"
+        }
+        if ($rendererBinding.DefaultNiagaraFallbackUsed -eq $true) {
+            $failures += "UE-4.2D default Niagara fallback draw was used"
+        }
+    }
 } else {
     $failures += "missing RendererBindingManifest.json"
 }
@@ -270,7 +291,8 @@ if (Test-Path $acceptancePath) {
 }
 
 $keyResultsPromoted = $false
-if ($process.ExitCode -eq 0 -and $failures.Count -eq 0) {
+$promotionBlockedByPolicy = $NoKeyResultsPromotion -or $isUE42D
+if ($process.ExitCode -eq 0 -and $failures.Count -eq 0 -and (-not $promotionBlockedByPolicy)) {
     New-Item -ItemType Directory -Force -Path $keyResultsRoot | Out-Null
     foreach ($item in @($engineFinal, $bypassFinal, $avboitFinal, $debugFinal)) {
         if ($item) {
@@ -319,8 +341,45 @@ if ($process.ExitCode -eq 0 -and $failures.Count -eq 0) {
     $keyResultsPromoted = $true
 }
 
+$tempManifest = [pscustomobject]@{
+    GeneratedUtc = (Get-Date).ToUniversalTime().ToString("o")
+    Phase = $phaseName
+    EvidenceRoot = $evidenceRoot
+    RunNativeOITStudy = [bool]$RunNativeOITStudy
+    RunCoreBufferBringup = [bool]$RunCoreBufferBringup
+    RunSingleNiagaraSprite = [bool]$RunSingleNiagaraSprite
+    RunTestSpriteMap1 = [bool]$RunTestSpriteMap1
+    RunTintMatrix = [bool]$RunTintMatrix
+    CaptureBufferOverview = [bool]$CaptureBufferOverview
+    ScreenshotCount = $pngs.Count
+    Status = if ($process.ExitCode -eq 0 -and $failures.Count -eq 0) { "partial" } else { "blocked-local" }
+}
+$tempManifest | ConvertTo-Json -Depth 8 | Set-Content -Path (Join-Path $evidenceRoot "TempResultsManifest.json") -Encoding UTF8
+
+$gpuCaptureManifest = [pscustomobject]@{
+    GeneratedUtc = (Get-Date).ToUniversalTime().ToString("o")
+    Phase = $phaseName
+    RenderDocOrPIXCaptureRequired = $true
+    CaptureProduced = $false
+    RequiredPasses = $requiredPasses
+    Note = "UE-4.2D foundation records required pass names, but no RenderDoc/PIX capture is produced by this script yet."
+}
+$gpuCaptureManifest | ConvertTo-Json -Depth 8 | Set-Content -Path (Join-Path $evidenceRoot "GPUCaptureManifest.json") -Encoding UTF8
+
+$promotionDecision = [pscustomobject]@{
+    GeneratedUtc = (Get-Date).ToUniversalTime().ToString("o")
+    Phase = $phaseName
+    PromotionEligible = $false
+    KeyResultsPromoted = $keyResultsPromoted
+    PolicyBlocked = [bool]$promotionBlockedByPolicy
+    Failures = $failures
+    Reason = if ($isUE42D) { "UE-4.2D hard gates require real Niagara AVBOIT draw, SceneColor composite, and GPU readback proof before KeyResults promotion." } else { "Promotion withheld only when failures or -NoKeyResultsPromotion are present." }
+}
+$promotionDecision | ConvertTo-Json -Depth 8 | Set-Content -Path (Join-Path $evidenceRoot "PromotionDecision.json") -Encoding UTF8
+
 $summary = [pscustomobject]@{
     GeneratedUtc = (Get-Date).ToUniversalTime().ToString("o")
+    Phase = $phaseName
     EvidenceRoot = $evidenceRoot
     KeyResultsRoot = if ($keyResultsPromoted) { $keyResultsRoot } else { $null }
     UnrealExitCode = $process.ExitCode
@@ -329,7 +388,7 @@ $summary = [pscustomobject]@{
     ScreenshotCount = $pngs.Count
     KeyResultsPromoted = $keyResultsPromoted
     Status = if ($process.ExitCode -eq 0 -and $failures.Count -eq 0) { "partial" } else { "blocked-local" }
-    Note = "The runtime command writes Acceptance.json. SUCCESS/passed-local is intentionally withheld until all UE-4.2C gates pass."
+    Note = if ($isUE42D) { "UE-4.2D KeyResults promotion is intentionally blocked until real AVBOIT draw, SceneColor composite, and GPU readback gates pass." } else { "The runtime command writes Acceptance.json. SUCCESS/passed-local is intentionally withheld until all UE-4.2C gates pass." }
 }
 $summary | ConvertTo-Json -Depth 8 | Set-Content -Path (Join-Path $evidenceRoot "RunSummary.json") -Encoding UTF8
 if ($keyResultsPromoted) {
@@ -337,8 +396,12 @@ if ($keyResultsPromoted) {
 }
 
 if ($process.ExitCode -ne 0 -or $failures.Count -gt 0) {
-    throw "UE-4.2C parity run failed. Evidence root: $evidenceRoot"
+    throw "$phaseName run failed. Evidence root: $evidenceRoot"
 }
 
-Write-Host "UE-4.2C parity evidence root: $evidenceRoot"
-Write-Host "UE-4.2C key results root: $keyResultsRoot"
+Write-Host "$phaseName evidence root: $evidenceRoot"
+if ($keyResultsPromoted) {
+    Write-Host "$phaseName key results root: $keyResultsRoot"
+} else {
+    Write-Host "$phaseName key results promotion withheld."
+}

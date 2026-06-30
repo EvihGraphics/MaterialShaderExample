@@ -46,6 +46,28 @@ namespace
 		TEXT("Persist captured Niagara input summaries with the validation evidence."),
 		ECVF_Default);
 
+	TAutoConsoleVariable<int32> CVarAVBOITNiagaraBufferOverview(
+		TEXT("r.AVBOIT.Niagara.BufferOverview"),
+		0,
+		TEXT("Enable AVBOIT Niagara buffer overview mode.\n")
+		TEXT(" 0: Normal AVBOIT Niagara mode\n")
+		TEXT(" 1: Show/read AVBOIT Niagara intermediate resource overview evidence\n"),
+		ECVF_RenderThreadSafe);
+
+	TAutoConsoleVariable<int32> CVarAVBOITNiagaraDebugSlice(
+		TEXT("r.AVBOIT.Niagara.DebugSlice"),
+		0,
+		TEXT("AVBOIT Niagara debug slice index used by buffer overview/readback paths."),
+		ECVF_RenderThreadSafe);
+
+	TAutoConsoleVariable<int32> CVarAVBOITNiagaraRequireRealDraw(
+		TEXT("r.AVBOIT.Niagara.RequireRealDraw"),
+		0,
+		TEXT("Require a real AVBOIT Niagara draw packet before scheduling UE-4.2D passes.\n")
+		TEXT(" 0: Allow foundation/resource evidence\n")
+		TEXT(" 1: Block fallback-only/foundation-only passes\n"),
+		ECVF_RenderThreadSafe);
+
 	TAutoConsoleVariable<int32> CVarAVBOITNiagaraTintEnable(
 		TEXT("r.AVBOIT.Niagara.Tint.Enable"),
 		0,
@@ -118,6 +140,21 @@ namespace AVBOITNiagara
 	bool ShouldCaptureInputs()
 	{
 		return CVarAVBOITNiagaraCaptureInputs.GetValueOnAnyThread() > 0;
+	}
+
+	bool IsBufferOverviewEnabled()
+	{
+		return CVarAVBOITNiagaraBufferOverview.GetValueOnAnyThread() > 0;
+	}
+
+	int32 GetDebugSlice()
+	{
+		return CVarAVBOITNiagaraDebugSlice.GetValueOnAnyThread();
+	}
+
+	bool ShouldRequireRealDraw()
+	{
+		return CVarAVBOITNiagaraRequireRealDraw.GetValueOnAnyThread() > 0;
 	}
 
 	bool IsTintEnabled()

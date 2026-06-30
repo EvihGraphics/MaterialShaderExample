@@ -10,6 +10,9 @@ namespace AVBOITNiagara
 	bool IsDebugEnabled();
 	bool ShouldValidateBindings();
 	bool ShouldCaptureInputs();
+	bool IsBufferOverviewEnabled();
+	int32 GetDebugSlice();
+	bool ShouldRequireRealDraw();
 	bool IsTintEnabled();
 	FLinearColor GetTintColor();
 	void SetTintEnabled(bool bEnabled);

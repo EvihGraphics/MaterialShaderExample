@@ -15,7 +15,7 @@ MaterialShaderExample_AVBOIT
 Latest mirrored checkpoint:
 
 ```text
-docs/checkpoints/archive/CHECKPOINT-0043-20260630T065215Z-UE-4-2C-NIAGARA-SPRITE-UNLIT-CORRECTION.md
+docs/checkpoints/archive/CHECKPOINT-0044-20260630T171030Z-UE-4-2D-NATIVE-OIT-GUIDED-AVBOIT-FOUNDATION.md
 ```
 
 Current mirrored status:
@@ -24,37 +24,11 @@ Current mirrored status:
 partial
 ```
 
-UE-4.2C Niagara Sprite Unlit Parity now has corrected Engine Unlit evidence.
-The old `20260630T050908Z` visual evidence is superseded because it did not
-record or verify UE Engine `ViewMode=Unlit`.
+UE-4.2D is a Plugin-first Native OIT-Guided AVBOIT foundation stage. It records
+the actual current state, blocks old fallback tint/default Niagara draw evidence
+from being treated as AVBOIT success, and withholds KeyResults promotion until
+real Niagara AVBOIT draw packets, SceneColor composite, and GPU readback gates
+are proven.
 
-The corrected runtime TestSpriteMap1 `-game` capture uses the fixed Player
-camera, verifies effective Engine Unlit show flags, records per-capture Unlit
-contracts, and produces full TempResults under:
-
-```text
-LocalVisualResults/TempResults/UE57/HIVE_4090x2/UE4-2C-NiagaraSprite-UnlitParity/20260630T064800Z
-```
-
-The final `4.0s` visual set and key JSON evidence are promoted under:
-
-```text
-LocalVisualResults/KeyResults/UE57/HIVE_4090x2/UE4-2C-NiagaraSprite-UnlitParity/20260630T064800Z
-```
-
-The current status remains `partial`. Do not mark `SUCCESS`, `COMPLETED`, or
-`passed-local` until bypass pixel identity, material equivalence, and
-same-particle-state proof are implemented and all UE-4.2C hard gates pass.
-
-Interactive switch commands are available in game mode:
-
-```text
-AVBOIT.Niagara.Mode EngineDefault
-AVBOIT.Niagara.Mode AVBOITUnlit
-AVBOIT.Niagara.ToggleDefaultPlugin
-AVBOIT.Niagara.Status
-```
-
-Machine-local UE paths are not package-level truth. Every machine must
-rediscover its UE root and record `Build.version` before producing build/run
-evidence.
+Do not mark `SUCCESS`, `COMPLETED`, or `passed-local` for UE-4.2D in the current
+state.

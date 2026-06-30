@@ -12,3 +12,10 @@
 | UE-7 | Card input | 插件私有 Card 接口稳定 |
 
 阶段切换必须由 checkpoint 明确确认退出条件。
+
+## UE-4.2D Status Addendum
+
+- 2026-06-30T17:10:30Z: UE-4.2D Native OIT-Guided AVBOIT Foundation is `partial`.
+- Root recovery pointer: `docs/plan/CURRENT.md`.
+- Latest checkpoint: `CHECKPOINT-0044-20260630T171030Z-UE-4-2D-NATIVE-OIT-GUIDED-AVBOIT-FOUNDATION.md`.
+- KeyResults promotion remains blocked until real Niagara AVBOIT draw, SceneColor composite, and GPU readback gates pass.
