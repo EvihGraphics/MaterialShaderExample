@@ -28,7 +28,7 @@ UE-2.1 build, determinism, Editor, PIE, Standalone, Resize, lifecycle,
 original-regression, and accepted log-scan evidence is present under:
 
 ```text
-LocalVisualResults/UE57/HIVE-4090X2/UE2-Closeout
+LocalVisualResults/KeyResults/UE2
 ```
 
 External GPU capture remains blocked. UE-2 must not be marked `PASSED` until

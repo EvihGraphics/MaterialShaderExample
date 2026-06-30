@@ -104,7 +104,7 @@ The Forge Release 1.58
 - RGB Ground Truth；
 - 六种 Draw Order；
 - 视觉目录：
-  `LocalVisualResults/HIVE_4090x2/VisualResults/15_Transparency/Screenshots/`；
+  `LocalVisualResults/KeyResults/`；
 - `UT_15_Transparency_DX12_Mode_0.png`；
 - `UT_15_Transparency_DX12_Mode_5.png`。
 

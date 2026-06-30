@@ -26,7 +26,7 @@ Agent 不得只相信上述 SHA。首次执行必须 fetch 远端并归档当前
 - AVBOIT Clear / Build / Integration / Shade / Resolve；
 - 深度线性化、slice 映射、`volumeMaxZ`；
 - Extinction / Transmittance 资源；
-- `LocalVisualResults/HIVE_4090x2/VisualResults/15_Transparency/Screenshots/`；
+- `LocalVisualResults/KeyResults/`；
 - `UT_15_Transparency_DX12_Mode_0.png`；
 - `UT_15_Transparency_DX12_Mode_5.png`；
 - RGB Ground Truth 与 Draw Order 测试。

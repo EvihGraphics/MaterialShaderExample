@@ -4,7 +4,7 @@
 1. **场景与相机对齐**：使用 FAVBOITTheForgeSceneBuilder 在 UE 编辑器中依据 TheForge15TransparencyScene.json 自动建立与 The Forge 15_Transparency 严格对应的节点、位置和材质。
 2. **P2.6T 算法契约迁移**：在 Raster Base 的 AVBOITRasterSplat.usf、AVBOITClear.usf、AVBOITIntegrate.usf 与 AVBOITRasterComposite.usf 中完整还原了 The Forge 的降采样 (DownsampleFactor = 8) 积分契约。将 ExtinctionVolume 与 TransmittanceVolume 分辨率映射为 VolumeResolution，并实现了平均吸光度计算逻辑 (Extinction /= CellSampleCount)。
 3. **构建与运行**：项目 MaterialShaderDemoEditor 成功使用 UE 5.7 工具链编译通过（Exit Code 0）。
-4. **自动化验证证据**：成功执行了 AVBOIT.Parity Automation Test。截图证据生成至 LocalVisualResults/UE57/HIVE_4090x2/UE4-2B-TheForgeParity/TheForgeParity.png。由于引擎间光照/环境差异，当前 PSNR 仅为结构性对比基准 (~4.06)，符合当前开发阶段预期。
+4. **自动化验证证据**：成功执行了 AVBOIT.Parity Automation Test。截图证据生成至 LocalVisualResults/KeyResults/UE4-2B-TheForgeParity/TheForgeParity.png。由于引擎间光照/环境差异，当前 PSNR 仅为结构性对比基准 (~4.06)，符合当前开发阶段预期。
 
 ## 二、迁移的技术细节
 - **UAV 分辨率管理**：在 AVBOITRasterRenderer.cpp 中修正了 ExtinctionVolume 和 TransmittanceVolume 的空间分配策略，使其严格遵循 SplatExtent，避免了越界（OOB）显存访问。
