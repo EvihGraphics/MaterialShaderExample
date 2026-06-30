@@ -1,0 +1,8 @@
+﻿## AVBOIT开发...origin/AVBOIT开发
+ M Plugins/MaterialShaderPluginNiagara/Source/MaterialShaderExampleNiagara/MaterialShaderExampleNiagara.Build.cs
+ M Plugins/MaterialShaderPluginNiagara/Source/MaterialShaderExampleNiagara/Private/AVBOIT/Niagara/AVBOITNiagaraCVars.cpp
+ M Plugins/MaterialShaderPluginNiagara/Source/MaterialShaderExampleNiagara/Private/AVBOIT/Niagara/AVBOITNiagaraCVars.h
+ M Plugins/MaterialShaderPluginNiagara/Source/MaterialShaderExampleNiagara/Private/AVBOIT/Niagara/AVBOITNiagaraRenderer.cpp
+ M Plugins/MaterialShaderPluginNiagara/Source/MaterialShaderExampleNiagara/Private/AVBOIT/Niagara/AVBOITNiagaraValidationCommands.cpp
+ M Plugins/MaterialShaderPluginNiagara/Source/MaterialShaderExampleNiagara/Public/AVBOIT/Niagara/AVBOITNiagaraSceneData.h
+?? LocalVisualResults/UE57/
