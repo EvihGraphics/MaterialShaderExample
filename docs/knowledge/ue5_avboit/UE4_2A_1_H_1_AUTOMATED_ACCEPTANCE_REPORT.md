@@ -1,1 +1,0 @@
-﻿# Placeholder for UE4_2A_1_H_1_AUTOMATED_ACCEPTANCE_REPORT.md

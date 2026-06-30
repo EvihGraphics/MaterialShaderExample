@@ -52,5 +52,11 @@ Agent 每次开始工作前依次读取：
 - 原始 PDF 直接保留在 `sources/pdf/`。
 - EgakuRenderPipeline 作为代码参考保留在 `sources/reference_code/`。
 - The Forge 不整库打包，只提供固定 commit 与链接指引。
-- **SingleVolume 源码完全排除**；只保留其演讲 PDF，作为宏观插件工程参考。
 - Niagara、Substrate 和 UE 插件资料属于未来阶段，当前 The Forge checkpoint 默认不加载。
+
+## 参考项目与视觉验证规范
+
+- **参考项目库 (UERP_Ref)**: `MaterialShaderExample_AVBOIT/UERP_Ref` 目录下包含了所有相关的引擎级和插件级参考实现（如 ComputeShaderDemo、UE5CustomSSGI 等）。在测试与升级时，所有该目录下的 `.uproject` 和 `.uplugin` 必须保持引擎版本与当前开发环境完全一致。
+- **视觉结果留存 (LocalVisualResults)**: 所有的项目编译后运行的视觉结果、日志和验证材料必须严格按照规范留存于 `MaterialShaderExample_AVBOIT/LocalVisualResults` 目录下：
+  - **KeyResults**: 存放主要视觉对比结果、功能成功验证的关键截图、或阶段性完成的 Markdown 总结及确凿的运行日志。
+  - **TempResults**: 存放临时生成的运行数据、崩溃排查日志、或非结论性的中间调试产物。
