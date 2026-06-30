@@ -1,0 +1,14 @@
+﻿{
+    "GeneratedUtc":  "2026-06-30T12:13:41.7045157Z",
+    "EvidenceRoot":  "D:\\Users\\l3d\\Documents\\AVBOIT\\MaterialShaderExample_AVBOIT\\LocalVisualResults\\TempResults\\UE57\\HIVE_4090x2\\UE4-2C-NiagaraSprite-UnlitParity\\20260630T121322Z",
+    "KeyResultsRoot":  "D:\\Users\\l3d\\Documents\\AVBOIT\\MaterialShaderExample_AVBOIT\\LocalVisualResults\\KeyResults\\UE57\\HIVE_4090x2\\UE4-2C-NiagaraSprite-UnlitParity\\20260630T121322Z",
+    "UnrealExitCode":  0,
+    "HardFailPatterns":  [
+
+                         ],
+    "ViewModeVerifiedUnlit":  true,
+    "ScreenshotCount":  16,
+    "KeyResultsPromoted":  true,
+    "Status":  "partial",
+    "Note":  "The runtime command writes Acceptance.json. SUCCESS/passed-local is intentionally withheld until all UE-4.2C gates pass."
+}

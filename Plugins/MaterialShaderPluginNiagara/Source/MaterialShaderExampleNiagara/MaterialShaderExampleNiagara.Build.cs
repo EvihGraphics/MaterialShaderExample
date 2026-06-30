@@ -26,9 +26,12 @@ public class MaterialShaderExampleNiagara : ModuleRules
 		{
 			"ApplicationCore",
 			"ImageWrapper",
+			"InputCore",
 			"Json",
 			"JsonUtilities",
-			"Projects"
+			"Projects",
+			"Slate",
+			"SlateCore"
 		});
 
 		PrivateIncludePaths.AddRange(new string[]

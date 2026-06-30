@@ -26,9 +26,18 @@
 #include "Policies/CondensedJsonPrintPolicy.h"
 #include "RenderCore.h"
 #include "ShowFlags.h"
+#include "Styling/CoreStyle.h"
 #include "UObject/UObjectIterator.h"
 #include "UObject/UnrealType.h"
 #include "UnrealClient.h"
+#include "Widgets/Input/SComboBox.h"
+#include "Widgets/Layout/SBorder.h"
+#include "Widgets/Layout/SBox.h"
+#include "Widgets/SBoxPanel.h"
+#include "Widgets/SCompoundWidget.h"
+#include "Widgets/SOverlay.h"
+#include "Widgets/SWeakWidget.h"
+#include "Widgets/Text/STextBlock.h"
 
 TArray<IConsoleObject*> FAVBOITNiagaraValidationCommands::RegisteredCommands;
 
@@ -516,6 +525,23 @@ namespace
 		}
 	}
 
+	FString CaptureModeDisplayName(EAVBOITCaptureMode Mode)
+	{
+		switch (Mode)
+		{
+		case EAVBOITCaptureMode::EngineDefault:
+			return TEXT("Engine Default");
+		case EAVBOITCaptureMode::PluginBypass:
+			return TEXT("Plugin Bypass");
+		case EAVBOITCaptureMode::AVBOITNiagaraUnlit:
+			return TEXT("Plugin AVBOIT Unlit");
+		case EAVBOITCaptureMode::DebugBuffers:
+			return TEXT("Debug Buffers");
+		default:
+			return TEXT("Unknown");
+		}
+	}
+
 	void ApplyCaptureMode(EAVBOITCaptureMode Mode)
 	{
 		SetCVarInt(TEXT("r.RDG.Events"), 1);
@@ -709,6 +735,152 @@ namespace
 	EAVBOITCaptureMode GInteractiveMode = EAVBOITCaptureMode::EngineDefault;
 	FString GInteractiveStatusRoot;
 	TWeakObjectPtr<ACameraActor> GInteractiveRuntimeCamera;
+	TSharedPtr<SWidget> GInteractiveOverlayWidget;
+	TSharedPtr<SWidget> GInteractiveOverlayViewportContent;
+
+	void ApplyInteractiveMode(EAVBOITCaptureMode Mode, const TCHAR* Context);
+
+	class SAVBOITNiagaraModeOverlay final : public SCompoundWidget
+	{
+	public:
+		SLATE_BEGIN_ARGS(SAVBOITNiagaraModeOverlay) {}
+		SLATE_END_ARGS()
+
+		void Construct(const FArguments& /*InArgs*/)
+		{
+			SetVisibility(EVisibility::SelfHitTestInvisible);
+
+			ModeOptions.Add(MakeShared<FString>(TEXT("Engine Default")));
+			ModeOptions.Add(MakeShared<FString>(TEXT("Plugin AVBOIT Unlit")));
+
+			ChildSlot
+			[
+				SNew(SOverlay)
+				.Visibility(EVisibility::SelfHitTestInvisible)
+				+ SOverlay::Slot()
+				.HAlign(HAlign_Right)
+				.VAlign(VAlign_Top)
+				.Padding(FMargin(0.0f, 96.0f, 120.0f, 0.0f))
+				[
+					SNew(SBox)
+					.WidthOverride(292.0f)
+					[
+						SNew(SBorder)
+						.BorderImage(FCoreStyle::Get().GetBrush(TEXT("GenericWhiteBox")))
+						.BorderBackgroundColor(FLinearColor(0.02f, 0.02f, 0.02f, 0.86f))
+						.Padding(FMargin(10.0f, 8.0f))
+						[
+							SNew(SVerticalBox)
+							+ SVerticalBox::Slot()
+							.AutoHeight()
+							[
+								SNew(STextBlock)
+								.Text(FText::FromString(TEXT("AVBOIT Render Mode")))
+								.ColorAndOpacity(FLinearColor::White)
+							]
+							+ SVerticalBox::Slot()
+							.AutoHeight()
+							.Padding(FMargin(0.0f, 6.0f, 0.0f, 0.0f))
+							[
+								SAssignNew(ModeComboBox, SComboBox<TSharedPtr<FString>>)
+								.OptionsSource(&ModeOptions)
+								.OnGenerateWidget(this, &SAVBOITNiagaraModeOverlay::GenerateModeOption)
+								.OnSelectionChanged(this, &SAVBOITNiagaraModeOverlay::HandleModeSelectionChanged)
+								[
+									SNew(STextBlock)
+									.Text(this, &SAVBOITNiagaraModeOverlay::GetSelectedModeText)
+								]
+							]
+							+ SVerticalBox::Slot()
+							.AutoHeight()
+							.Padding(FMargin(0.0f, 6.0f, 0.0f, 0.0f))
+							[
+								SNew(STextBlock)
+								.Text(this, &SAVBOITNiagaraModeOverlay::GetStatusText)
+								.ColorAndOpacity(FLinearColor(0.78f, 0.93f, 1.0f, 1.0f))
+								.AutoWrapText(true)
+							]
+						]
+					]
+				]
+			];
+		}
+
+	private:
+		TSharedRef<SWidget> GenerateModeOption(TSharedPtr<FString> Option) const
+		{
+			return SNew(STextBlock)
+				.Text(FText::FromString(Option.IsValid() ? *Option : FString()))
+				.ColorAndOpacity(FLinearColor::White);
+		}
+
+		void HandleModeSelectionChanged(TSharedPtr<FString> NewSelection, ESelectInfo::Type SelectInfo)
+		{
+			if (!NewSelection.IsValid())
+			{
+				return;
+			}
+
+			const EAVBOITCaptureMode Mode =
+				NewSelection->Equals(TEXT("Engine Default"), ESearchCase::IgnoreCase)
+					? EAVBOITCaptureMode::EngineDefault
+					: EAVBOITCaptureMode::AVBOITNiagaraUnlit;
+			ApplyInteractiveMode(Mode, TEXT("OverlayDropdown"));
+		}
+
+		FText GetSelectedModeText() const
+		{
+			return FText::FromString(CaptureModeDisplayName(GInteractiveMode));
+		}
+
+		FText GetStatusText() const
+		{
+			const FAVBOITEngineViewModeContract ViewModeContract = ReadEngineViewModeContract();
+			return FText::FromString(FString::Printf(
+				TEXT("Mode: %s\n%s"),
+				*CaptureModeDisplayName(GInteractiveMode),
+				ViewModeContract.bVerifiedViewModeIsUnlit ? TEXT("Unlit verified") : TEXT("Unlit not verified")));
+		}
+
+		TArray<TSharedPtr<FString>> ModeOptions;
+		TSharedPtr<SComboBox<TSharedPtr<FString>>> ModeComboBox;
+	};
+
+	void ShowInteractiveOverlay()
+	{
+		if (GInteractiveOverlayViewportContent.IsValid())
+		{
+			return;
+		}
+
+		if (!GEngine || !GEngine->GameViewport)
+		{
+			UE_LOG(LogTemp, Warning, TEXT("AVBOIT.Niagara.ShowOverlay skipped: no GameViewport is available."));
+			return;
+		}
+
+		const TSharedRef<SWidget> OverlayWidget = SNew(SAVBOITNiagaraModeOverlay);
+		GInteractiveOverlayWidget = OverlayWidget;
+		GInteractiveOverlayViewportContent = SNew(SWeakWidget).PossiblyNullContent(OverlayWidget);
+		GEngine->GameViewport->AddViewportWidgetContent(GInteractiveOverlayViewportContent.ToSharedRef(), 1000);
+		UE_LOG(LogTemp, Display, TEXT("AVBOIT.Niagara overlay shown."));
+	}
+
+	void HideInteractiveOverlay()
+	{
+		if (GInteractiveOverlayViewportContent.IsValid() && GEngine && GEngine->GameViewport)
+		{
+			GEngine->GameViewport->RemoveViewportWidgetContent(GInteractiveOverlayViewportContent.ToSharedRef());
+		}
+
+		if (GInteractiveOverlayViewportContent.IsValid())
+		{
+			UE_LOG(LogTemp, Display, TEXT("AVBOIT.Niagara overlay hidden."));
+		}
+
+		GInteractiveOverlayViewportContent.Reset();
+		GInteractiveOverlayWidget.Reset();
+	}
 
 	TSharedRef<FJsonObject> BuildRuntimeStatusObject(const TCHAR* Context)
 	{
@@ -768,6 +940,7 @@ namespace
 
 		void Start()
 		{
+			HideInteractiveOverlay();
 			IFileManager::Get().MakeDirectory(*Root, true);
 			GInteractiveStatusRoot = Root;
 
@@ -1142,6 +1315,16 @@ namespace
 			FAVBOITNiagaraSceneData::Get().GetLastCompletedStats().ParticleCount);
 	}
 
+	void CommandShowOverlay(const TArray<FString>& /*Args*/)
+	{
+		ShowInteractiveOverlay();
+	}
+
+	void CommandHideOverlay(const TArray<FString>& /*Args*/)
+	{
+		HideInteractiveOverlay();
+	}
+
 	void CommandInteractive(const TArray<FString>& Args)
 	{
 		const TMap<FString, FString> KeyValues = ParseKeyValueArgs(Args);
@@ -1180,7 +1363,8 @@ namespace
 		const FString ModeToken = KeyValues.Contains(TEXT("mode")) ? KeyValues.FindRef(TEXT("mode")) : TEXT("AVBOITUnlit");
 		TryParseCaptureMode(ModeToken, Mode);
 		ApplyInteractiveMode(Mode, TEXT("InteractiveStart"));
-		UE_LOG(LogTemp, Display, TEXT("AVBOIT.Niagara.Interactive ready. Use AVBOIT.Niagara.ToggleDefaultPlugin or AVBOIT.Niagara.Mode EngineDefault/AVBOITUnlit."));
+		ShowInteractiveOverlay();
+		UE_LOG(LogTemp, Display, TEXT("AVBOIT.Niagara.Interactive ready. Use the viewport overlay, AVBOIT.Niagara.ToggleDefaultPlugin, or AVBOIT.Niagara.Mode EngineDefault/AVBOITUnlit."));
 	}
 }
 
@@ -1229,6 +1413,18 @@ void FAVBOITNiagaraValidationCommands::RegisterCommands()
 		ECVF_Default));
 
 	RegisteredCommands.Add(ConsoleManager.RegisterConsoleCommand(
+		TEXT("AVBOIT.Niagara.ShowOverlay"),
+		TEXT("Shows the interactive viewport dropdown for Engine Default vs Plugin AVBOIT Unlit rendering."),
+		FConsoleCommandWithArgsDelegate::CreateStatic(&CommandShowOverlay),
+		ECVF_Default));
+
+	RegisteredCommands.Add(ConsoleManager.RegisterConsoleCommand(
+		TEXT("AVBOIT.Niagara.HideOverlay"),
+		TEXT("Hides the interactive viewport dropdown so automated screenshots stay clean."),
+		FConsoleCommandWithArgsDelegate::CreateStatic(&CommandHideOverlay),
+		ECVF_Default));
+
+	RegisteredCommands.Add(ConsoleManager.RegisterConsoleCommand(
 		TEXT("AVBOIT.Niagara.Interactive"),
 		TEXT("Starts a non-exiting interactive TestSpriteMap1 session with transient conversion, fixed camera, and Engine Unlit mode."),
 		FConsoleCommandWithArgsDelegate::CreateStatic(&CommandInteractive),
@@ -1237,6 +1433,8 @@ void FAVBOITNiagaraValidationCommands::RegisterCommands()
 
 void FAVBOITNiagaraValidationCommands::UnregisterCommands()
 {
+	HideInteractiveOverlay();
+
 	IConsoleManager& ConsoleManager = IConsoleManager::Get();
 	for (IConsoleObject* Command : RegisteredCommands)
 	{

@@ -1,0 +1,14 @@
+﻿{
+    "GeneratedUtc":  "2026-06-30T12:13:41.7025159Z",
+    "TempEvidenceRoot":  "D:\\Users\\l3d\\Documents\\AVBOIT\\MaterialShaderExample_AVBOIT\\LocalVisualResults\\TempResults\\UE57\\HIVE_4090x2\\UE4-2C-NiagaraSprite-UnlitParity\\20260630T121322Z",
+    "KeyResultsRoot":  "D:\\Users\\l3d\\Documents\\AVBOIT\\MaterialShaderExample_AVBOIT\\LocalVisualResults\\KeyResults\\UE57\\HIVE_4090x2\\UE4-2C-NiagaraSprite-UnlitParity\\20260630T121322Z",
+    "SelectedCaptureTimeSeconds":  4,
+    "SelectedImages":  [
+                           "13_EngineDefault_4000ms.png",
+                           "14_PluginBypass_4000ms.png",
+                           "15_AVBOITNiagaraUnlit_4000ms.png",
+                           "16_DebugBuffers_4000ms.png"
+                       ],
+    "Status":  "partial",
+    "SuccessWithheld":  true
+}

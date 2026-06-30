@@ -1,0 +1,6 @@
+﻿## AVBOIT开发...origin/AVBOIT开发
+ M LocalVisualResults/KeyResults/UE57/HIVE_4090x2/UE4-2C-NiagaraSprite-UnlitParity/LATEST.txt
+ M Plugins/MaterialShaderPluginNiagara/Source/MaterialShaderExampleNiagara/MaterialShaderExampleNiagara.Build.cs
+ M Plugins/MaterialShaderPluginNiagara/Source/MaterialShaderExampleNiagara/Private/AVBOIT/Niagara/AVBOITNiagaraValidationCommands.cpp
+?? LocalVisualResults/KeyResults/UE57/HIVE_4090x2/UE4-2C-NiagaraSprite-UnlitParity/20260630T120942Z/
+?? LocalVisualResults/UE57/
