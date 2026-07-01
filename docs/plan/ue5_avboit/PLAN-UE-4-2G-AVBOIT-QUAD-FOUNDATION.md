@@ -21,5 +21,8 @@ Build a deterministic Foundation raster gate in `MaterialShaderPlugin` for inter
 
 ## Current Result
 
-- Initial Foundation core/raster/shader contract edits compile locally.
-- Full promotion evidence is not complete yet; current status is `partial`.
+- UE-4.2G.1 closeout added direct Foundation visual evidence, CPU exact reference generation, readback-backed plugin outputs, real log scanning, and strict marker semantics.
+- Latest TempResults: `LocalVisualResults\TempResults\UE57\HIVE_4090x2\UE4-2G-AVBOIT-Quad-Foundation\20260701T145304Z`.
+- Latest status is `partial`, not `passed-local`.
+- Current blockers: incomplete screenshot matrix, failed AVBOIT-vs-Exact parity, failed AB/BA order-independence, missing Native OIT proof, missing lifecycle matrix, and missing RenderDoc/PIX capture.
+- KeyResults promotion and UE-4.2H entry remain forbidden until all hard gates pass.

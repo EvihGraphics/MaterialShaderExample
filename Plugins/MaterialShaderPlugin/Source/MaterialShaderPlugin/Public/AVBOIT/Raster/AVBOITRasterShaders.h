@@ -105,6 +105,63 @@ class FAVBOITRasterForwardPS : public FGlobalShader
 };
 
 //
+// Plugin Identity Shaders
+//
+
+class MATERIALSHADEREXAMPLE_API FAVBOITRasterIdentityVS : public FGlobalShader
+{
+	DECLARE_GLOBAL_SHADER(FAVBOITRasterIdentityVS);
+	SHADER_USE_PARAMETER_STRUCT(FAVBOITRasterIdentityVS, FGlobalShader);
+
+	BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
+		SHADER_PARAMETER(FMatrix44f, LocalToWorld)
+		SHADER_PARAMETER(FMatrix44f, WorldToClip)
+		SHADER_PARAMETER(FMatrix44f, WorldToView)
+		SHADER_PARAMETER(FIntVector4, ViewRectMin)
+	END_SHADER_PARAMETER_STRUCT()
+
+	static bool ShouldCompilePermutation(const FGlobalShaderPermutationParameters& Parameters) { return true; }
+};
+
+class MATERIALSHADEREXAMPLE_API FAVBOITRasterIdentityPS : public FGlobalShader
+{
+	DECLARE_GLOBAL_SHADER(FAVBOITRasterIdentityPS);
+	SHADER_USE_PARAMETER_STRUCT(FAVBOITRasterIdentityPS, FGlobalShader);
+
+	BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
+		SHADER_PARAMETER(FVector4f, ColorAndAlpha)
+		SHADER_PARAMETER(FIntVector4, ViewRectMin)
+		SHADER_PARAMETER(FIntVector4, ViewRectSize)
+		RENDER_TARGET_BINDING_SLOTS()
+	END_SHADER_PARAMETER_STRUCT()
+
+	static bool ShouldCompilePermutation(const FGlobalShaderPermutationParameters& Parameters) { return true; }
+};
+
+//
+// Resolved Alpha Shaders
+//
+
+class FAVBOITRasterResolvedAlphaCS : public FGlobalShader
+{
+	DECLARE_GLOBAL_SHADER(FAVBOITRasterResolvedAlphaCS);
+	SHADER_USE_PARAMETER_STRUCT(FAVBOITRasterResolvedAlphaCS, FGlobalShader);
+
+	BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
+		SHADER_PARAMETER(FIntPoint, TextureExtent)
+		SHADER_PARAMETER(FIntPoint, VolumeExtent)
+		SHADER_PARAMETER(FIntVector4, ViewRectMin)
+		SHADER_PARAMETER(FIntVector4, ViewRectSize)
+		SHADER_PARAMETER(uint32, DownsampleFactor)
+		SHADER_PARAMETER(uint32, NumSlices)
+		SHADER_PARAMETER_RDG_TEXTURE_SRV(Texture2DArray<float>, TransmittanceVolume)
+		SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2D<float4>, OutResolvedAlpha)
+	END_SHADER_PARAMETER_STRUCT()
+
+	static bool ShouldCompilePermutation(const FGlobalShaderPermutationParameters& Parameters) { return true; }
+};
+
+//
 // Composite Shaders
 //
 

@@ -1,0 +1,40 @@
+// Copyright
+
+#include "/Engine/Public/Platform.ush"
+#include "AVBOITRasterCommon.ush"
+
+float4x4 LocalToWorld;
+float4x4 WorldToClip;
+float4x4 WorldToView;
+float4 ColorAndAlpha;
+
+void MainVS(
+	in float3 InLocalPosition : ATTRIBUTE0,
+	out FAVBOITRasterInterpolants Out)
+{
+	float4 WorldPos = mul(float4(InLocalPosition, 1.0f), LocalToWorld);
+	Out.Position = mul(WorldPos, WorldToClip);
+
+	float4 ViewPos = mul(WorldPos, WorldToView);
+	Out.LinearViewDepth = ViewPos.z;
+}
+
+void MainPS(
+	in FAVBOITRasterInterpolants In,
+	out float4 OutColor : SV_Target0)
+{
+	uint2 AbsolutePixel = uint2(In.Position.xy);
+	uint2 LocalPixel;
+	if (!AVBOITGetLocalPixel(AbsolutePixel, LocalPixel))
+	{
+		discard;
+	}
+
+	float Alpha = saturate(ColorAndAlpha.a);
+	if (Alpha <= 0.0f)
+	{
+		discard;
+	}
+
+	OutColor = float4(ColorAndAlpha.rgb * Alpha, Alpha);
+}

@@ -484,6 +484,27 @@ FAVBOITRasterPassOutputs FAVBOITRasterRenderer::AddCorePasses(
 		);
 	}
 
+	// Pass 3.5: Resolved alpha. AlphaAccumulation stores 1 - far transmittance.
+	{
+		auto* PassParameters = GraphBuilder.AllocParameters<FAVBOITRasterResolvedAlphaCS::FParameters>();
+		PassParameters->TextureExtent = TextureExtent;
+		PassParameters->VolumeExtent = VolumeExtent;
+		PassParameters->ViewRectMin = ViewRectMin;
+		PassParameters->ViewRectSize = ViewRectSize;
+		PassParameters->DownsampleFactor = DownsampleFactor;
+		PassParameters->NumSlices = NumSlices;
+		PassParameters->TransmittanceVolume = GraphBuilder.CreateSRV(Outputs.TransmittanceVolume);
+		PassParameters->OutResolvedAlpha = GraphBuilder.CreateUAV(Outputs.AlphaAccumulation);
+
+		TShaderMapRef<FAVBOITRasterResolvedAlphaCS> ComputeShader(GetGlobalShaderMap(GMaxRHIFeatureLevel));
+		FComputeShaderUtils::AddPass(
+			GraphBuilder,
+			RDG_EVENT_NAME("AVBOIT.Foundation.ResolvedAlpha"),
+			ComputeShader,
+			PassParameters,
+			FComputeShaderUtils::GetGroupCount(TextureExtent, 8));
+	}
+
 	// Pass 4: ForwardShade
 	if (Inputs.DrawData.Num() > 0)
 	{

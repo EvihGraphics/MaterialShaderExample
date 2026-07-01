@@ -1,0 +1,41 @@
+// Copyright
+
+#include "/Engine/Public/Platform.ush"
+#include "AVBOITRasterCommon.ush"
+
+int2 TextureExtent;
+int2 VolumeExtent;
+uint DownsampleFactor;
+uint NumSlices;
+
+Texture2DArray<float> TransmittanceVolume;
+RWTexture2D<float4> OutResolvedAlpha;
+
+[numthreads(8, 8, 1)]
+void MainCS(uint3 DispatchThreadId : SV_DispatchThreadID)
+{
+	uint2 AbsolutePixel = DispatchThreadId.xy;
+	if (AbsolutePixel.x >= (uint)TextureExtent.x || AbsolutePixel.y >= (uint)TextureExtent.y)
+	{
+		return;
+	}
+
+	if (AbsolutePixel.x < (uint)ViewRectMin.x ||
+		AbsolutePixel.y < (uint)ViewRectMin.y ||
+		AbsolutePixel.x >= (uint)(ViewRectMin.x + ViewRectSize.x) ||
+		AbsolutePixel.y >= (uint)(ViewRectMin.y + ViewRectSize.y))
+	{
+		OutResolvedAlpha[AbsolutePixel] = float4(0.0f, 0.0f, 0.0f, 1.0f);
+		return;
+	}
+
+	uint2 LocalPixel = AbsolutePixel - (uint2)ViewRectMin.xy;
+	uint Factor = max(DownsampleFactor, 1u);
+	uint2 MaxVolumePixel = uint2(max((uint)VolumeExtent.x, 1u) - 1u, max((uint)VolumeExtent.y, 1u) - 1u);
+	uint2 VolumePixel = min(LocalPixel / Factor, MaxVolumePixel);
+	uint LastSlice = clamp(NumSlices, 1u, AVBOIT_MAX_VOLUME_DEPTH) - 1u;
+
+	float TotalTransmittance = TransmittanceVolume.Load(int4(VolumePixel.x, VolumePixel.y, LastSlice, 0));
+	float ResolvedAlpha = saturate(1.0f - TotalTransmittance);
+	OutResolvedAlpha[AbsolutePixel] = float4(ResolvedAlpha, ResolvedAlpha, ResolvedAlpha, 1.0f);
+}
