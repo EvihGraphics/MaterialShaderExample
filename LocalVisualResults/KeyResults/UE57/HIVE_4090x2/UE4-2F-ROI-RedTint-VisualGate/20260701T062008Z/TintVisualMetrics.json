@@ -1,0 +1,334 @@
+﻿{
+    "GeneratedUtc":  "2026-07-01T06:20:29.6370031Z",
+    "Phase":  "UE4-2F-ROI-RedTint-VisualGate",
+    "EvidenceRoot":  "D:\\Users\\l3d\\Documents\\AVBOIT\\MaterialShaderExample_AVBOIT\\LocalVisualResults\\TempResults\\UE57\\HIVE_4090x2\\UE4-2F-ROI-RedTint-VisualGate\\20260701T062008Z",
+    "RequiredTarget":  "PluginAVBOIT red tint inside ROI; EngineDefault before/after unchanged",
+    "ScreenshotSource":  "UE.FScreenshotRequest",
+    "DesktopScreenshotUsed":  false,
+    "FinalCaptureToken":  "4000ms",
+    "FinalGatePass":  true,
+    "FinalMetrics":  [
+                         {
+                             "GeneratedUtc":  "2026-07-01T06:20:29.6140027Z",
+                             "CaptureToken":  "4000ms",
+                             "ScreenshotSource":  "UE.FScreenshotRequest",
+                             "DesktopScreenshotUsed":  false,
+                             "Width":  960,
+                             "Height":  540,
+                             "ROI":  {
+                                         "Normalized":  {
+                                                            "Name":  "TestSpriteMap1_ROI_RedTint",
+                                                            "CoordinateSpace":  "NormalizedViewport",
+                                                            "Left":  0.062,
+                                                            "Top":  0.417,
+                                                            "Right":  0.918,
+                                                            "Bottom":  0.814,
+                                                            "Source":  "User supplied red rectangle reference for UE-4.2F ROI red tint visual gate",
+                                                            "RequiredScreenshotSource":  "UE.FScreenshotRequest",
+                                                            "DesktopScreenshotAllowed":  false
+                                                        },
+                                         "PixelRect":  {
+                                                           "X":  59,
+                                                           "Y":  225,
+                                                           "Width":  823,
+                                                           "Height":  215,
+                                                           "Right":  882,
+                                                           "Bottom":  440
+                                                       },
+                                         "PixelCount":  176945
+                                     },
+                             "TintColorLinear":  {
+                                                     "R":  1,
+                                                     "G":  0,
+                                                     "B":  0,
+                                                     "A":  1
+                                                 },
+                             "EngineDefaultBeforeAfterRoiMAE":  0.0015690411536245985,
+                             "PluginVsEngineDefaultRoiMAE":  0.027189697622151707,
+                             "ChangedPixelCount":  13120,
+                             "ChangedPixelRatio":  0.074147333917318939,
+                             "MinChangedPixelCount":  500,
+                             "RedDominantPixelCount":  12865,
+                             "RedDominantChangedPixelCount":  12865,
+                             "RedCoverageRatio":  0.98056402439024393,
+                             "MeanRedAdvantage":  0.54338384744140478,
+                             "EngineStablePass":  true,
+                             "ChangedCoveragePass":  true,
+                             "RedCoveragePass":  true,
+                             "RedAdvantagePass":  true,
+                             "GatePass":  true,
+                             "Files":  {
+                                           "EngineDefaultBefore":  "D:\\Users\\l3d\\Documents\\AVBOIT\\MaterialShaderExample_AVBOIT\\LocalVisualResults\\TempResults\\UE57\\HIVE_4090x2\\UE4-2F-ROI-RedTint-VisualGate\\20260701T062008Z\\10_EngineDefaultBefore_4000ms.png",
+                                           "PluginAVBOITRedTint":  "D:\\Users\\l3d\\Documents\\AVBOIT\\MaterialShaderExample_AVBOIT\\LocalVisualResults\\TempResults\\UE57\\HIVE_4090x2\\UE4-2F-ROI-RedTint-VisualGate\\20260701T062008Z\\11_PluginAVBOIT_RedTint_4000ms.png",
+                                           "EngineDefaultAfter":  "D:\\Users\\l3d\\Documents\\AVBOIT\\MaterialShaderExample_AVBOIT\\LocalVisualResults\\TempResults\\UE57\\HIVE_4090x2\\UE4-2F-ROI-RedTint-VisualGate\\20260701T062008Z\\12_EngineDefaultAfter_4000ms.png",
+                                           "EngineDefaultBeforeROICrop":  "D:\\Users\\l3d\\Documents\\AVBOIT\\MaterialShaderExample_AVBOIT\\LocalVisualResults\\TempResults\\UE57\\HIVE_4090x2\\UE4-2F-ROI-RedTint-VisualGate\\20260701T062008Z\\TintVisualGate\\ROICrops\\EngineDefaultBefore_4000ms_ROI.png",
+                                           "PluginAVBOITRedTintROICrop":  "D:\\Users\\l3d\\Documents\\AVBOIT\\MaterialShaderExample_AVBOIT\\LocalVisualResults\\TempResults\\UE57\\HIVE_4090x2\\UE4-2F-ROI-RedTint-VisualGate\\20260701T062008Z\\TintVisualGate\\ROICrops\\PluginAVBOIT_RedTint_4000ms_ROI.png",
+                                           "EngineDefaultAfterROICrop":  "D:\\Users\\l3d\\Documents\\AVBOIT\\MaterialShaderExample_AVBOIT\\LocalVisualResults\\TempResults\\UE57\\HIVE_4090x2\\UE4-2F-ROI-RedTint-VisualGate\\20260701T062008Z\\TintVisualGate\\ROICrops\\EngineDefaultAfter_4000ms_ROI.png",
+                                           "SideBySide":  "D:\\Users\\l3d\\Documents\\AVBOIT\\MaterialShaderExample_AVBOIT\\LocalVisualResults\\TempResults\\UE57\\HIVE_4090x2\\UE4-2F-ROI-RedTint-VisualGate\\20260701T062008Z\\TintVisualGate\\Comparisons\\SideBySide_4000ms.png",
+                                           "Heatmap":  "D:\\Users\\l3d\\Documents\\AVBOIT\\MaterialShaderExample_AVBOIT\\LocalVisualResults\\TempResults\\UE57\\HIVE_4090x2\\UE4-2F-ROI-RedTint-VisualGate\\20260701T062008Z\\TintVisualGate\\Comparisons\\Heatmap_4000ms.png",
+                                           "CoverageMask":  "D:\\Users\\l3d\\Documents\\AVBOIT\\MaterialShaderExample_AVBOIT\\LocalVisualResults\\TempResults\\UE57\\HIVE_4090x2\\UE4-2F-ROI-RedTint-VisualGate\\20260701T062008Z\\TintVisualGate\\Comparisons\\CoverageMask_4000ms.png",
+                                           "Difference":  "D:\\Users\\l3d\\Documents\\AVBOIT\\MaterialShaderExample_AVBOIT\\LocalVisualResults\\TempResults\\UE57\\HIVE_4090x2\\UE4-2F-ROI-RedTint-VisualGate\\20260701T062008Z\\TintVisualGate\\Comparisons\\Difference_4000ms.png",
+                                           "AnnotatedGoal":  "D:\\Users\\l3d\\Documents\\AVBOIT\\MaterialShaderExample_AVBOIT\\LocalVisualResults\\TempResults\\UE57\\HIVE_4090x2\\UE4-2F-ROI-RedTint-VisualGate\\20260701T062008Z\\TintVisualGate\\Comparisons\\AnnotatedGoal_4000ms.png"
+                                       },
+                             "MetricsPath":  "D:\\Users\\l3d\\Documents\\AVBOIT\\MaterialShaderExample_AVBOIT\\LocalVisualResults\\TempResults\\UE57\\HIVE_4090x2\\UE4-2F-ROI-RedTint-VisualGate\\20260701T062008Z\\TintVisualGate\\TintVisualMetrics_4000ms.json"
+                         }
+                     ],
+    "AllCaptureMetrics":  [
+                              {
+                                  "GeneratedUtc":  "2026-07-01T06:20:26.6492811Z",
+                                  "CaptureToken":  "0500ms",
+                                  "ScreenshotSource":  "UE.FScreenshotRequest",
+                                  "DesktopScreenshotUsed":  false,
+                                  "Width":  960,
+                                  "Height":  540,
+                                  "ROI":  {
+                                              "Normalized":  {
+                                                                 "Name":  "TestSpriteMap1_ROI_RedTint",
+                                                                 "CoordinateSpace":  "NormalizedViewport",
+                                                                 "Left":  0.062,
+                                                                 "Top":  0.417,
+                                                                 "Right":  0.918,
+                                                                 "Bottom":  0.814,
+                                                                 "Source":  "User supplied red rectangle reference for UE-4.2F ROI red tint visual gate",
+                                                                 "RequiredScreenshotSource":  "UE.FScreenshotRequest",
+                                                                 "DesktopScreenshotAllowed":  false
+                                                             },
+                                              "PixelRect":  {
+                                                                "X":  59,
+                                                                "Y":  225,
+                                                                "Width":  823,
+                                                                "Height":  215,
+                                                                "Right":  882,
+                                                                "Bottom":  440
+                                                            },
+                                              "PixelCount":  176945
+                                          },
+                                  "TintColorLinear":  {
+                                                          "R":  1,
+                                                          "G":  0,
+                                                          "B":  0,
+                                                          "A":  1
+                                                      },
+                                  "EngineDefaultBeforeAfterRoiMAE":  0.0026752820242322631,
+                                  "PluginVsEngineDefaultRoiMAE":  0.026376661113078046,
+                                  "ChangedPixelCount":  13325,
+                                  "ChangedPixelRatio":  0.075305886009777043,
+                                  "MinChangedPixelCount":  500,
+                                  "RedDominantPixelCount":  12731,
+                                  "RedDominantChangedPixelCount":  12731,
+                                  "RedCoverageRatio":  0.955422138836773,
+                                  "MeanRedAdvantage":  0.51402067468637191,
+                                  "EngineStablePass":  true,
+                                  "ChangedCoveragePass":  true,
+                                  "RedCoveragePass":  false,
+                                  "RedAdvantagePass":  true,
+                                  "GatePass":  false,
+                                  "Files":  {
+                                                "EngineDefaultBefore":  "D:\\Users\\l3d\\Documents\\AVBOIT\\MaterialShaderExample_AVBOIT\\LocalVisualResults\\TempResults\\UE57\\HIVE_4090x2\\UE4-2F-ROI-RedTint-VisualGate\\20260701T062008Z\\01_EngineDefaultBefore_0500ms.png",
+                                                "PluginAVBOITRedTint":  "D:\\Users\\l3d\\Documents\\AVBOIT\\MaterialShaderExample_AVBOIT\\LocalVisualResults\\TempResults\\UE57\\HIVE_4090x2\\UE4-2F-ROI-RedTint-VisualGate\\20260701T062008Z\\02_PluginAVBOIT_RedTint_0500ms.png",
+                                                "EngineDefaultAfter":  "D:\\Users\\l3d\\Documents\\AVBOIT\\MaterialShaderExample_AVBOIT\\LocalVisualResults\\TempResults\\UE57\\HIVE_4090x2\\UE4-2F-ROI-RedTint-VisualGate\\20260701T062008Z\\03_EngineDefaultAfter_0500ms.png",
+                                                "EngineDefaultBeforeROICrop":  "D:\\Users\\l3d\\Documents\\AVBOIT\\MaterialShaderExample_AVBOIT\\LocalVisualResults\\TempResults\\UE57\\HIVE_4090x2\\UE4-2F-ROI-RedTint-VisualGate\\20260701T062008Z\\TintVisualGate\\ROICrops\\EngineDefaultBefore_0500ms_ROI.png",
+                                                "PluginAVBOITRedTintROICrop":  "D:\\Users\\l3d\\Documents\\AVBOIT\\MaterialShaderExample_AVBOIT\\LocalVisualResults\\TempResults\\UE57\\HIVE_4090x2\\UE4-2F-ROI-RedTint-VisualGate\\20260701T062008Z\\TintVisualGate\\ROICrops\\PluginAVBOIT_RedTint_0500ms_ROI.png",
+                                                "EngineDefaultAfterROICrop":  "D:\\Users\\l3d\\Documents\\AVBOIT\\MaterialShaderExample_AVBOIT\\LocalVisualResults\\TempResults\\UE57\\HIVE_4090x2\\UE4-2F-ROI-RedTint-VisualGate\\20260701T062008Z\\TintVisualGate\\ROICrops\\EngineDefaultAfter_0500ms_ROI.png",
+                                                "SideBySide":  "D:\\Users\\l3d\\Documents\\AVBOIT\\MaterialShaderExample_AVBOIT\\LocalVisualResults\\TempResults\\UE57\\HIVE_4090x2\\UE4-2F-ROI-RedTint-VisualGate\\20260701T062008Z\\TintVisualGate\\Comparisons\\SideBySide_0500ms.png",
+                                                "Heatmap":  "D:\\Users\\l3d\\Documents\\AVBOIT\\MaterialShaderExample_AVBOIT\\LocalVisualResults\\TempResults\\UE57\\HIVE_4090x2\\UE4-2F-ROI-RedTint-VisualGate\\20260701T062008Z\\TintVisualGate\\Comparisons\\Heatmap_0500ms.png",
+                                                "CoverageMask":  "D:\\Users\\l3d\\Documents\\AVBOIT\\MaterialShaderExample_AVBOIT\\LocalVisualResults\\TempResults\\UE57\\HIVE_4090x2\\UE4-2F-ROI-RedTint-VisualGate\\20260701T062008Z\\TintVisualGate\\Comparisons\\CoverageMask_0500ms.png",
+                                                "Difference":  "D:\\Users\\l3d\\Documents\\AVBOIT\\MaterialShaderExample_AVBOIT\\LocalVisualResults\\TempResults\\UE57\\HIVE_4090x2\\UE4-2F-ROI-RedTint-VisualGate\\20260701T062008Z\\TintVisualGate\\Comparisons\\Difference_0500ms.png",
+                                                "AnnotatedGoal":  "D:\\Users\\l3d\\Documents\\AVBOIT\\MaterialShaderExample_AVBOIT\\LocalVisualResults\\TempResults\\UE57\\HIVE_4090x2\\UE4-2F-ROI-RedTint-VisualGate\\20260701T062008Z\\TintVisualGate\\Comparisons\\AnnotatedGoal_0500ms.png"
+                                            },
+                                  "MetricsPath":  "D:\\Users\\l3d\\Documents\\AVBOIT\\MaterialShaderExample_AVBOIT\\LocalVisualResults\\TempResults\\UE57\\HIVE_4090x2\\UE4-2F-ROI-RedTint-VisualGate\\20260701T062008Z\\TintVisualGate\\TintVisualMetrics_0500ms.json"
+                              },
+                              {
+                                  "GeneratedUtc":  "2026-07-01T06:20:27.6528042Z",
+                                  "CaptureToken":  "1000ms",
+                                  "ScreenshotSource":  "UE.FScreenshotRequest",
+                                  "DesktopScreenshotUsed":  false,
+                                  "Width":  960,
+                                  "Height":  540,
+                                  "ROI":  {
+                                              "Normalized":  {
+                                                                 "Name":  "TestSpriteMap1_ROI_RedTint",
+                                                                 "CoordinateSpace":  "NormalizedViewport",
+                                                                 "Left":  0.062,
+                                                                 "Top":  0.417,
+                                                                 "Right":  0.918,
+                                                                 "Bottom":  0.814,
+                                                                 "Source":  "User supplied red rectangle reference for UE-4.2F ROI red tint visual gate",
+                                                                 "RequiredScreenshotSource":  "UE.FScreenshotRequest",
+                                                                 "DesktopScreenshotAllowed":  false
+                                                             },
+                                              "PixelRect":  {
+                                                                "X":  59,
+                                                                "Y":  225,
+                                                                "Width":  823,
+                                                                "Height":  215,
+                                                                "Right":  882,
+                                                                "Bottom":  440
+                                                            },
+                                              "PixelCount":  176945
+                                          },
+                                  "TintColorLinear":  {
+                                                          "R":  1,
+                                                          "G":  0,
+                                                          "B":  0,
+                                                          "A":  1
+                                                      },
+                                  "EngineDefaultBeforeAfterRoiMAE":  0.0021256706738569664,
+                                  "PluginVsEngineDefaultRoiMAE":  0.027931281774533166,
+                                  "ChangedPixelCount":  14475,
+                                  "ChangedPixelRatio":  0.081805080674785952,
+                                  "MinChangedPixelCount":  500,
+                                  "RedDominantPixelCount":  14024,
+                                  "RedDominantChangedPixelCount":  14024,
+                                  "RedCoverageRatio":  0.96884283246977543,
+                                  "MeanRedAdvantage":  0.50785871516133618,
+                                  "EngineStablePass":  true,
+                                  "ChangedCoveragePass":  true,
+                                  "RedCoveragePass":  false,
+                                  "RedAdvantagePass":  true,
+                                  "GatePass":  false,
+                                  "Files":  {
+                                                "EngineDefaultBefore":  "D:\\Users\\l3d\\Documents\\AVBOIT\\MaterialShaderExample_AVBOIT\\LocalVisualResults\\TempResults\\UE57\\HIVE_4090x2\\UE4-2F-ROI-RedTint-VisualGate\\20260701T062008Z\\04_EngineDefaultBefore_1000ms.png",
+                                                "PluginAVBOITRedTint":  "D:\\Users\\l3d\\Documents\\AVBOIT\\MaterialShaderExample_AVBOIT\\LocalVisualResults\\TempResults\\UE57\\HIVE_4090x2\\UE4-2F-ROI-RedTint-VisualGate\\20260701T062008Z\\05_PluginAVBOIT_RedTint_1000ms.png",
+                                                "EngineDefaultAfter":  "D:\\Users\\l3d\\Documents\\AVBOIT\\MaterialShaderExample_AVBOIT\\LocalVisualResults\\TempResults\\UE57\\HIVE_4090x2\\UE4-2F-ROI-RedTint-VisualGate\\20260701T062008Z\\06_EngineDefaultAfter_1000ms.png",
+                                                "EngineDefaultBeforeROICrop":  "D:\\Users\\l3d\\Documents\\AVBOIT\\MaterialShaderExample_AVBOIT\\LocalVisualResults\\TempResults\\UE57\\HIVE_4090x2\\UE4-2F-ROI-RedTint-VisualGate\\20260701T062008Z\\TintVisualGate\\ROICrops\\EngineDefaultBefore_1000ms_ROI.png",
+                                                "PluginAVBOITRedTintROICrop":  "D:\\Users\\l3d\\Documents\\AVBOIT\\MaterialShaderExample_AVBOIT\\LocalVisualResults\\TempResults\\UE57\\HIVE_4090x2\\UE4-2F-ROI-RedTint-VisualGate\\20260701T062008Z\\TintVisualGate\\ROICrops\\PluginAVBOIT_RedTint_1000ms_ROI.png",
+                                                "EngineDefaultAfterROICrop":  "D:\\Users\\l3d\\Documents\\AVBOIT\\MaterialShaderExample_AVBOIT\\LocalVisualResults\\TempResults\\UE57\\HIVE_4090x2\\UE4-2F-ROI-RedTint-VisualGate\\20260701T062008Z\\TintVisualGate\\ROICrops\\EngineDefaultAfter_1000ms_ROI.png",
+                                                "SideBySide":  "D:\\Users\\l3d\\Documents\\AVBOIT\\MaterialShaderExample_AVBOIT\\LocalVisualResults\\TempResults\\UE57\\HIVE_4090x2\\UE4-2F-ROI-RedTint-VisualGate\\20260701T062008Z\\TintVisualGate\\Comparisons\\SideBySide_1000ms.png",
+                                                "Heatmap":  "D:\\Users\\l3d\\Documents\\AVBOIT\\MaterialShaderExample_AVBOIT\\LocalVisualResults\\TempResults\\UE57\\HIVE_4090x2\\UE4-2F-ROI-RedTint-VisualGate\\20260701T062008Z\\TintVisualGate\\Comparisons\\Heatmap_1000ms.png",
+                                                "CoverageMask":  "D:\\Users\\l3d\\Documents\\AVBOIT\\MaterialShaderExample_AVBOIT\\LocalVisualResults\\TempResults\\UE57\\HIVE_4090x2\\UE4-2F-ROI-RedTint-VisualGate\\20260701T062008Z\\TintVisualGate\\Comparisons\\CoverageMask_1000ms.png",
+                                                "Difference":  "D:\\Users\\l3d\\Documents\\AVBOIT\\MaterialShaderExample_AVBOIT\\LocalVisualResults\\TempResults\\UE57\\HIVE_4090x2\\UE4-2F-ROI-RedTint-VisualGate\\20260701T062008Z\\TintVisualGate\\Comparisons\\Difference_1000ms.png",
+                                                "AnnotatedGoal":  "D:\\Users\\l3d\\Documents\\AVBOIT\\MaterialShaderExample_AVBOIT\\LocalVisualResults\\TempResults\\UE57\\HIVE_4090x2\\UE4-2F-ROI-RedTint-VisualGate\\20260701T062008Z\\TintVisualGate\\Comparisons\\AnnotatedGoal_1000ms.png"
+                                            },
+                                  "MetricsPath":  "D:\\Users\\l3d\\Documents\\AVBOIT\\MaterialShaderExample_AVBOIT\\LocalVisualResults\\TempResults\\UE57\\HIVE_4090x2\\UE4-2F-ROI-RedTint-VisualGate\\20260701T062008Z\\TintVisualGate\\TintVisualMetrics_1000ms.json"
+                              },
+                              {
+                                  "GeneratedUtc":  "2026-07-01T06:20:28.6348379Z",
+                                  "CaptureToken":  "2000ms",
+                                  "ScreenshotSource":  "UE.FScreenshotRequest",
+                                  "DesktopScreenshotUsed":  false,
+                                  "Width":  960,
+                                  "Height":  540,
+                                  "ROI":  {
+                                              "Normalized":  {
+                                                                 "Name":  "TestSpriteMap1_ROI_RedTint",
+                                                                 "CoordinateSpace":  "NormalizedViewport",
+                                                                 "Left":  0.062,
+                                                                 "Top":  0.417,
+                                                                 "Right":  0.918,
+                                                                 "Bottom":  0.814,
+                                                                 "Source":  "User supplied red rectangle reference for UE-4.2F ROI red tint visual gate",
+                                                                 "RequiredScreenshotSource":  "UE.FScreenshotRequest",
+                                                                 "DesktopScreenshotAllowed":  false
+                                                             },
+                                              "PixelRect":  {
+                                                                "X":  59,
+                                                                "Y":  225,
+                                                                "Width":  823,
+                                                                "Height":  215,
+                                                                "Right":  882,
+                                                                "Bottom":  440
+                                                            },
+                                              "PixelCount":  176945
+                                          },
+                                  "TintColorLinear":  {
+                                                          "R":  1,
+                                                          "G":  0,
+                                                          "B":  0,
+                                                          "A":  1
+                                                      },
+                                  "EngineDefaultBeforeAfterRoiMAE":  0.0019863267582316208,
+                                  "PluginVsEngineDefaultRoiMAE":  0.027835598262966024,
+                                  "ChangedPixelCount":  13560,
+                                  "ChangedPixelRatio":  0.076633982310887569,
+                                  "MinChangedPixelCount":  500,
+                                  "RedDominantPixelCount":  12696,
+                                  "RedDominantChangedPixelCount":  12696,
+                                  "RedCoverageRatio":  0.93628318584070791,
+                                  "MeanRedAdvantage":  0.51783851003526782,
+                                  "EngineStablePass":  true,
+                                  "ChangedCoveragePass":  true,
+                                  "RedCoveragePass":  false,
+                                  "RedAdvantagePass":  true,
+                                  "GatePass":  false,
+                                  "Files":  {
+                                                "EngineDefaultBefore":  "D:\\Users\\l3d\\Documents\\AVBOIT\\MaterialShaderExample_AVBOIT\\LocalVisualResults\\TempResults\\UE57\\HIVE_4090x2\\UE4-2F-ROI-RedTint-VisualGate\\20260701T062008Z\\07_EngineDefaultBefore_2000ms.png",
+                                                "PluginAVBOITRedTint":  "D:\\Users\\l3d\\Documents\\AVBOIT\\MaterialShaderExample_AVBOIT\\LocalVisualResults\\TempResults\\UE57\\HIVE_4090x2\\UE4-2F-ROI-RedTint-VisualGate\\20260701T062008Z\\08_PluginAVBOIT_RedTint_2000ms.png",
+                                                "EngineDefaultAfter":  "D:\\Users\\l3d\\Documents\\AVBOIT\\MaterialShaderExample_AVBOIT\\LocalVisualResults\\TempResults\\UE57\\HIVE_4090x2\\UE4-2F-ROI-RedTint-VisualGate\\20260701T062008Z\\09_EngineDefaultAfter_2000ms.png",
+                                                "EngineDefaultBeforeROICrop":  "D:\\Users\\l3d\\Documents\\AVBOIT\\MaterialShaderExample_AVBOIT\\LocalVisualResults\\TempResults\\UE57\\HIVE_4090x2\\UE4-2F-ROI-RedTint-VisualGate\\20260701T062008Z\\TintVisualGate\\ROICrops\\EngineDefaultBefore_2000ms_ROI.png",
+                                                "PluginAVBOITRedTintROICrop":  "D:\\Users\\l3d\\Documents\\AVBOIT\\MaterialShaderExample_AVBOIT\\LocalVisualResults\\TempResults\\UE57\\HIVE_4090x2\\UE4-2F-ROI-RedTint-VisualGate\\20260701T062008Z\\TintVisualGate\\ROICrops\\PluginAVBOIT_RedTint_2000ms_ROI.png",
+                                                "EngineDefaultAfterROICrop":  "D:\\Users\\l3d\\Documents\\AVBOIT\\MaterialShaderExample_AVBOIT\\LocalVisualResults\\TempResults\\UE57\\HIVE_4090x2\\UE4-2F-ROI-RedTint-VisualGate\\20260701T062008Z\\TintVisualGate\\ROICrops\\EngineDefaultAfter_2000ms_ROI.png",
+                                                "SideBySide":  "D:\\Users\\l3d\\Documents\\AVBOIT\\MaterialShaderExample_AVBOIT\\LocalVisualResults\\TempResults\\UE57\\HIVE_4090x2\\UE4-2F-ROI-RedTint-VisualGate\\20260701T062008Z\\TintVisualGate\\Comparisons\\SideBySide_2000ms.png",
+                                                "Heatmap":  "D:\\Users\\l3d\\Documents\\AVBOIT\\MaterialShaderExample_AVBOIT\\LocalVisualResults\\TempResults\\UE57\\HIVE_4090x2\\UE4-2F-ROI-RedTint-VisualGate\\20260701T062008Z\\TintVisualGate\\Comparisons\\Heatmap_2000ms.png",
+                                                "CoverageMask":  "D:\\Users\\l3d\\Documents\\AVBOIT\\MaterialShaderExample_AVBOIT\\LocalVisualResults\\TempResults\\UE57\\HIVE_4090x2\\UE4-2F-ROI-RedTint-VisualGate\\20260701T062008Z\\TintVisualGate\\Comparisons\\CoverageMask_2000ms.png",
+                                                "Difference":  "D:\\Users\\l3d\\Documents\\AVBOIT\\MaterialShaderExample_AVBOIT\\LocalVisualResults\\TempResults\\UE57\\HIVE_4090x2\\UE4-2F-ROI-RedTint-VisualGate\\20260701T062008Z\\TintVisualGate\\Comparisons\\Difference_2000ms.png",
+                                                "AnnotatedGoal":  "D:\\Users\\l3d\\Documents\\AVBOIT\\MaterialShaderExample_AVBOIT\\LocalVisualResults\\TempResults\\UE57\\HIVE_4090x2\\UE4-2F-ROI-RedTint-VisualGate\\20260701T062008Z\\TintVisualGate\\Comparisons\\AnnotatedGoal_2000ms.png"
+                                            },
+                                  "MetricsPath":  "D:\\Users\\l3d\\Documents\\AVBOIT\\MaterialShaderExample_AVBOIT\\LocalVisualResults\\TempResults\\UE57\\HIVE_4090x2\\UE4-2F-ROI-RedTint-VisualGate\\20260701T062008Z\\TintVisualGate\\TintVisualMetrics_2000ms.json"
+                              },
+                              {
+                                  "GeneratedUtc":  "2026-07-01T06:20:29.6140027Z",
+                                  "CaptureToken":  "4000ms",
+                                  "ScreenshotSource":  "UE.FScreenshotRequest",
+                                  "DesktopScreenshotUsed":  false,
+                                  "Width":  960,
+                                  "Height":  540,
+                                  "ROI":  {
+                                              "Normalized":  {
+                                                                 "Name":  "TestSpriteMap1_ROI_RedTint",
+                                                                 "CoordinateSpace":  "NormalizedViewport",
+                                                                 "Left":  0.062,
+                                                                 "Top":  0.417,
+                                                                 "Right":  0.918,
+                                                                 "Bottom":  0.814,
+                                                                 "Source":  "User supplied red rectangle reference for UE-4.2F ROI red tint visual gate",
+                                                                 "RequiredScreenshotSource":  "UE.FScreenshotRequest",
+                                                                 "DesktopScreenshotAllowed":  false
+                                                             },
+                                              "PixelRect":  {
+                                                                "X":  59,
+                                                                "Y":  225,
+                                                                "Width":  823,
+                                                                "Height":  215,
+                                                                "Right":  882,
+                                                                "Bottom":  440
+                                                            },
+                                              "PixelCount":  176945
+                                          },
+                                  "TintColorLinear":  {
+                                                          "R":  1,
+                                                          "G":  0,
+                                                          "B":  0,
+                                                          "A":  1
+                                                      },
+                                  "EngineDefaultBeforeAfterRoiMAE":  0.0015690411536245985,
+                                  "PluginVsEngineDefaultRoiMAE":  0.027189697622151707,
+                                  "ChangedPixelCount":  13120,
+                                  "ChangedPixelRatio":  0.074147333917318939,
+                                  "MinChangedPixelCount":  500,
+                                  "RedDominantPixelCount":  12865,
+                                  "RedDominantChangedPixelCount":  12865,
+                                  "RedCoverageRatio":  0.98056402439024393,
+                                  "MeanRedAdvantage":  0.54338384744140478,
+                                  "EngineStablePass":  true,
+                                  "ChangedCoveragePass":  true,
+                                  "RedCoveragePass":  true,
+                                  "RedAdvantagePass":  true,
+                                  "GatePass":  true,
+                                  "Files":  {
+                                                "EngineDefaultBefore":  "D:\\Users\\l3d\\Documents\\AVBOIT\\MaterialShaderExample_AVBOIT\\LocalVisualResults\\TempResults\\UE57\\HIVE_4090x2\\UE4-2F-ROI-RedTint-VisualGate\\20260701T062008Z\\10_EngineDefaultBefore_4000ms.png",
+                                                "PluginAVBOITRedTint":  "D:\\Users\\l3d\\Documents\\AVBOIT\\MaterialShaderExample_AVBOIT\\LocalVisualResults\\TempResults\\UE57\\HIVE_4090x2\\UE4-2F-ROI-RedTint-VisualGate\\20260701T062008Z\\11_PluginAVBOIT_RedTint_4000ms.png",
+                                                "EngineDefaultAfter":  "D:\\Users\\l3d\\Documents\\AVBOIT\\MaterialShaderExample_AVBOIT\\LocalVisualResults\\TempResults\\UE57\\HIVE_4090x2\\UE4-2F-ROI-RedTint-VisualGate\\20260701T062008Z\\12_EngineDefaultAfter_4000ms.png",
+                                                "EngineDefaultBeforeROICrop":  "D:\\Users\\l3d\\Documents\\AVBOIT\\MaterialShaderExample_AVBOIT\\LocalVisualResults\\TempResults\\UE57\\HIVE_4090x2\\UE4-2F-ROI-RedTint-VisualGate\\20260701T062008Z\\TintVisualGate\\ROICrops\\EngineDefaultBefore_4000ms_ROI.png",
+                                                "PluginAVBOITRedTintROICrop":  "D:\\Users\\l3d\\Documents\\AVBOIT\\MaterialShaderExample_AVBOIT\\LocalVisualResults\\TempResults\\UE57\\HIVE_4090x2\\UE4-2F-ROI-RedTint-VisualGate\\20260701T062008Z\\TintVisualGate\\ROICrops\\PluginAVBOIT_RedTint_4000ms_ROI.png",
+                                                "EngineDefaultAfterROICrop":  "D:\\Users\\l3d\\Documents\\AVBOIT\\MaterialShaderExample_AVBOIT\\LocalVisualResults\\TempResults\\UE57\\HIVE_4090x2\\UE4-2F-ROI-RedTint-VisualGate\\20260701T062008Z\\TintVisualGate\\ROICrops\\EngineDefaultAfter_4000ms_ROI.png",
+                                                "SideBySide":  "D:\\Users\\l3d\\Documents\\AVBOIT\\MaterialShaderExample_AVBOIT\\LocalVisualResults\\TempResults\\UE57\\HIVE_4090x2\\UE4-2F-ROI-RedTint-VisualGate\\20260701T062008Z\\TintVisualGate\\Comparisons\\SideBySide_4000ms.png",
+                                                "Heatmap":  "D:\\Users\\l3d\\Documents\\AVBOIT\\MaterialShaderExample_AVBOIT\\LocalVisualResults\\TempResults\\UE57\\HIVE_4090x2\\UE4-2F-ROI-RedTint-VisualGate\\20260701T062008Z\\TintVisualGate\\Comparisons\\Heatmap_4000ms.png",
+                                                "CoverageMask":  "D:\\Users\\l3d\\Documents\\AVBOIT\\MaterialShaderExample_AVBOIT\\LocalVisualResults\\TempResults\\UE57\\HIVE_4090x2\\UE4-2F-ROI-RedTint-VisualGate\\20260701T062008Z\\TintVisualGate\\Comparisons\\CoverageMask_4000ms.png",
+                                                "Difference":  "D:\\Users\\l3d\\Documents\\AVBOIT\\MaterialShaderExample_AVBOIT\\LocalVisualResults\\TempResults\\UE57\\HIVE_4090x2\\UE4-2F-ROI-RedTint-VisualGate\\20260701T062008Z\\TintVisualGate\\Comparisons\\Difference_4000ms.png",
+                                                "AnnotatedGoal":  "D:\\Users\\l3d\\Documents\\AVBOIT\\MaterialShaderExample_AVBOIT\\LocalVisualResults\\TempResults\\UE57\\HIVE_4090x2\\UE4-2F-ROI-RedTint-VisualGate\\20260701T062008Z\\TintVisualGate\\Comparisons\\AnnotatedGoal_4000ms.png"
+                                            },
+                                  "MetricsPath":  "D:\\Users\\l3d\\Documents\\AVBOIT\\MaterialShaderExample_AVBOIT\\LocalVisualResults\\TempResults\\UE57\\HIVE_4090x2\\UE4-2F-ROI-RedTint-VisualGate\\20260701T062008Z\\TintVisualGate\\TintVisualMetrics_4000ms.json"
+                              }
+                          ]
+}

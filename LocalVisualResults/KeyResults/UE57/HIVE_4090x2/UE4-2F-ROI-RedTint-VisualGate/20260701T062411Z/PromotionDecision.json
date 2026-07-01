@@ -1,0 +1,13 @@
+﻿{
+    "GeneratedUtc":  "2026-07-01T06:24:30.8799589Z",
+    "Phase":  "UE4-2F-ROI-RedTint-VisualGate",
+    "PromotionEligible":  true,
+    "KeyResultsPromoted":  true,
+    "FinalVisualGatePass":  true,
+    "PolicyBlocked":  false,
+    "Failures":  [
+
+                 ],
+    "OverallProjectStatus":  "partial",
+    "Reason":  "UE-4.2F ROI red tint visual gate passed for the final time point; real Niagara draw bridge remains separately blocked until UE-4.2E hard gates pass."
+}

@@ -1,7 +1,7 @@
 #include "AVBOIT/Niagara/AVBOITNiagaraSpriteRendererProperties.h"
 
 #include "AVBOIT/Niagara/AVBOITNiagaraRenderer.h"
-#include "Materials/MaterialInstanceDynamic.h"
+#include "Materials/MaterialInstanceConstant.h"
 #include "NiagaraEmitterInstance.h"
 #include "NiagaraSystemInstanceController.h"
 
@@ -13,6 +13,27 @@ namespace
 		TEXT("BaseColor"),
 		TEXT("ParticleColor")
 	};
+
+	void SetVectorOverride(UMaterialInstanceConstant* MaterialInstance, const FName& ParameterName, const FLinearColor& Value)
+	{
+		if (!MaterialInstance)
+		{
+			return;
+		}
+
+		const FMaterialParameterInfo ParameterInfo(ParameterName);
+		if (FVectorParameterValue* ExistingValue = MaterialInstance->VectorParameterValues.FindByPredicate(
+			[&ParameterInfo](const FVectorParameterValue& Candidate)
+			{
+				return Candidate.ParameterInfo == ParameterInfo;
+			}))
+		{
+			ExistingValue->ParameterValue = Value;
+			return;
+		}
+
+		MaterialInstance->VectorParameterValues.Add(FVectorParameterValue(ParameterInfo, Value));
+	}
 }
 
 FNiagaraRenderer* UNiagaraAVBOITSpriteRendererProperties::CreateEmitterRenderer(
@@ -37,46 +58,13 @@ void UNiagaraAVBOITSpriteRendererProperties::CaptureRuntimeSourceMaterial()
 bool UNiagaraAVBOITSpriteRendererProperties::ApplyRuntimeTintMaterial(const FLinearColor& TintColor)
 {
 	CaptureRuntimeSourceMaterial();
-
-	UMaterialInterface* SourceMaterial = AVBOITRuntimeSourceMaterial.Get();
-	if (!SourceMaterial)
+	const bool bChanged = bAVBOITRuntimeTintMaterialActive || AVBOITRuntimeTintColor != TintColor;
+	if (AVBOITRuntimeSourceMaterial && Material == AVBOITRuntimeTintMaterial)
 	{
-		SourceMaterial = Material;
-		AVBOITRuntimeSourceMaterial = SourceMaterial;
+		Material = AVBOITRuntimeSourceMaterial;
 	}
-
-	if (!SourceMaterial)
-	{
-		bAVBOITRuntimeTintMaterialActive = false;
-		return false;
-	}
-
-	const bool bNeedsNewMaterial = !AVBOITRuntimeTintMaterial;
-	if (bNeedsNewMaterial)
-	{
-		AVBOITRuntimeTintMaterial = UMaterialInstanceDynamic::Create(SourceMaterial, this);
-	}
-
-	if (!AVBOITRuntimeTintMaterial)
-	{
-		bAVBOITRuntimeTintMaterialActive = false;
-		return false;
-	}
-
-	for (const FName& ParameterName : TintParameterNames)
-	{
-		AVBOITRuntimeTintMaterial->SetVectorParameterValue(ParameterName, TintColor);
-	}
-
-	const bool bChanged =
-		Material != AVBOITRuntimeTintMaterial ||
-		!bAVBOITRuntimeTintMaterialActive ||
-		AVBOITRuntimeTintColor != TintColor ||
-		bNeedsNewMaterial;
-
-	Material = AVBOITRuntimeTintMaterial;
 	AVBOITRuntimeTintColor = TintColor;
-	bAVBOITRuntimeTintMaterialActive = true;
+	bAVBOITRuntimeTintMaterialActive = false;
 	return bChanged;
 }
 

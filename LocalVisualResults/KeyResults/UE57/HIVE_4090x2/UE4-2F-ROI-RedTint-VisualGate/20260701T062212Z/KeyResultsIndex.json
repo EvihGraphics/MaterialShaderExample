@@ -1,0 +1,31 @@
+﻿{
+    "GeneratedUtc":  "2026-07-01T06:22:32.1889037Z",
+    "Phase":  "UE4-2F-ROI-RedTint-VisualGate",
+    "TempEvidenceRoot":  "D:\\Users\\l3d\\Documents\\AVBOIT\\MaterialShaderExample_AVBOIT\\LocalVisualResults\\TempResults\\UE57\\HIVE_4090x2\\UE4-2F-ROI-RedTint-VisualGate\\20260701T062212Z",
+    "KeyResultsRoot":  "D:\\Users\\l3d\\Documents\\AVBOIT\\MaterialShaderExample_AVBOIT\\LocalVisualResults\\KeyResults\\UE57\\HIVE_4090x2\\UE4-2F-ROI-RedTint-VisualGate\\20260701T062212Z",
+    "SelectedCaptureTimeSeconds":  4,
+    "SelectedGoal":  "ROI Red Tint Visual Gate",
+    "SelectedMode":  "PluginAVBOIT",
+    "SelectedTintColorLinear":  {
+                                    "R":  1,
+                                    "G":  0,
+                                    "B":  0,
+                                    "A":  1
+                                },
+    "SelectedImages":  [
+                           "10_EngineDefaultBefore_4000ms.png",
+                           "11_PluginAVBOIT_RedTint_4000ms.png",
+                           "12_EngineDefaultAfter_4000ms.png",
+                           "EngineDefaultBefore_4000ms_ROI.png",
+                           "PluginAVBOIT_RedTint_4000ms_ROI.png",
+                           "EngineDefaultAfter_4000ms_ROI.png",
+                           "SideBySide_4000ms.png",
+                           "Heatmap_4000ms.png",
+                           "CoverageMask_4000ms.png",
+                           "Difference_4000ms.png",
+                           "AnnotatedGoal_4000ms.png"
+                       ],
+    "VisualGateStatus":  "passed",
+    "OverallProjectStatus":  "partial",
+    "Note":  "KeyResults promotion here means the UE-4.2F visual red-tint target passed. It does not claim the UE-4.2E real Niagara draw bridge hard gates are complete."
+}

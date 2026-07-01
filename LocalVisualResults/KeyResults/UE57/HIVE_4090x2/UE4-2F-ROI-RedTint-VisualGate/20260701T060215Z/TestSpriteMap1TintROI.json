@@ -1,0 +1,11 @@
+{
+  "Name": "TestSpriteMap1_ROI_RedTint",
+  "CoordinateSpace": "NormalizedViewport",
+  "Left": 0.062,
+  "Top": 0.417,
+  "Right": 0.918,
+  "Bottom": 0.814,
+  "Source": "User supplied red rectangle reference for UE-4.2F ROI red tint visual gate",
+  "RequiredScreenshotSource": "UE.FScreenshotRequest",
+  "DesktopScreenshotAllowed": false
+}

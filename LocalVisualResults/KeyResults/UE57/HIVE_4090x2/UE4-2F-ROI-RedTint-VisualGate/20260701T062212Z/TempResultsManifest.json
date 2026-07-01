@@ -1,0 +1,17 @@
+﻿{
+    "GeneratedUtc":  "2026-07-01T06:22:32.1949048Z",
+    "Phase":  "UE4-2F-ROI-RedTint-VisualGate",
+    "EvidenceRoot":  "D:\\Users\\l3d\\Documents\\AVBOIT\\MaterialShaderExample_AVBOIT\\LocalVisualResults\\TempResults\\UE57\\HIVE_4090x2\\UE4-2F-ROI-RedTint-VisualGate\\20260701T062212Z",
+    "RunTintVisualGate":  true,
+    "TintColorLinear":  {
+                            "R":  1,
+                            "G":  0,
+                            "B":  0,
+                            "A":  1
+                        },
+    "TintROI":  "D:\\Users\\l3d\\Documents\\AVBOIT\\MaterialShaderExample_AVBOIT\\Config\\AVBOIT\\TestSpriteMap1TintROI.json",
+    "ScreenshotCount":  12,
+    "ScreenshotSource":  "UE.FScreenshotRequest",
+    "DesktopScreenshotUsed":  false,
+    "Status":  "partial"
+}

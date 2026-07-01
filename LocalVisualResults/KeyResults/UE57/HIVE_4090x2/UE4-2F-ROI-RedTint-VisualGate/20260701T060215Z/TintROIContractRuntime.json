@@ -1,0 +1,33 @@
+﻿{
+    "GeneratedUtc":  "2026-07-01T06:02:40.8705929Z",
+    "Phase":  "UE4-2F-ROI-RedTint-VisualGate",
+    "SourceConfig":  "D:\\Users\\l3d\\Documents\\AVBOIT\\MaterialShaderExample_AVBOIT\\Config\\AVBOIT\\TestSpriteMap1TintROI.json",
+    "Normalized":  {
+                       "Name":  "TestSpriteMap1_ROI_RedTint",
+                       "CoordinateSpace":  "NormalizedViewport",
+                       "Left":  0.062,
+                       "Top":  0.417,
+                       "Right":  0.918,
+                       "Bottom":  0.814,
+                       "Source":  "User supplied red rectangle reference for UE-4.2F ROI red tint visual gate",
+                       "RequiredScreenshotSource":  "UE.FScreenshotRequest",
+                       "DesktopScreenshotAllowed":  false
+                   },
+    "FinalCaptureToken":  "4000ms",
+    "FinalPixelRect":  {
+                           "X":  59,
+                           "Y":  225,
+                           "Width":  823,
+                           "Height":  215,
+                           "Right":  882,
+                           "Bottom":  440
+                       },
+    "TintColorLinear":  {
+                            "R":  1,
+                            "G":  0,
+                            "B":  0,
+                            "A":  1
+                        },
+    "ScreenshotSource":  "UE.FScreenshotRequest",
+    "DesktopScreenshotAllowed":  false
+}

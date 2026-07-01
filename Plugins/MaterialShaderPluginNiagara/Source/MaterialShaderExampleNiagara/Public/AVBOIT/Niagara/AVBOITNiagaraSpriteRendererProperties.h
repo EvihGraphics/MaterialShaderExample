@@ -7,7 +7,7 @@
 class FNiagaraEmitterInstance;
 class FNiagaraRenderer;
 class FNiagaraSystemInstanceController;
-class UMaterialInstanceDynamic;
+class UMaterialInstanceConstant;
 class UMaterialInterface;
 
 UCLASS(EditInlineNew, meta = (DisplayName = "AVBOIT Sprite Renderer", SupportsStateless), MinimalAPI)
@@ -31,7 +31,7 @@ private:
 	TObjectPtr<UMaterialInterface> AVBOITRuntimeSourceMaterial;
 
 	UPROPERTY(Transient)
-	TObjectPtr<UMaterialInstanceDynamic> AVBOITRuntimeTintMaterial;
+	TObjectPtr<UMaterialInstanceConstant> AVBOITRuntimeTintMaterial;
 
 	UPROPERTY(Transient)
 	FLinearColor AVBOITRuntimeTintColor = FLinearColor::Transparent;

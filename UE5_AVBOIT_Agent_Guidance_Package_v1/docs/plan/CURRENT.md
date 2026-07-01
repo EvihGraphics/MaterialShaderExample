@@ -15,20 +15,23 @@ MaterialShaderExample_AVBOIT
 Latest mirrored checkpoint:
 
 ```text
-docs/checkpoints/archive/CHECKPOINT-0045-20260630T190206Z-UE-4-2E-REAL-NIAGARA-SPRITE-DRAW-BRIDGE.md
+docs/checkpoints/archive/CHECKPOINT-0046-20260701T052657Z-UE-4-2F-ROI-RED-TINT-VISUAL-GATE.md
 ```
 
 Current mirrored status:
 
 ```text
-blocked-local
+partial
 ```
 
-UE-4.2E is a Plugin-first real Niagara Sprite draw bridge and shared AVBOIT core
-stage. It adds shared contracts, runtime modes, real-resource gate CVars, and a
-minimal UE5.7 Niagara hook proposal, while explicitly blocking KeyResults
-promotion until real VF/material/particle-attribute hash/SceneColor composite
-and GPU evidence gates pass.
+UE-4.2F adds a UE-rendered ROI red-tint visual gate for `TestSpriteMap1`.
+`AVBOIT.Niagara.ShowOverlay` must be visible and clickable in GameViewport or
+Editor PIE LevelViewport, and `AVBOIT.Niagara.CaptureTintComparison` must
+capture EngineDefault-before, PluginAVBOIT-red-tint, and EngineDefault-after
+through `UE.FScreenshotRequest`.
 
-Do not mark `SUCCESS`, `COMPLETED`, or `passed-local` for UE-4.2E in the current
-state.
+KeyResults promotion is allowed only for a passing final-timepoint ROI red-tint
+visual gate. This does not pass the UE-4.2E real Niagara draw bridge gates.
+
+Do not mark `SUCCESS`, `COMPLETED`, or `passed-local` for the overall project in
+the current state.

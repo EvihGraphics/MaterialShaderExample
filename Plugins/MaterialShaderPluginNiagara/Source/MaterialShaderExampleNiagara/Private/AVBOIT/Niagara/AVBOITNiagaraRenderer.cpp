@@ -95,9 +95,10 @@ void FNiagaraRendererAVBOITSprites::GetDynamicMeshElements(
 	DrawData.bSubImageBlend = bSubImageBlend;
 	DrawData.bTintEnabled = AVBOITNiagara::IsTintEnabled();
 	DrawData.TintColor = AVBOITNiagara::GetTintColor();
-	DrawData.bTintVisibleFallbackDrawUsed = false;
-	DrawData.bDefaultDrawSuppressed = true;
-	DrawData.bDefaultNiagaraFallbackUsed = false;
+	const bool bUseTintVisibleFallbackDraw = DrawData.bTintEnabled;
+	DrawData.bTintVisibleFallbackDrawUsed = bUseTintVisibleFallbackDraw;
+	DrawData.bDefaultDrawSuppressed = !bUseTintVisibleFallbackDraw;
+	DrawData.bDefaultNiagaraFallbackUsed = bUseTintVisibleFallbackDraw;
 	DrawData.bHasParticleBuffer = ParticleData != nullptr;
 	DrawData.bHasMaterialContract = !MaterialPath.IsEmpty();
 	DrawData.bHasVertexFactoryContract = false;
@@ -110,6 +111,10 @@ void FNiagaraRendererAVBOITSprites::GetDynamicMeshElements(
 	DrawData.KnownBlockingApi = NiagaraSpritePrivateApiBlocker;
 	DrawData.BlockingReasons.Add(DrawData.KnownBlockingApi);
 	DrawData.BlockingReasons.Add(TEXT("Patches/UE57/NiagaraAVBOITMinimalHook.patch is required before PluginIdentity or PluginAVBOIT can prove real SceneColor draws."));
+	if (bUseTintVisibleFallbackDraw)
+	{
+		DrawData.BlockingReasons.Add(TEXT("UE-4.2F ROI tint visual gate uses the default Niagara sprite draw only as a visible red-tint preview while the real plugin-only sprite draw hook remains blocked."));
+	}
 
 	uint32 MetadataHash = 0;
 	MetadataHash = HashDrawPacketField(MetadataHash, DrawData.SystemName);
@@ -129,4 +134,9 @@ void FNiagaraRendererAVBOITSprites::GetDynamicMeshElements(
 	DrawData.bParticleAttributeHashComplete = false;
 
 	FAVBOITNiagaraSceneData::Get().RegisterDraw_RenderThread(DrawData);
+
+	if (bUseTintVisibleFallbackDraw)
+	{
+		FNiagaraRendererSprites::GetDynamicMeshElements(Views, ViewFamily, VisibilityMap, Collector, SceneProxy);
+	}
 }

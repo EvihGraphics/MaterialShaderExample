@@ -35,6 +35,15 @@ public class MaterialShaderExampleNiagara : ModuleRules
 			"SlateCore"
 		});
 
+		if (Target.bBuildEditor)
+		{
+			PrivateDependencyModuleNames.AddRange(new string[]
+			{
+				"LevelEditor",
+				"UnrealEd"
+			});
+		}
+
 		PrivateIncludePaths.AddRange(new string[]
 		{
 			Path.Combine(GetModuleDirectory("Renderer"), "Private"),

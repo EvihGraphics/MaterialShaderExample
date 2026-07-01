@@ -19,6 +19,7 @@
 #include "Misc/DateTime.h"
 #include "Misc/FileHelper.h"
 #include "Misc/Paths.h"
+#include "Modules/ModuleManager.h"
 #include "NiagaraComponent.h"
 #include "NiagaraEmitter.h"
 #include "NiagaraEmitterHandle.h"
@@ -28,6 +29,7 @@
 #include "Policies/CondensedJsonPrintPolicy.h"
 #include "RenderCore.h"
 #include "ShowFlags.h"
+#include "Framework/Application/SlateApplication.h"
 #include "Styling/CoreStyle.h"
 #include "UObject/UObjectIterator.h"
 #include "UObject/UnrealType.h"
@@ -44,6 +46,12 @@
 #include "Widgets/SOverlay.h"
 #include "Widgets/SWeakWidget.h"
 #include "Widgets/Text/STextBlock.h"
+
+#if WITH_EDITOR
+#include "EditorViewportClient.h"
+#include "IAssetViewport.h"
+#include "LevelEditor.h"
+#endif
 
 TArray<IConsoleObject*> FAVBOITNiagaraValidationCommands::RegisteredCommands;
 
@@ -168,6 +176,19 @@ namespace
 		}
 		return Components;
 	}
+
+#if WITH_EDITOR
+	TSharedPtr<IAssetViewport> GetActiveEditorAssetViewport()
+	{
+		FLevelEditorModule* LevelEditorModule = FModuleManager::LoadModulePtr<FLevelEditorModule>(TEXT("LevelEditor"));
+		if (!LevelEditorModule)
+		{
+			return nullptr;
+		}
+
+		return LevelEditorModule->GetFirstActiveViewport();
+	}
+#endif
 
 	void CopyRendererPropertyClass(const UObject* Source, UObject* Destination, const UClass* Class)
 	{
@@ -462,6 +483,33 @@ namespace
 				Contract.bMaterials = EffectiveShowFlags.Materials != 0;
 			}
 		}
+#if WITH_EDITOR
+		else if (TSharedPtr<IAssetViewport> AssetViewport = GetActiveEditorAssetViewport())
+		{
+			FEditorViewportClient& ViewportClient = AssetViewport->GetAssetViewportClient();
+			Contract.ViewModeIndex = static_cast<int32>(ViewportClient.GetViewMode());
+			Contract.VerifiedViewMode = ViewModeNameFromIndex(Contract.ViewModeIndex);
+
+			FEngineShowFlags EffectiveShowFlags(ESFIM_Editor);
+			if (Contract.ViewModeIndex >= 0 && Contract.ViewModeIndex < VMI_Max)
+			{
+				EngineShowFlagOverride(ESFIM_Editor, static_cast<EViewModeIndex>(Contract.ViewModeIndex), EffectiveShowFlags, false);
+				Contract.ShowFlagsSource = TEXT("EngineShowFlagOverride(ESFIM_Editor, VerifiedViewMode)");
+			}
+			else
+			{
+				Contract.ShowFlagsSource = TEXT("ESFIM_Editor default show flags");
+			}
+
+			Contract.bLighting = EffectiveShowFlags.Lighting != 0;
+			Contract.bLightFunctions = EffectiveShowFlags.LightFunctions != 0;
+			Contract.bDynamicShadows = EffectiveShowFlags.DynamicShadows != 0;
+			Contract.bAtmosphere = EffectiveShowFlags.Atmosphere != 0;
+			Contract.bFog = EffectiveShowFlags.Fog != 0;
+			Contract.bPostProcessing = EffectiveShowFlags.PostProcessing != 0;
+			Contract.bMaterials = EffectiveShowFlags.Materials != 0;
+		}
+#endif
 
 		Contract.bVerifiedViewModeIsUnlit =
 			Contract.ViewModeIndex == VMI_Unlit &&
@@ -481,6 +529,14 @@ namespace
 		{
 			GEngine->GameViewport->SetViewMode(VMI_Unlit);
 		}
+#if WITH_EDITOR
+		else if (TSharedPtr<IAssetViewport> AssetViewport = GetActiveEditorAssetViewport())
+		{
+			FEditorViewportClient& ViewportClient = AssetViewport->GetAssetViewportClient();
+			ViewportClient.SetViewMode(VMI_Unlit);
+			ViewportClient.Invalidate();
+		}
+#endif
 
 		return ReadEngineViewModeContract();
 	}
@@ -852,6 +908,28 @@ namespace
 		return Result;
 	}
 
+	FLinearColor ParseLinearColorArg(const FString& ColorText, const FLinearColor& DefaultColor)
+	{
+		FString Normalized = ColorText;
+		Normalized.ReplaceInline(TEXT("|"), TEXT(","));
+		Normalized.ReplaceInline(TEXT("+"), TEXT(","));
+		Normalized.ReplaceInline(TEXT(";"), TEXT(","));
+
+		TArray<FString> Parts;
+		Normalized.ParseIntoArray(Parts, TEXT(","), true);
+		if (Parts.Num() < 3)
+		{
+			return DefaultColor;
+		}
+
+		FLinearColor ParsedColor = DefaultColor;
+		ParsedColor.R = FCString::Atof(*Parts[0]);
+		ParsedColor.G = FCString::Atof(*Parts[1]);
+		ParsedColor.B = FCString::Atof(*Parts[2]);
+		ParsedColor.A = Parts.Num() >= 4 ? FCString::Atof(*Parts[3]) : DefaultColor.A;
+		return ParsedColor;
+	}
+
 	TSharedRef<FJsonObject> BuildRendererBindingManifest()
 	{
 		TSharedRef<FJsonObject> Root = MakeShared<FJsonObject>();
@@ -976,6 +1054,39 @@ namespace
 	TSharedPtr<SWidget> GInteractiveOverlayWidget;
 	TSharedPtr<SWidget> GInteractiveOverlayViewportContent;
 
+	enum class EAVBOITOverlayAttachTarget : uint8
+	{
+		None,
+		GameViewport,
+		EditorLevelViewport
+	};
+
+	EAVBOITOverlayAttachTarget GInteractiveOverlayAttachTarget = EAVBOITOverlayAttachTarget::None;
+	FString GInteractiveOverlayLastError;
+	bool bInteractiveInputModeApplied = false;
+	bool bInteractiveMouseCursorRequested = false;
+	bool bInteractiveHadPreviousMouseCursorState = false;
+	bool bInteractivePreviousMouseCursorVisible = false;
+	bool bInteractivePreviousClickEvents = false;
+	bool bInteractivePreviousMouseOverEvents = false;
+
+#if WITH_EDITOR
+	TWeakPtr<IAssetViewport> GInteractiveOverlayEditorViewport;
+#endif
+
+	const TCHAR* OverlayAttachTargetName(EAVBOITOverlayAttachTarget Target)
+	{
+		switch (Target)
+		{
+		case EAVBOITOverlayAttachTarget::GameViewport:
+			return TEXT("GameViewport");
+		case EAVBOITOverlayAttachTarget::EditorLevelViewport:
+			return TEXT("EditorLevelViewport");
+		default:
+			return TEXT("None");
+		}
+	}
+
 	struct FAVBOITRuntimeTintMaterialState
 	{
 		int32 RendererCount = 0;
@@ -990,6 +1101,13 @@ namespace
 		{
 			return State;
 		}
+
+		const bool bTintModeAllowsOverride =
+			GInteractiveMode == EAVBOITCaptureMode::PluginIdentity ||
+			GInteractiveMode == EAVBOITCaptureMode::PluginAVBOIT ||
+			GInteractiveMode == EAVBOITCaptureMode::AVBOITNiagaraUnlit;
+		const bool bShouldApplyTint = bTintModeAllowsOverride && AVBOITNiagara::IsTintEnabled();
+		const FLinearColor TintColor = AVBOITNiagara::GetTintColor();
 
 		TSet<UNiagaraSystem*> ChangedSystems;
 		TSet<UNiagaraSystem*> VisitedSystems;
@@ -1030,7 +1148,9 @@ namespace
 					State.RendererCount++;
 					if (bApplyChanges)
 					{
-						const bool bRendererChanged = AVBOITRenderer->ClearRuntimeTintMaterial();
+						const bool bRendererChanged = bShouldApplyTint
+							? AVBOITRenderer->ApplyRuntimeTintMaterial(TintColor)
+							: AVBOITRenderer->ClearRuntimeTintMaterial();
 						if (bRendererChanged)
 						{
 							ChangedSystems.Add(System);
@@ -1306,40 +1426,142 @@ namespace
 		TSharedPtr<SComboBox<TSharedPtr<FString>>> ModeComboBox;
 	};
 
+	void ApplyInteractiveOverlayInputMode(bool bEnable)
+	{
+		UWorld* World = FindRuntimeWorld();
+		APlayerController* PlayerController = World ? World->GetFirstPlayerController() : nullptr;
+
+		if (bEnable)
+		{
+			bInteractiveMouseCursorRequested = true;
+
+			if (PlayerController)
+			{
+				if (!bInteractiveHadPreviousMouseCursorState)
+				{
+					bInteractivePreviousMouseCursorVisible = PlayerController->bShowMouseCursor;
+					bInteractivePreviousClickEvents = PlayerController->bEnableClickEvents;
+					bInteractivePreviousMouseOverEvents = PlayerController->bEnableMouseOverEvents;
+					bInteractiveHadPreviousMouseCursorState = true;
+				}
+
+				PlayerController->SetShowMouseCursor(true);
+				PlayerController->bEnableClickEvents = true;
+				PlayerController->bEnableMouseOverEvents = true;
+
+				FInputModeGameAndUI InputMode;
+				if (GInteractiveOverlayWidget.IsValid())
+				{
+					InputMode.SetWidgetToFocus(GInteractiveOverlayWidget);
+				}
+				InputMode.SetLockMouseToViewportBehavior(EMouseLockMode::DoNotLock);
+				InputMode.SetHideCursorDuringCapture(false);
+				PlayerController->SetInputMode(InputMode);
+				bInteractiveInputModeApplied = true;
+			}
+
+			if (FSlateApplication::IsInitialized())
+			{
+				FSlateApplication::Get().SetPlatformCursorVisibility(true);
+				if (GInteractiveOverlayWidget.IsValid())
+				{
+					FSlateApplication::Get().SetKeyboardFocus(GInteractiveOverlayWidget, EFocusCause::SetDirectly);
+				}
+			}
+		}
+		else
+		{
+			if (PlayerController && bInteractiveHadPreviousMouseCursorState)
+			{
+				PlayerController->SetShowMouseCursor(bInteractivePreviousMouseCursorVisible);
+				PlayerController->bEnableClickEvents = bInteractivePreviousClickEvents;
+				PlayerController->bEnableMouseOverEvents = bInteractivePreviousMouseOverEvents;
+				PlayerController->SetInputMode(FInputModeGameOnly());
+			}
+
+			bInteractiveInputModeApplied = false;
+			bInteractiveMouseCursorRequested = false;
+			bInteractiveHadPreviousMouseCursorState = false;
+		}
+	}
+
 	void ShowInteractiveOverlay()
 	{
 		if (GInteractiveOverlayViewportContent.IsValid())
 		{
-			return;
-		}
-
-		if (!GEngine || !GEngine->GameViewport)
-		{
-			UE_LOG(LogTemp, Warning, TEXT("AVBOIT.Niagara.ShowOverlay skipped: no GameViewport is available."));
+			ApplyInteractiveOverlayInputMode(true);
 			return;
 		}
 
 		const TSharedRef<SWidget> OverlayWidget = SNew(SAVBOITNiagaraModeOverlay);
 		GInteractiveOverlayWidget = OverlayWidget;
-		GInteractiveOverlayViewportContent = SNew(SWeakWidget).PossiblyNullContent(OverlayWidget);
-		GEngine->GameViewport->AddViewportWidgetContent(GInteractiveOverlayViewportContent.ToSharedRef(), 1000);
-		UE_LOG(LogTemp, Display, TEXT("AVBOIT.Niagara overlay shown."));
+		GInteractiveOverlayAttachTarget = EAVBOITOverlayAttachTarget::None;
+		GInteractiveOverlayLastError.Empty();
+
+		if (GEngine && GEngine->GameViewport)
+		{
+			GInteractiveOverlayViewportContent = SNew(SWeakWidget).PossiblyNullContent(OverlayWidget);
+			GEngine->GameViewport->AddViewportWidgetContent(GInteractiveOverlayViewportContent.ToSharedRef(), 1000);
+			GInteractiveOverlayAttachTarget = EAVBOITOverlayAttachTarget::GameViewport;
+			ApplyInteractiveOverlayInputMode(true);
+			UE_LOG(LogTemp, Display, TEXT("AVBOIT.Niagara overlay shown on GameViewport."));
+			return;
+		}
+
+#if WITH_EDITOR
+		if (TSharedPtr<IAssetViewport> AssetViewport = GetActiveEditorAssetViewport())
+		{
+			GInteractiveOverlayViewportContent = OverlayWidget;
+			GInteractiveOverlayEditorViewport = AssetViewport;
+			AssetViewport->AddOverlayWidget(GInteractiveOverlayViewportContent.ToSharedRef(), 1000);
+			GInteractiveOverlayAttachTarget = EAVBOITOverlayAttachTarget::EditorLevelViewport;
+			ApplyInteractiveOverlayInputMode(true);
+			if (FSlateApplication::IsInitialized())
+			{
+				FSlateApplication::Get().SetKeyboardFocus(OverlayWidget, EFocusCause::SetDirectly);
+			}
+			UE_LOG(LogTemp, Display, TEXT("AVBOIT.Niagara overlay shown on EditorLevelViewport."));
+			return;
+		}
+#endif
+
+		GInteractiveOverlayLastError = TEXT("No GameViewport or active Editor LevelViewport was available for AddViewportWidgetContent/AddOverlayWidget.");
+		GInteractiveOverlayWidget.Reset();
+		GInteractiveOverlayViewportContent.Reset();
+		UE_LOG(LogTemp, Warning, TEXT("AVBOIT.Niagara.ShowOverlay skipped: %s"), *GInteractiveOverlayLastError);
 	}
 
 	void HideInteractiveOverlay()
 	{
-		if (GInteractiveOverlayViewportContent.IsValid() && GEngine && GEngine->GameViewport)
+		if (GInteractiveOverlayViewportContent.IsValid() &&
+			GInteractiveOverlayAttachTarget == EAVBOITOverlayAttachTarget::GameViewport &&
+			GEngine && GEngine->GameViewport)
 		{
 			GEngine->GameViewport->RemoveViewportWidgetContent(GInteractiveOverlayViewportContent.ToSharedRef());
 		}
+#if WITH_EDITOR
+		else if (GInteractiveOverlayViewportContent.IsValid() &&
+			GInteractiveOverlayAttachTarget == EAVBOITOverlayAttachTarget::EditorLevelViewport)
+		{
+			if (TSharedPtr<IAssetViewport> AssetViewport = GInteractiveOverlayEditorViewport.Pin())
+			{
+				AssetViewport->RemoveOverlayWidget(GInteractiveOverlayViewportContent.ToSharedRef());
+			}
+		}
+#endif
 
 		if (GInteractiveOverlayViewportContent.IsValid())
 		{
 			UE_LOG(LogTemp, Display, TEXT("AVBOIT.Niagara overlay hidden."));
 		}
 
+		ApplyInteractiveOverlayInputMode(false);
 		GInteractiveOverlayViewportContent.Reset();
 		GInteractiveOverlayWidget.Reset();
+		GInteractiveOverlayAttachTarget = EAVBOITOverlayAttachTarget::None;
+#if WITH_EDITOR
+		GInteractiveOverlayEditorViewport.Reset();
+#endif
 	}
 
 	TSharedRef<FJsonObject> BuildRuntimeStatusObject(const TCHAR* Context)
@@ -1357,6 +1579,11 @@ namespace
 		Root->SetBoolField(TEXT("PromotionEligible"), false);
 		Root->SetStringField(TEXT("Mode"), CaptureModeName(GInteractiveMode));
 		Root->SetBoolField(TEXT("EditorViewportUsed"), false);
+		Root->SetBoolField(TEXT("OverlayAttached"), GInteractiveOverlayViewportContent.IsValid());
+		Root->SetStringField(TEXT("OverlayAttachTarget"), OverlayAttachTargetName(GInteractiveOverlayAttachTarget));
+		Root->SetStringField(TEXT("OverlayLastError"), GInteractiveOverlayLastError);
+		Root->SetBoolField(TEXT("MouseCursorRequested"), bInteractiveMouseCursorRequested);
+		Root->SetBoolField(TEXT("InputModeApplied"), bInteractiveInputModeApplied);
 		AddViewModeFields(Root, ViewModeContract);
 		Root->SetBoolField(TEXT("TintEnabled"), AVBOITNiagara::IsTintEnabled());
 		Root->SetObjectField(TEXT("TintColorLinear"), BuildLinearColorJson(AVBOITNiagara::GetTintColor()));
@@ -1707,7 +1934,333 @@ namespace
 		bool bWaitingForScreenshot = false;
 	};
 
+	class FAVBOITNiagaraTintComparisonCapture
+	{
+	public:
+		FAVBOITNiagaraTintComparisonCapture(FString InRoot, TArray<float> InCaptureTimes, FLinearColor InTintColor, FString InROIConfigPath)
+			: Root(MoveTemp(InRoot))
+			, CaptureTimes(MoveTemp(InCaptureTimes))
+			, TintColor(InTintColor)
+			, ROIConfigPath(MoveTemp(InROIConfigPath))
+		{
+		}
+
+		void Start()
+		{
+			HideInteractiveOverlay();
+			AVBOITNiagara::ResetTint();
+			IFileManager::Get().MakeDirectory(*Root, true);
+			GInteractiveStatusRoot = Root;
+
+			World = FindRuntimeWorld();
+			GInteractiveMode = EAVBOITCaptureMode::EngineDefault;
+			ApplyInteractiveTintToWorld(World.Get());
+			SaveJsonObject(Root / TEXT("FeatureManifest.json"), BuildFeatureManifest(World.Get()));
+
+			TArray<FString> ConvertedRenderers;
+			ConvertedRendererCount = ConvertWorldSpriteRenderers(World.Get(), ConvertedRenderers);
+			ApplyInteractiveTintToWorld(World.Get());
+
+			TSharedRef<FJsonObject> Conversion = MakeShared<FJsonObject>();
+			Conversion->SetStringField(TEXT("GeneratedUtc"), FDateTime::UtcNow().ToIso8601());
+			Conversion->SetStringField(TEXT("Stage"), TEXT("UE-4.2F ROI Red Tint Visual Gate"));
+			Conversion->SetNumberField(TEXT("ConvertedRendererCount"), ConvertedRendererCount);
+			Conversion->SetBoolField(TEXT("TransientRuntimeOnly"), true);
+			Conversion->SetBoolField(TEXT("SavedAssetMutationAllowed"), false);
+			TArray<TSharedPtr<FJsonValue>> ConvertedArray;
+			for (const FString& RendererName : ConvertedRenderers)
+			{
+				ConvertedArray.Add(MakeShared<FJsonValueString>(RendererName));
+			}
+			Conversion->SetArrayField(TEXT("ConvertedRenderers"), ConvertedArray);
+			SaveJsonObject(Root / TEXT("RendererConversionManifest.json"), Conversion);
+			SaveJsonObject(Root / TEXT("FeatureManifestAfterConversion.json"), BuildFeatureManifest(World.Get()));
+
+			SetCVarFloat(TEXT("r.ScreenPercentage"), 100.0f);
+			ApplyRuntimeCamera();
+			const FAVBOITEngineViewModeContract InitialViewMode = ForceEngineUnlitViewMode();
+			SaveJsonObject(Root / TEXT("ViewModeContractRuntime.json"), BuildViewModeContractJson(TEXT("TintComparisonStart"), InitialViewMode));
+			WriteCameraContract();
+
+			if (!InitialViewMode.bVerifiedViewModeIsUnlit)
+			{
+				Finish(TEXT("blocked-local"), TEXT("Engine ViewMode Unlit could not be verified before ROI tint comparison capture start."));
+				return;
+			}
+
+			FScreenshotRequest::OnScreenshotRequestProcessed().RemoveAll(this);
+			FScreenshotRequest::OnScreenshotRequestProcessed().AddRaw(this, &FAVBOITNiagaraTintComparisonCapture::OnScreenshotProcessed);
+			TickerHandle = FTSTicker::GetCoreTicker().AddTicker(
+				FTickerDelegate::CreateRaw(this, &FAVBOITNiagaraTintComparisonCapture::Tick),
+				0.0f);
+		}
+
+		bool Tick(float DeltaTime)
+		{
+			if (bWaitingForScreenshot)
+			{
+				return true;
+			}
+
+			const int32 StepCount = Steps.Num();
+			const int32 TotalCaptures = CaptureTimes.Num() * StepCount;
+			if (CaptureIndex >= TotalCaptures)
+			{
+				Finish();
+				return false;
+			}
+
+			const int32 TimeIndex = CaptureIndex / StepCount;
+			const int32 StepIndex = CaptureIndex % StepCount;
+			const float CaptureTime = CaptureTimes[TimeIndex];
+			const FCaptureStep& Step = Steps[StepIndex];
+
+			ApplyRuntimeCamera();
+			ApplyCaptureStep(Step);
+			ApplyNiagaraFixedAge(CaptureTime);
+			const FAVBOITEngineViewModeContract ViewModeContract = ForceEngineUnlitViewMode();
+
+			if (WarmupFramesRemaining < 0)
+			{
+				WarmupFramesRemaining = 2;
+			}
+			if (WarmupFramesRemaining > 0)
+			{
+				--WarmupFramesRemaining;
+				return true;
+			}
+
+			TSharedRef<FJsonObject> CaptureRecord = MakeShared<FJsonObject>();
+			CaptureRecord->SetNumberField(TEXT("CaptureIndex"), CaptureIndex + 1);
+			CaptureRecord->SetNumberField(TEXT("CaptureTimeSeconds"), CaptureTime);
+			CaptureRecord->SetStringField(TEXT("Mode"), CaptureModeName(Step.Mode));
+			CaptureRecord->SetStringField(TEXT("Label"), FString(Step.Label));
+			CaptureRecord->SetNumberField(TEXT("DesiredAgeSeconds"), CaptureTime);
+			CaptureRecord->SetStringField(TEXT("NiagaraAgeMode"), TEXT("DesiredAge"));
+			CaptureRecord->SetStringField(TEXT("ScreenshotSource"), TEXT("UE.FScreenshotRequest"));
+			CaptureRecord->SetBoolField(TEXT("DesktopScreenshotUsed"), false);
+			CaptureRecord->SetBoolField(TEXT("OverlayHidden"), !GInteractiveOverlayViewportContent.IsValid());
+			CaptureRecord->SetBoolField(TEXT("TintEnabled"), AVBOITNiagara::IsTintEnabled());
+			CaptureRecord->SetObjectField(TEXT("TintColorLinear"), BuildLinearColorJson(AVBOITNiagara::GetTintColor()));
+			CaptureRecord->SetStringField(TEXT("ROIConfigPath"), ROIConfigPath);
+			AddViewModeFields(CaptureRecord, ViewModeContract);
+
+			const FString Filename = Root / FString::Printf(
+				TEXT("%02d_%s_%04dms.png"),
+				CaptureIndex + 1,
+				Step.Label,
+				FMath::RoundToInt(CaptureTime * 1000.0f));
+			CaptureRecord->SetStringField(TEXT("Filename"), Filename);
+
+			if (!ViewModeContract.bVerifiedViewModeIsUnlit)
+			{
+				CaptureRecord->SetStringField(TEXT("Status"), TEXT("blocked-local"));
+				CaptureRecord->SetStringField(TEXT("Reason"), TEXT("Engine ViewMode Unlit could not be verified immediately before ROI tint screenshot."));
+				CaptureRecords.Add(MakeShared<FJsonValueObject>(CaptureRecord));
+				Finish(TEXT("blocked-local"), TEXT("Engine ViewMode Unlit verification failed before ROI tint screenshot capture."));
+				return false;
+			}
+
+			if (GInteractiveOverlayViewportContent.IsValid())
+			{
+				CaptureRecord->SetStringField(TEXT("Status"), TEXT("blocked-local"));
+				CaptureRecord->SetStringField(TEXT("Reason"), TEXT("Interactive overlay was still attached immediately before ROI tint screenshot."));
+				CaptureRecords.Add(MakeShared<FJsonValueObject>(CaptureRecord));
+				Finish(TEXT("blocked-local"), TEXT("Overlay contamination risk before ROI tint screenshot capture."));
+				return false;
+			}
+
+			CaptureRecord->SetStringField(TEXT("Status"), TEXT("requested"));
+			CaptureRecords.Add(MakeShared<FJsonValueObject>(CaptureRecord));
+
+			bWaitingForScreenshot = true;
+			WarmupFramesRemaining = -1;
+			FScreenshotRequest::RequestScreenshot(Filename, false, false, false);
+			UE_LOG(LogTemp, Display, TEXT("UE-4.2F requested ROI tint screenshot via UE.FScreenshotRequest: %s"), *Filename);
+			return true;
+		}
+
+		void OnScreenshotProcessed()
+		{
+			bWaitingForScreenshot = false;
+			CaptureIndex++;
+		}
+
+	private:
+		struct FCaptureStep
+		{
+			const TCHAR* Label;
+			EAVBOITCaptureMode Mode;
+			bool bEnableTint;
+		};
+
+		void ApplyCaptureStep(const FCaptureStep& Step)
+		{
+			GInteractiveMode = Step.Mode;
+			ApplyCaptureMode(Step.Mode);
+			if (Step.bEnableTint)
+			{
+				AVBOITNiagara::SetTintColor(TintColor);
+				AVBOITNiagara::SetTintEnabled(true);
+			}
+			else
+			{
+				AVBOITNiagara::SetTintEnabled(false);
+			}
+			ApplyInteractiveTintToWorld(World.Get());
+		}
+
+		void ApplyNiagaraFixedAge(float DesiredAge)
+		{
+			if (!World.IsValid())
+			{
+				World = FindRuntimeWorld();
+			}
+
+			for (UNiagaraComponent* Component : GetNiagaraComponents(World.Get()))
+			{
+				if (!Component)
+				{
+					continue;
+				}
+
+				Component->Activate(true);
+				Component->SetPaused(false);
+				Component->SetAgeUpdateMode(ENiagaraAgeUpdateMode::DesiredAge);
+				Component->SetSeekDelta(1.0f / 60.0f);
+				Component->SetLockDesiredAgeDeltaTimeToSeekDelta(true);
+				Component->SetCanRenderWhileSeeking(true);
+				Component->SeekToDesiredAge(DesiredAge);
+				Component->SetDesiredAge(DesiredAge);
+			}
+		}
+
+		void ApplyRuntimeCamera()
+		{
+			if (!World.IsValid())
+			{
+				World = FindRuntimeWorld();
+			}
+			ApplyReferenceRuntimeCamera(World.Get(), RuntimeCamera);
+		}
+
+		void WriteCameraContract()
+		{
+			if (!World.IsValid())
+			{
+				return;
+			}
+
+			APlayerController* PlayerController = World->GetFirstPlayerController();
+			APlayerCameraManager* CameraManager = PlayerController ? PlayerController->PlayerCameraManager : nullptr;
+			UCameraComponent* CameraComponent = RuntimeCamera.IsValid() ? RuntimeCamera->GetCameraComponent() : nullptr;
+
+			FIntPoint ViewportSize(0, 0);
+			if (GEngine && GEngine->GameViewport && GEngine->GameViewport->Viewport)
+			{
+				ViewportSize = GEngine->GameViewport->Viewport->GetSizeXY();
+			}
+
+			TSharedRef<FJsonObject> RootObject = MakeShared<FJsonObject>();
+			RootObject->SetStringField(TEXT("GeneratedUtc"), FDateTime::UtcNow().ToIso8601());
+			RootObject->SetStringField(TEXT("World"), GetNameSafe(World.Get()));
+			RootObject->SetStringField(TEXT("RunMode"), WorldTypeToString(World->WorldType));
+			RootObject->SetBoolField(TEXT("EditorViewportUsed"), false);
+			RootObject->SetNumberField(TEXT("FOV"), CameraManager ? CameraManager->GetFOVAngle() : 0.0f);
+			RootObject->SetNumberField(TEXT("AspectRatio"), ViewportSize.Y > 0 ? static_cast<double>(ViewportSize.X) / static_cast<double>(ViewportSize.Y) : 0.0);
+			RootObject->SetStringField(TEXT("ProjectionMode"), CameraComponent && CameraComponent->ProjectionMode == ECameraProjectionMode::Orthographic ? TEXT("Orthographic") : TEXT("Perspective"));
+			FMinimalViewInfo ViewInfo;
+			if (CameraComponent)
+			{
+				CameraComponent->GetCameraView(0.0f, ViewInfo);
+			}
+			const float NearPlane = ViewInfo.PerspectiveNearClipPlane > 0.0f ? ViewInfo.PerspectiveNearClipPlane : GNearClippingPlane;
+			RootObject->SetNumberField(TEXT("NearPlane"), NearPlane);
+			RootObject->SetNumberField(TEXT("ViewRectMinX"), 0);
+			RootObject->SetNumberField(TEXT("ViewRectMinY"), 0);
+			RootObject->SetNumberField(TEXT("ViewRectMaxX"), ViewportSize.X);
+			RootObject->SetNumberField(TEXT("ViewRectMaxY"), ViewportSize.Y);
+			RootObject->SetNumberField(TEXT("ScreenPercentage"), GetCVarFloat(TEXT("r.ScreenPercentage")));
+			RootObject->SetNumberField(TEXT("AutoExposureBias"), CameraComponent ? CameraComponent->PostProcessSettings.AutoExposureBias : 0.0f);
+			RootObject->SetNumberField(TEXT("PostProcessBlendWeight"), CameraComponent ? CameraComponent->PostProcessBlendWeight : 0.0f);
+			AddViewModeFields(RootObject, ReadEngineViewModeContract());
+
+			TSharedRef<FJsonObject> Transform = MakeShared<FJsonObject>();
+			Transform->SetNumberField(TEXT("LocationX"), ReferenceLocation.X);
+			Transform->SetNumberField(TEXT("LocationY"), ReferenceLocation.Y);
+			Transform->SetNumberField(TEXT("LocationZ"), ReferenceLocation.Z);
+			Transform->SetNumberField(TEXT("Pitch"), ReferenceRotation.Pitch);
+			Transform->SetNumberField(TEXT("Yaw"), ReferenceRotation.Yaw);
+			Transform->SetNumberField(TEXT("Roll"), ReferenceRotation.Roll);
+			RootObject->SetObjectField(TEXT("AppliedTransform"), Transform);
+
+			SaveJsonObject(Root / TEXT("CameraContractRuntime.json"), RootObject);
+			SaveJsonObject(Root / TEXT("TestSpriteMap1Camera.json"), RootObject);
+			SaveJsonObject(Root / TEXT("FinalCameraPOV.json"), RootObject);
+		}
+
+		void Finish(const FString& Status = TEXT("partial"), const FString& Reason = TEXT("UE-4.2F captured EngineDefault before/after and PluginAVBOIT red-tint screenshots through UE.FScreenshotRequest. Image metrics and KeyResults promotion are computed by the runner; real Niagara draw bridge status remains partial/blocked-local."))
+		{
+			FScreenshotRequest::OnScreenshotRequestProcessed().RemoveAll(this);
+			AVBOITNiagara::SetTintEnabled(false);
+			GInteractiveMode = EAVBOITCaptureMode::EngineDefault;
+			ApplyCaptureMode(EAVBOITCaptureMode::EngineDefault);
+			ApplyInteractiveTintToWorld(World.Get());
+			SaveJsonObject(Root / TEXT("ViewModeContractRuntime.json"), BuildViewModeContractJson(TEXT("TintComparisonFinish"), ReadEngineViewModeContract()));
+
+			TSharedRef<FJsonObject> CaptureManifest = MakeShared<FJsonObject>();
+			CaptureManifest->SetStringField(TEXT("GeneratedUtc"), FDateTime::UtcNow().ToIso8601());
+			CaptureManifest->SetStringField(TEXT("Stage"), TEXT("UE-4.2F ROI Red Tint Visual Gate"));
+			CaptureManifest->SetStringField(TEXT("RequiredViewMode"), TEXT("Unlit"));
+			CaptureManifest->SetBoolField(TEXT("EngineUnlitRequired"), true);
+			CaptureManifest->SetStringField(TEXT("ScreenshotSource"), TEXT("UE.FScreenshotRequest"));
+			CaptureManifest->SetBoolField(TEXT("DesktopScreenshotUsed"), false);
+			CaptureManifest->SetBoolField(TEXT("OverlayHiddenForRawScreenshots"), true);
+			CaptureManifest->SetStringField(TEXT("ROIConfigPath"), ROIConfigPath);
+			CaptureManifest->SetObjectField(TEXT("RequestedTintColorLinear"), BuildLinearColorJson(TintColor));
+			CaptureManifest->SetNumberField(TEXT("RequestedCaptureCount"), CaptureTimes.Num() * Steps.Num());
+			CaptureManifest->SetNumberField(TEXT("RecordedCaptureCount"), CaptureRecords.Num());
+			CaptureManifest->SetArrayField(TEXT("Captures"), CaptureRecords);
+			SaveJsonObject(Root / TEXT("CaptureManifest.json"), CaptureManifest);
+
+			SaveJsonObject(Root / TEXT("RendererBindingManifest.json"), BuildRendererBindingManifest());
+
+			TSharedRef<FJsonObject> Acceptance = MakeShared<FJsonObject>();
+			Acceptance->SetStringField(TEXT("GeneratedUtc"), FDateTime::UtcNow().ToIso8601());
+			Acceptance->SetStringField(TEXT("Stage"), TEXT("UE-4.2F ROI Red Tint Visual Gate"));
+			Acceptance->SetStringField(TEXT("Status"), Status);
+			Acceptance->SetBoolField(TEXT("SuccessWithheld"), true);
+			Acceptance->SetBoolField(TEXT("VisualTintGateRequiresRunnerMetrics"), true);
+			Acceptance->SetNumberField(TEXT("ConvertedRendererCount"), ConvertedRendererCount);
+			AddViewModeFields(Acceptance, ReadEngineViewModeContract());
+			Acceptance->SetStringField(TEXT("Reason"), Reason);
+			SaveJsonObject(Root / TEXT("Acceptance.json"), Acceptance);
+
+			UE_LOG(LogTemp, Display, TEXT("UE-4.2F ROI tint comparison capture finished with %s status. Evidence: %s"), *Status, *Root);
+			FPlatformMisc::RequestExit(false);
+		}
+
+		FString Root;
+		TArray<float> CaptureTimes;
+		FLinearColor TintColor;
+		FString ROIConfigPath;
+		TArray<FCaptureStep> Steps = {
+			{ TEXT("EngineDefaultBefore"), EAVBOITCaptureMode::EngineDefault, false },
+			{ TEXT("PluginAVBOIT_RedTint"), EAVBOITCaptureMode::PluginAVBOIT, true },
+			{ TEXT("EngineDefaultAfter"), EAVBOITCaptureMode::EngineDefault, false }
+		};
+		TWeakObjectPtr<UWorld> World;
+		TWeakObjectPtr<ACameraActor> RuntimeCamera;
+		FTSTicker::FDelegateHandle TickerHandle;
+		TArray<TSharedPtr<FJsonValue>> CaptureRecords;
+		int32 ConvertedRendererCount = 0;
+		int32 CaptureIndex = 0;
+		int32 WarmupFramesRemaining = -1;
+		bool bWaitingForScreenshot = false;
+	};
+
 	TUniquePtr<FAVBOITNiagaraParityCapture> GActiveCapture;
+	TUniquePtr<FAVBOITNiagaraTintComparisonCapture> GActiveTintCapture;
 
 	void CommandScanTestSpriteMap1(const TArray<FString>& Args)
 	{
@@ -1766,6 +2319,25 @@ namespace
 		const FString Times = KeyValues.Contains(TEXT("times")) ? KeyValues.FindRef(TEXT("times")) : TEXT("0.5,1.0,2.0,4.0");
 		GActiveCapture = MakeUnique<FAVBOITNiagaraParityCapture>(Root, ParseCaptureTimes(Times));
 		GActiveCapture->Start();
+	}
+
+	void CommandCaptureTintComparison(const TArray<FString>& Args)
+	{
+		const TMap<FString, FString> KeyValues = ParseKeyValueArgs(Args);
+		const FString Root = KeyValues.FindRef(TEXT("root"));
+		if (Root.IsEmpty())
+		{
+			UE_LOG(LogTemp, Error, TEXT("AVBOIT.Niagara.CaptureTintComparison requires root=<evidence directory>"));
+			return;
+		}
+
+		const FString Times = KeyValues.Contains(TEXT("times")) ? KeyValues.FindRef(TEXT("times")) : TEXT("4.0");
+		const FString ColorText = KeyValues.Contains(TEXT("color")) ? KeyValues.FindRef(TEXT("color")) : TEXT("1,0,0,1");
+		const FString ROIConfigPath = KeyValues.FindRef(TEXT("roi"));
+		const FLinearColor TintColor = ParseLinearColorArg(ColorText, FLinearColor(1.0f, 0.0f, 0.0f, 1.0f));
+		GActiveCapture.Reset();
+		GActiveTintCapture = MakeUnique<FAVBOITNiagaraTintComparisonCapture>(Root, ParseCaptureTimes(Times), TintColor, ROIConfigPath);
+		GActiveTintCapture->Start();
 	}
 
 	void ApplyInteractiveMode(EAVBOITCaptureMode Mode, const TCHAR* Context)
@@ -1844,10 +2416,14 @@ namespace
 		UE_LOG(
 			LogTemp,
 			Display,
-			TEXT("AVBOIT.Niagara.Status mode=%s viewMode=%s verifiedUnlit=%s tint=%s tintColor=(R=%0.3f,G=%0.3f,B=%0.3f,A=%0.3f) tintMaterialActive=%d/%d draws=%d particles=%d realDraw=%s compositeSceneColor=%s rendererMetadataHash=%s particleAttributeHash=%s particleAttributeComplete=%s ueSortedPixelsRegistered=%s"),
+			TEXT("AVBOIT.Niagara.Status mode=%s viewMode=%s verifiedUnlit=%s overlay=%s overlayTarget=%s mouseRequested=%s inputModeApplied=%s tint=%s tintColor=(R=%0.3f,G=%0.3f,B=%0.3f,A=%0.3f) tintMaterialActive=%d/%d draws=%d particles=%d realDraw=%s compositeSceneColor=%s rendererMetadataHash=%s particleAttributeHash=%s particleAttributeComplete=%s ueSortedPixelsRegistered=%s"),
 			CaptureModeName(GInteractiveMode),
 			*ViewModeContract.VerifiedViewMode,
 			ViewModeContract.bVerifiedViewModeIsUnlit ? TEXT("true") : TEXT("false"),
+			GInteractiveOverlayViewportContent.IsValid() ? TEXT("attached") : TEXT("none"),
+			OverlayAttachTargetName(GInteractiveOverlayAttachTarget),
+			bInteractiveMouseCursorRequested ? TEXT("true") : TEXT("false"),
+			bInteractiveInputModeApplied ? TEXT("true") : TEXT("false"),
 			AVBOITNiagara::IsTintEnabled() ? TEXT("enabled") : TEXT("off"),
 			TintColor.R,
 			TintColor.G,
@@ -1957,11 +2533,13 @@ namespace
 	void CommandShowOverlay(const TArray<FString>& /*Args*/)
 	{
 		ShowInteractiveOverlay();
+		SaveInteractiveStatus(TEXT("ShowOverlayCommand"), FString());
 	}
 
 	void CommandHideOverlay(const TArray<FString>& /*Args*/)
 	{
 		HideInteractiveOverlay();
+		SaveInteractiveStatus(TEXT("HideOverlayCommand"), FString());
 	}
 
 	void CommandInteractive(const TArray<FString>& Args)
@@ -2003,6 +2581,7 @@ namespace
 		TryParseCaptureMode(ModeToken, Mode);
 		ApplyInteractiveMode(Mode, TEXT("InteractiveStart"));
 		ShowInteractiveOverlay();
+		SaveInteractiveStatus(TEXT("InteractiveOverlayShown"), FString());
 		UE_LOG(LogTemp, Display, TEXT("AVBOIT.Niagara.Interactive ready. Use the viewport overlay or AVBOIT.Niagara.Mode EngineDefault|UESortedPixelsOIT|PluginIdentity|PluginAVBOIT|BufferOverview."));
 	}
 }
@@ -2031,6 +2610,12 @@ void FAVBOITNiagaraValidationCommands::RegisterCommands()
 		TEXT("AVBOIT.Niagara.CaptureParity"),
 		TEXT("Captures UE-4.2C/4.2E EngineDefault, PluginBypass, legacy AVBOITUnlit, and debug-buffer evidence; UE-4.2E status remains partial/blocked-local unless hard gates pass."),
 		FConsoleCommandWithArgsDelegate::CreateStatic(&CommandCaptureParity),
+		ECVF_Default));
+
+	RegisteredCommands.Add(ConsoleManager.RegisterConsoleCommand(
+		TEXT("AVBOIT.Niagara.CaptureTintComparison"),
+		TEXT("Captures UE-4.2F EngineDefaultBefore, PluginAVBOIT_RedTint, and EngineDefaultAfter screenshots through UE.FScreenshotRequest for ROI red-tint visual gating."),
+		FConsoleCommandWithArgsDelegate::CreateStatic(&CommandCaptureTintComparison),
 		ECVF_Default));
 
 	RegisteredCommands.Add(ConsoleManager.RegisterConsoleCommand(
@@ -2096,4 +2681,5 @@ void FAVBOITNiagaraValidationCommands::UnregisterCommands()
 	}
 	RegisteredCommands.Reset();
 	GActiveCapture.Reset();
+	GActiveTintCapture.Reset();
 }

@@ -1,66 +1,54 @@
-# CURRENT - UE-4.2E Real Niagara Sprite Draw Bridge and Shared AVBOIT Core
+# CURRENT - UE-4.2F ROI Red Tint Visual Gate
 
-Generated UTC: 2026-06-30T19:02:06Z
+Generated UTC: 2026-07-01T05:26:57Z
 
 ## Active Stage
 
-- Stage: UE-4.2E Real Niagara Sprite Draw Bridge and Shared AVBOIT Core
-- StageStatus: blocked-local
+- Stage: UE-4.2F ROI Red Tint Visual Gate
+- StageStatus: partial
 - OverallProjectStatus: partial
 - Branch: AVBOIT开发
-- Local HEAD at stage start: `a661bc4f69e5159e996f06dd14c4f754c2208948`
-- Remote HEAD at stage start: `a661bc4f69e5159e996f06dd14c4f754c2208948`
 - Dirty-tree condition: untracked `LocalVisualResults/UE57/` is preserved and must not be staged as acceptance evidence.
 
 ## Implementation Boundary
 
-- Plugin-first only. No UE5.7 engine source changes are applied.
-- If a real Niagara Sprite VF/material draw bridge is required, use `Patches/UE57/NiagaraAVBOITMinimalHook.patch` as a proposal only.
+- Visual evidence must come from UE rendering output, specifically `UE.FScreenshotRequest` or another UE built-in screenshot/readback path.
+- Desktop screenshots are forbidden for gate evidence.
 - Epic `TestSpriteMap1.umap` and dependent assets must remain unmodified.
-- KeyResults promotion is milestone-only and forbidden for blocked-local/foundation/probe evidence.
+- The UE-4.2F visual gate can promote KeyResults only for the ROI red-tint target. It does not claim the UE-4.2E real Niagara VF/material/SceneColor bridge gates are complete.
 
 ## Landed This Stage
 
-- Added shared AVBOIT core public contracts in `MaterialShaderPlugin/Public/AVBOIT/Core/AVBOITCoreTypes.h`.
-- Expanded runtime modes to `EngineDefault`, `UESortedPixelsOIT`, `PluginIdentity`, `PluginAVBOIT`, and `BufferOverview`; old `AVBOITUnlit` remains an alias.
-- Added 4.2E CVars for core identity/fixed-slice modes, shared buffer overview/debug slice, and real VF/material/particle-hash/SceneColor gates.
-- Split Niagara renderer metadata hash from particle attribute hash.
-- Status and renderer manifests now report `NiagaraDrawFeasibility`, depth/slice contract, frame graph contract, blocking private UE symbols, and patch proposal.
-- Runner supports UE-4.2E phase switches and writes required TempResults contract JSON placeholders without promoting KeyResults.
+- Added `Config/AVBOIT/TestSpriteMap1TintROI.json` with the user-specified normalized ROI: `Left=0.062`, `Top=0.417`, `Right=0.918`, `Bottom=0.814`.
+- Fixed `AVBOIT.Niagara.ShowOverlay` to attach to either `GameViewport` or the active Editor LevelViewport and to report `OverlayAttachTarget`, attach errors, mouse state, and input mode state through `AVBOIT.Niagara.Status`.
+- Showing the overlay now requests a visible mouse cursor and applies clickable Game+UI input; hiding it restores runtime input state.
+- Fixed runtime tint material application so `PluginIdentity`, `PluginAVBOIT`, and legacy `AVBOITNiagaraUnlit` apply the tint MID when tint is enabled and clear it for Engine Default/bypass/debug paths.
+- Added a tint-visible fallback draw for the blocked plugin path so UE-4.2F can produce visible red-tint evidence while still marking the real Niagara draw bridge as blocked.
+- Added `AVBOIT.Niagara.CaptureTintComparison root=<dir> times=<list> color=<r,g,b,a> roi=<json>`, which captures `EngineDefaultBefore`, `PluginAVBOIT_RedTint`, and `EngineDefaultAfter` via `FScreenshotRequest`.
+- Extended `Scripts/Run-AVBOITNiagaraSpriteUnlitParity.ps1` with `-RunTintVisualGate`, `-TintColor`, and `-TintROI`.
+- The runner now writes TempResults crops, side-by-side, difference, heatmap, coverage mask, annotated goal image, `TintVisualMetrics.json`, `TintROIContractRuntime.json`, and `PromotionDecision.json`.
+
+## Gate Rules
+
+- EngineDefault before/after ROI MAE must be `<= 1/255`.
+- Plugin ROI changed pixels must be red-dominant with `RedCoverageRatio >= 0.98`.
+- Mean red advantage over changed ROI pixels must be `>= 0.12`.
+- The final time point must have enough changed ROI pixels to prove the visual target is not empty.
+- Raw screenshots must have `ScreenshotSource=UE.FScreenshotRequest`, `DesktopScreenshotUsed=false`, and `OverlayHidden=true`.
+- Any fatal/assert/RDG/RHI/shader binding/GPU crash/Invalid socket handle/duplicate draw/no AVBOIT sprite draws failure blocks promotion.
 
 ## Current Blocking APIs / Gaps
 
 - Real Niagara sprite VF/material/mesh batch construction remains inside UE private `NiagaraRendererSprites.cpp`.
-- Current plugin-only adapter can observe particle counts and renderer metadata, but cannot prove a real `FMeshBatch`, `FVertexFactory`, or `FMaterialRenderProxy`.
-- `PluginIdentity` and `PluginAVBOIT` therefore remain blocked-local until the minimal hook or another legal draw-packet API exists.
-- The current scene extension still records foundation RDG scratch resources; it does not prove final SceneColor composite.
-- GPU readback, RenderDoc/PIX capture, comparison images, and shader tint gates are contracted but not passed.
-
-## Local Validation
-
-- Build: `ContentExamplesEditor Win64 Development` completed with exit code 0 on 2026-06-30T19:07Z.
-- Status smoke: `UnrealEditor.exe -game` entered `PluginIdentity`, wrote `Status.json`, verified Engine `Unlit`, and exited with code 0.
-- Smoke evidence root: `LocalVisualResults/TempResults/UE57/HIVE_4090x2/UE4-2E-Real-Niagara-Sprite-AVBOIT/20260630T190816Z-status-smoke`
-- Smoke log hard-fail scan: no fatal/assert/RDG/RHI/shader binding/GPU crash/Invalid socket handle/duplicate draw/no AVBOIT sprite draws matches.
-- Smoke status: `StageStatus=blocked-local`, `PromotionEligible=false`.
-
-## New Knowledge / Patch Files
-
-- `docs/knowledge/ue5_avboit/UE42E_ACTUAL_STATE_AUDIT_20260630T190206Z.md`
-- `docs/knowledge/ue5_avboit/NIAGARA_SPRITE_DRAW_FEASIBILITY_UE57.md`
-- `docs/knowledge/ue5_avboit/UE57_SORTED_PIXELS_OIT_CALL_GRAPH_UE42E.md`
-- `docs/knowledge/ue5_avboit/THE_FORGE_TO_UE42E_AVBOIT_CONTRACT.md`
-- `docs/knowledge/ue5_avboit/UERP_REF_UE42E_SOURCE_MAPPING.md`
-- `Patches/UE57/NiagaraAVBOITMinimalHook.patch`
+- The UE-4.2F tint-visible fallback is allowed only for the red-tint visual target. It is not accepted as a real PluginIdentity or PluginAVBOIT draw bridge.
+- Overall project status remains partial until UE-4.2E real draw bridge gates are satisfied.
 
 ## Validation Command
 
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File Scripts\Run-AVBOITNiagaraSpriteUnlitParity.ps1 `
   -ContentExamplesProject "D:\Users\l3d\Documents\Unreal Projects\ContentExamples\ContentExamples.uproject" `
-  -RunCoreRefactorValidation -RunIdentityBringup -RunTestSpriteMap1 `
-  -RequireRealVertexFactory -RequireRealMaterial -RequireParticleAttributeHash `
-  -RequireRealAVBOITDraw -RequireSceneColorComposite
+  -RunTintVisualGate -TintColor 1,0,0,1 -CaptureTimes 4.0
 ```
 
-Expected current result: `blocked-local`; not `SUCCESS`, `COMPLETED`, or `passed-local`.
+Expected current result: KeyResults promotion is allowed only if the final UE screenshot shows the configured ROI particles red in `PluginAVBOIT_RedTint` and unchanged grey in both Engine Default captures. Do not mark `SUCCESS`, `COMPLETED`, or `passed-local`.

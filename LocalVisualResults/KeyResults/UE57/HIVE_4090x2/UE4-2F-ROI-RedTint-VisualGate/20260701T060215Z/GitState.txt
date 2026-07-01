@@ -1,0 +1,15 @@
+﻿## AVBOIT开发...origin/AVBOIT开发
+ M Plugins/MaterialShaderPluginNiagara/Shaders/Private/AVBOITNiagaraDebug.usf
+ M Plugins/MaterialShaderPluginNiagara/Source/MaterialShaderExampleNiagara/MaterialShaderExampleNiagara.Build.cs
+ M Plugins/MaterialShaderPluginNiagara/Source/MaterialShaderExampleNiagara/Private/AVBOIT/Niagara/AVBOITNiagaraRenderer.cpp
+ M Plugins/MaterialShaderPluginNiagara/Source/MaterialShaderExampleNiagara/Private/AVBOIT/Niagara/AVBOITNiagaraSceneViewExtension.cpp
+ M Plugins/MaterialShaderPluginNiagara/Source/MaterialShaderExampleNiagara/Private/AVBOIT/Niagara/AVBOITNiagaraSpriteRendererProperties.cpp
+ M Plugins/MaterialShaderPluginNiagara/Source/MaterialShaderExampleNiagara/Private/AVBOIT/Niagara/AVBOITNiagaraValidationCommands.cpp
+ M Plugins/MaterialShaderPluginNiagara/Source/MaterialShaderExampleNiagara/Public/AVBOIT/Niagara/AVBOITNiagaraSpriteRendererProperties.h
+ M Scripts/Run-AVBOITNiagaraSpriteUnlitParity.ps1
+ M UE5_AVBOIT_Agent_Guidance_Package_v1/docs/checkpoints/CHECKPOINT_INDEX.md
+ M UE5_AVBOIT_Agent_Guidance_Package_v1/docs/plan/CURRENT.md
+ M docs/plan/CURRENT.md
+?? Config/AVBOIT/TestSpriteMap1TintROI.json
+?? LocalVisualResults/UE57/
+?? UE5_AVBOIT_Agent_Guidance_Package_v1/docs/checkpoints/archive/CHECKPOINT-0046-20260701T052657Z-UE-4-2F-ROI-RED-TINT-VISUAL-GATE.md

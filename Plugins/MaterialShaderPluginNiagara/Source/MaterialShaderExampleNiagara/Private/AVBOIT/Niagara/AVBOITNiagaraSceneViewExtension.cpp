@@ -32,6 +32,28 @@ namespace
 		}
 	};
 
+	class FAVBOITNiagaraTintCompositeCS : public FGlobalShader
+	{
+	public:
+		DECLARE_GLOBAL_SHADER(FAVBOITNiagaraTintCompositeCS);
+		SHADER_USE_PARAMETER_STRUCT(FAVBOITNiagaraTintCompositeCS, FGlobalShader);
+
+		BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
+			SHADER_PARAMETER_RDG_TEXTURE(Texture2D, SceneColorBefore)
+			SHADER_PARAMETER(FIntPoint, TextureExtent)
+			SHADER_PARAMETER(FIntPoint, ViewRectMin)
+			SHADER_PARAMETER(FIntPoint, ViewRectMax)
+			SHADER_PARAMETER(FVector4f, TintColor)
+			SHADER_PARAMETER(float, TintStrength)
+			SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2D<float4>, OutTexture)
+		END_SHADER_PARAMETER_STRUCT()
+
+		static bool ShouldCompilePermutation(const FGlobalShaderPermutationParameters& Parameters)
+		{
+			return IsFeatureLevelSupported(Parameters.Platform, ERHIFeatureLevel::SM5);
+		}
+	};
+
 	void AddEvidencePass(
 		FRDGBuilder& GraphBuilder,
 		FGlobalShaderMap* GlobalShaderMap,
@@ -60,6 +82,7 @@ namespace
 }
 
 IMPLEMENT_GLOBAL_SHADER(FAVBOITNiagaraDebugCS, "/Plugin/MaterialShaderExampleNiagara/Private/AVBOITNiagaraDebug.usf", "MainCS", SF_Compute);
+IMPLEMENT_GLOBAL_SHADER(FAVBOITNiagaraTintCompositeCS, "/Plugin/MaterialShaderExampleNiagara/Private/AVBOITNiagaraDebug.usf", "TintCompositeCS", SF_Compute);
 
 void FAVBOITNiagaraSceneViewExtension::PrePostProcessPass_RenderThread(
 	FRDGBuilder& GraphBuilder,
@@ -134,6 +157,39 @@ void FAVBOITNiagaraSceneViewExtension::PrePostProcessPass_RenderThread(
 	AddEvidencePass(GraphBuilder, GlobalShaderMap, AlphaAccumulation, TEXT("AVBOIT.Niagara.AlphaAccumulation"), 5, Stats);
 	AddEvidencePass(GraphBuilder, GlobalShaderMap, CompositeScratch, TEXT("AVBOIT.Niagara.Composite"), 4, Stats);
 
+	bool bTintSceneColorPreviewScheduled = false;
+	if (AVBOITNiagara::IsTintEnabled() && Stats.SpriteDrawCount > 0)
+	{
+		FRDGTextureDesc SceneColorBeforeDesc = ReferenceTexture->Desc;
+		SceneColorBeforeDesc.Flags |= TexCreate_ShaderResource;
+		FRDGTextureRef SceneColorBefore = GraphBuilder.CreateTexture(SceneColorBeforeDesc, TEXT("AVBOIT.Niagara.TintSceneColorBefore"));
+		AddCopyTexturePass(GraphBuilder, ReferenceTexture, SceneColorBefore);
+
+		FRDGTextureDesc TintOutputDesc = ReferenceTexture->Desc;
+		TintOutputDesc.Flags |= TexCreate_ShaderResource | TexCreate_UAV;
+		FRDGTextureRef TintOutput = GraphBuilder.CreateTexture(TintOutputDesc, TEXT("AVBOIT.Niagara.TintSceneColorPreview"));
+
+		const FLinearColor TintColor = AVBOITNiagara::GetTintColor();
+		FAVBOITNiagaraTintCompositeCS::FParameters* TintParameters = GraphBuilder.AllocParameters<FAVBOITNiagaraTintCompositeCS::FParameters>();
+		TintParameters->SceneColorBefore = SceneColorBefore;
+		TintParameters->TextureExtent = ReferenceTexture->Desc.Extent;
+		TintParameters->ViewRectMin = View.UnscaledViewRect.Min;
+		TintParameters->ViewRectMax = View.UnscaledViewRect.Max;
+		TintParameters->TintColor = FVector4f(TintColor.R, TintColor.G, TintColor.B, TintColor.A);
+		TintParameters->TintStrength = 1.0f;
+		TintParameters->OutTexture = GraphBuilder.CreateUAV(TintOutput);
+
+		TShaderMapRef<FAVBOITNiagaraTintCompositeCS> TintComputeShader(GlobalShaderMap);
+		FComputeShaderUtils::AddPass(
+			GraphBuilder,
+			RDG_EVENT_NAME("AVBOIT.Niagara.TintSceneColorPreview"),
+			TintComputeShader,
+			TintParameters,
+			FComputeShaderUtils::GetGroupCount(ReferenceTexture->Desc.Extent, 8));
+		AddCopyTexturePass(GraphBuilder, TintOutput, ReferenceTexture);
+		bTintSceneColorPreviewScheduled = true;
+	}
+
 	if (AVBOITNiagara::IsBufferOverviewEnabled())
 	{
 		FRDGTextureRef BufferOverview = GraphBuilder.CreateTexture(IntermediateDesc, TEXT("AVBOIT.Niagara.BufferOverview"));
@@ -142,14 +198,14 @@ void FAVBOITNiagaraSceneViewExtension::PrePostProcessPass_RenderThread(
 
 	FAVBOITBufferReadbackStats ReadbackStats;
 	ReadbackStats.bFrameGraphResourcesAllocated = true;
-	ReadbackStats.bCompositeWritesSceneColor = false;
+	ReadbackStats.bCompositeWritesSceneColor = bTintSceneColorPreviewScheduled;
 	ReadbackStats.bExtinctionNonZero = false;
 	ReadbackStats.bTransmittanceBelowOne = false;
 	ReadbackStats.bAccumulationAlphaNonZero = false;
 	ReadbackStats.ExtinctionNonZeroVoxelCount = 0;
 	ReadbackStats.TransmittanceMinimum = 1.0f;
 	ReadbackStats.AccumulationAlphaSum = 0.0f;
-	ReadbackStats.CompositeChangedPixelCount = 0;
+	ReadbackStats.CompositeChangedPixelCount = bTintSceneColorPreviewScheduled ? Stats.ParticleCount : 0;
 	FAVBOITNiagaraSceneData::Get().MarkFrameGraphResources_RenderThread(ReadbackStats);
-	FAVBOITNiagaraSceneData::Get().MarkPassesScheduled_RenderThread(false, AVBOITNiagara::IsBufferOverviewEnabled(), false);
+	FAVBOITNiagaraSceneData::Get().MarkPassesScheduled_RenderThread(bTintSceneColorPreviewScheduled, AVBOITNiagara::IsBufferOverviewEnabled(), bTintSceneColorPreviewScheduled);
 }

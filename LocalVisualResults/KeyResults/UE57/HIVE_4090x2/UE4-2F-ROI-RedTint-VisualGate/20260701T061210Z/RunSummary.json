@@ -1,0 +1,16 @@
+﻿{
+    "GeneratedUtc":  "2026-07-01T06:12:30.1236047Z",
+    "Phase":  "UE4-2F-ROI-RedTint-VisualGate",
+    "EvidenceRoot":  "D:\\Users\\l3d\\Documents\\AVBOIT\\MaterialShaderExample_AVBOIT\\LocalVisualResults\\TempResults\\UE57\\HIVE_4090x2\\UE4-2F-ROI-RedTint-VisualGate\\20260701T061210Z",
+    "KeyResultsRoot":  "D:\\Users\\l3d\\Documents\\AVBOIT\\MaterialShaderExample_AVBOIT\\LocalVisualResults\\KeyResults\\UE57\\HIVE_4090x2\\UE4-2F-ROI-RedTint-VisualGate\\20260701T061210Z",
+    "UnrealExitCode":  0,
+    "HardFailPatterns":  [
+
+                         ],
+    "ViewModeVerifiedUnlit":  true,
+    "ScreenshotCount":  12,
+    "ScreenshotSource":  "UE.FScreenshotRequest",
+    "KeyResultsPromoted":  true,
+    "Status":  "partial",
+    "Note":  "UE-4.2F requires PluginAVBOIT red tint in the configured ROI and unchanged EngineDefault before/after. Real Niagara draw bridge acceptance remains separate."
+}

@@ -4,6 +4,7 @@
 // partial until the real sprite material/VF bridge is connected.
 
 #include "/Engine/Public/Platform.ush"
+#include "/Engine/Private/Common.ush"
 
 RWTexture2D<float4> OutTexture;
 int2 TextureExtent;
@@ -11,6 +12,11 @@ int PassId;
 int ParticleCount;
 int bTintEnabled;
 float4 TintColor;
+
+Texture2D SceneColorBefore;
+int2 ViewRectMin;
+int2 ViewRectMax;
+float TintStrength;
 
 [numthreads(8, 8, 1)]
 void MainCS(uint3 DispatchThreadId : SV_DispatchThreadID)
@@ -56,4 +62,25 @@ void MainCS(uint3 DispatchThreadId : SV_DispatchThreadID)
 		float3 CompositeColor = (bTintEnabled != 0) ? TintColor.rgb : float3(ParticleWeight, ParticleWeight, ParticleWeight);
 		OutTexture[Pixel] = float4(CompositeColor, ParticleWeight);
 	}
+}
+
+[numthreads(8, 8, 1)]
+void TintCompositeCS(uint3 DispatchThreadId : SV_DispatchThreadID)
+{
+	int2 Pixel = int2(DispatchThreadId.xy);
+	if (Pixel.x >= TextureExtent.x || Pixel.y >= TextureExtent.y)
+	{
+		return;
+	}
+
+	float4 SceneColor = SceneColorBefore.Load(int3(Pixel, 0));
+
+	bool bInsideView = Pixel.x >= ViewRectMin.x && Pixel.y >= ViewRectMin.y && Pixel.x < ViewRectMax.x && Pixel.y < ViewRectMax.y;
+	float3 Color = SceneColor.rgb;
+	float Luma = dot(Color, float3(0.299f, 0.587f, 0.114f));
+	float MaxChannel = max(Color.r, max(Color.g, Color.b));
+	float Coverage = bInsideView ? step(0.01f, Luma) : 0.0f;
+	float3 Tinted = TintColor.rgb * max(Luma, MaxChannel);
+
+	OutTexture[Pixel] = float4(lerp(Color, Tinted, saturate(Coverage * TintStrength)), SceneColor.a);
 }
