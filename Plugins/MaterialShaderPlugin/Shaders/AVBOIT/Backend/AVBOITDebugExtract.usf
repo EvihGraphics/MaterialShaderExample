@@ -9,12 +9,13 @@ RWStructuredBuffer<uint> OutExtinctionLine;
 RWStructuredBuffer<float> OutTransmittanceLine;
 
 int3 CenterPixel;
+uint NumSlices;
 
 [numthreads(64, 1, 1)]
 void AVBOITDebugExtractCS(uint3 DispatchThreadId : SV_DispatchThreadID)
 {
     uint SliceIndex = DispatchThreadId.x;
-    if (SliceIndex >= 64)
+    if (SliceIndex >= NumSlices)
     {
         return;
     }

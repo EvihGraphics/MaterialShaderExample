@@ -3,6 +3,7 @@
 
 StructuredBuffer<FInjectedFragment> InjectedFragments;
 RWStructuredBuffer<uint> OutExtinctionVolume;
+uint NumSlices;
 
 [numthreads(8, 8, 1)]
 void BuildCS(uint3 DispatchThreadId : SV_DispatchThreadID)
@@ -28,7 +29,7 @@ void BuildCS(uint3 DispatchThreadId : SV_DispatchThreadID)
             if (Alpha > 0.01f)
             {
                 float NormDepth = MapLinearDepthToNormDepth(Frag.LinearDepth, ZNear, ZFar);
-                uint ZIndex = GetSliceIndex(NormDepth);
+                uint ZIndex = GetSliceIndex(NormDepth, NumSlices);
 
                 // Compute extinction: -log(1 - alpha)
                 // Use log2() * ln(2) for better GPU performance if desired, 

@@ -5,6 +5,7 @@ StructuredBuffer<uint> InExtinctionVolume;
 RWTexture2DArray<float> OutTransmittanceVolume;
 
 float2 VolumeResolution;
+uint NumSlices;
 
 [numthreads(8, 8, 1)]
 void IntegrateCS(uint3 DispatchThreadId : SV_DispatchThreadID)
@@ -17,8 +18,10 @@ void IntegrateCS(uint3 DispatchThreadId : SV_DispatchThreadID)
 
     float Transmittance = 1.0f;
 
-    // Traverse from slice 0 (Near) to AVBOIT_VOLUME_DEPTH - 1 (Far)
-    for (uint z = 0; z < AVBOIT_VOLUME_DEPTH; ++z)
+    uint ActiveSlices = clamp(NumSlices, 1u, AVBOIT_MAX_VOLUME_DEPTH);
+
+    // Traverse from slice 0 (Near) to the active far slice.
+    for (uint z = 0; z < ActiveSlices; ++z)
     {
         uint3 Coords = uint3(PixelCoord.x, PixelCoord.y, z);
         uint Index = GetVolumeIndex(Coords, (uint)VolumeResolution.x, (uint)VolumeResolution.y);

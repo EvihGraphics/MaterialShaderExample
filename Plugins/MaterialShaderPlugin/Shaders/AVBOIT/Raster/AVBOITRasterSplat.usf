@@ -10,6 +10,7 @@ float4x4 WorldToView;
 float2 ViewResolution;
 float2 VolumeResolution;
 uint DownsampleFactor;
+uint NumSlices;
 float4 ColorAndAlpha;
 int2 DebugPixel;
 
@@ -22,6 +23,8 @@ struct FAVBOITRasterDebugPixelData
 };
 
 RWStructuredBuffer<uint> OutExtinctionVolume;
+RWBuffer<uint> OverflowCounter;
+RWBuffer<uint> OutOfBoundsCounter;
 #if AVBOIT_TEST_COVERAGE
 RWBuffer<uint> FragmentCoverageCounter;
 RWStructuredBuffer<FAVBOITRasterDebugPixelData> OutDebugPixelBuffer;
@@ -51,7 +54,7 @@ void MainPS(
 	}
 
 	float NormDepth = MapLinearDepthToNormDepth(In.LinearViewDepth, ZNear, ZFar);
-	uint Slice = GetSliceIndex(NormDepth);
+	uint Slice = GetSliceIndex(NormDepth, NumSlices);
 
 	float Extinction = -log(1.0f - Alpha);
 	
@@ -61,13 +64,28 @@ void MainPS(
 	
 	uint Packed = PackExtinction(Extinction);
 
-	uint2 PixelPos = uint2(In.Position.xy) / DownsampleFactor;
-	uint Index = GetVolumeIndex(uint3(PixelPos, Slice), (uint)VolumeResolution.x, (uint)VolumeResolution.y);
-	InterlockedAdd(OutExtinctionVolume[Index], Packed);
+	uint2 AbsolutePixel = uint2(In.Position.xy);
+	uint2 LocalPixel;
+	if (!AVBOITGetLocalPixel(AbsolutePixel, LocalPixel))
+	{
+		uint IgnoredOutOfBounds;
+		InterlockedAdd(OutOfBoundsCounter[0], 1u, IgnoredOutOfBounds);
+		discard;
+	}
+
+	uint2 VolumePixel = AVBOITGetVolumePixel(LocalPixel, DownsampleFactor, VolumeResolution);
+	uint Index = GetVolumeIndex(uint3(VolumePixel, Slice), (uint)VolumeResolution.x, (uint)VolumeResolution.y);
+	uint OriginalPacked;
+	InterlockedAdd(OutExtinctionVolume[Index], Packed, OriginalPacked);
+	if (OriginalPacked > 0xFFFFFFFFu - Packed)
+	{
+		uint IgnoredOverflow;
+		InterlockedAdd(OverflowCounter[0], 1u, IgnoredOverflow);
+	}
 	
 #if AVBOIT_TEST_COVERAGE
 	InterlockedAdd(FragmentCoverageCounter[0], 1);
-	if (PixelPos.x == DebugPixel.x && PixelPos.y == DebugPixel.y)
+	if (AbsolutePixel.x == (uint)DebugPixel.x && AbsolutePixel.y == (uint)DebugPixel.y)
 	{
 		uint OriginalValue;
 		InterlockedCompareExchange(OutDebugPixelBuffer[0].WriteFlag, 0, 1, OriginalValue);

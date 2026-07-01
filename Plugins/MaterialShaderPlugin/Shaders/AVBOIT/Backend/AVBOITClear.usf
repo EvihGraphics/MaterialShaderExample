@@ -6,6 +6,7 @@ RWTexture2DArray<float> OutTransmittanceVolume;
 RWTexture2D<float4> OutResultTexture;
 
 float2 VolumeResolution;
+uint NumSlices;
 
 [numthreads(8, 8, 1)]
 void ClearCS(uint3 DispatchThreadId : SV_DispatchThreadID)
@@ -14,7 +15,8 @@ void ClearCS(uint3 DispatchThreadId : SV_DispatchThreadID)
 
     if (PixelCoord.x < (uint)VolumeResolution.x && PixelCoord.y < (uint)VolumeResolution.y)
     {
-        for (uint z = 0; z < AVBOIT_VOLUME_DEPTH; ++z)
+        uint ActiveSlices = clamp(NumSlices, 1u, AVBOIT_MAX_VOLUME_DEPTH);
+        for (uint z = 0; z < ActiveSlices; ++z)
         {
             uint3 Coords = uint3(PixelCoord.x, PixelCoord.y, z);
             uint Index = GetVolumeIndex(Coords, (uint)VolumeResolution.x, (uint)VolumeResolution.y);

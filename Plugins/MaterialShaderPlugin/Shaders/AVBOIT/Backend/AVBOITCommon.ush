@@ -1,6 +1,7 @@
 #pragma once
 
-#define AVBOIT_VOLUME_DEPTH 64
+#define AVBOIT_MAX_VOLUME_DEPTH 64
+#define AVBOIT_VOLUME_DEPTH AVBOIT_MAX_VOLUME_DEPTH
 #define AVBOIT_EXTINCTION_SCALE 10000.0f
 
 // Match FAVBOITInjectedFragment
@@ -41,9 +42,15 @@ float MapLinearDepthToNormDepth(float LinearDepth, float ZNear, float ZFar)
 }
 
 // Map normalized log depth to slice index
+uint GetSliceIndex(float NormDepth, uint NumSlices)
+{
+    uint ActiveSlices = clamp(NumSlices, 1u, AVBOIT_MAX_VOLUME_DEPTH);
+    return clamp((uint)(NormDepth * ActiveSlices), 0u, ActiveSlices - 1u);
+}
+
 uint GetSliceIndex(float NormDepth)
 {
-    return clamp((uint)(NormDepth * AVBOIT_VOLUME_DEPTH), 0u, AVBOIT_VOLUME_DEPTH - 1u);
+    return GetSliceIndex(NormDepth, AVBOIT_VOLUME_DEPTH);
 }
 
 // Get 1D index for RWBuffer (if 2DArray UAV is not used)

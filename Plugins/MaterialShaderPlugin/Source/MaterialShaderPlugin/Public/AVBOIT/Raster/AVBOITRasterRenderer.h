@@ -3,6 +3,8 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "AVBOIT/Core/AVBOITFrameConfig.h"
+#include "AVBOIT/Core/AVBOITPrimitivePacket.h"
 #include "RenderGraphBuilder.h"
 #include "ScreenPass.h"
 
@@ -17,10 +19,31 @@ struct FAVBOITRasterDrawData
 	FBufferRHIRef VertexBufferRHI;
 	FBufferRHIRef IndexBufferRHI;
 	FVertexDeclarationRHIRef VertexDeclaration;
+	uint32 SubmissionOrder = 0;
+	uint32 VertexCount = 4;
+	uint32 IndexCount = 6;
+	uint32 PrimitiveCount = 2;
+
+	FAVBOITPrimitivePacket ToPrimitivePacket() const
+	{
+		FAVBOITPrimitivePacket Packet;
+		Packet.LocalToWorld = FMatrix44f(LocalToWorld);
+		Packet.LinearColor = Color;
+		Packet.Alpha = Alpha;
+		Packet.SubmissionOrder = SubmissionOrder;
+		Packet.VertexBuffer = VertexBufferRHI;
+		Packet.IndexBuffer = IndexBufferRHI;
+		Packet.VertexDeclaration = VertexDeclaration;
+		Packet.VertexCount = VertexCount;
+		Packet.IndexCount = IndexCount;
+		Packet.PrimitiveCount = PrimitiveCount;
+		return Packet;
+	}
 };
 
 struct FAVBOITRasterPassInputs
 {
+	FAVBOITFrameConfig Config;
 	FIntPoint TextureExtent;
 	FIntRect ViewRect;
 	FMatrix44f WorldToView;
@@ -31,7 +54,7 @@ struct FAVBOITRasterPassInputs
 	FRDGTextureRef SceneColor;
 	FRDGBufferRef FragmentCoverageCounter = nullptr; // Testing
 	FRDGBufferRef RasterDebugPixelBuffer = nullptr; // Testing
-	FIntPoint DebugPixel; // Testing
+	FIntPoint DebugPixel = FIntPoint(-1, -1); // Testing
 	TArray<FAVBOITRasterDrawData> DrawData;
 };
 
@@ -40,6 +63,9 @@ struct FAVBOITRasterPassOutputs
 	FRDGBufferRef ExtinctionVolume = nullptr;
 	FRDGTextureRef TransmittanceVolume;
 	FRDGTextureRef ColorAccumulation;
+	FRDGTextureRef AlphaAccumulation;
+	FRDGBufferRef OverflowCounter = nullptr;
+	FRDGBufferRef OutOfBoundsCounter = nullptr;
 	FRDGTextureRef CompositeOutput;
 };
 

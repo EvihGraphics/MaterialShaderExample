@@ -40,8 +40,10 @@ FAVBOITBackendReadbacks FAVBOITBackendRenderer::Execute(FRDGBuilder& GraphBuilde
     {
         FAVBOITClearCS::FParameters* PassParams = GraphBuilder.AllocParameters<FAVBOITClearCS::FParameters>();
         PassParams->ViewResolution = FVector2f((float)Res.X, (float)Res.Y);
+        PassParams->VolumeResolution = FVector2f((float)Res.X, (float)Res.Y);
           PassParams->ZNear = Settings.ZNear;
           PassParams->ZFar = Settings.ZFar;
+          PassParams->NumSlices = 64;
           PassParams->FragmentCount = FragCount;
         PassParams->OutExtinctionVolume = GraphBuilder.CreateUAV(ExtinctionVolume);
         PassParams->OutTransmittanceVolume = GraphBuilder.CreateUAV(TransmittanceVolume);
@@ -57,6 +59,7 @@ FAVBOITBackendReadbacks FAVBOITBackendRenderer::Execute(FRDGBuilder& GraphBuilde
         PassParams->ViewResolution = FVector2f((float)Res.X, (float)Res.Y);
         PassParams->ZNear = Settings.ZNear;
         PassParams->ZFar = Settings.ZFar;
+        PassParams->NumSlices = 64;
         PassParams->FragmentCount = FragCount;
         PassParams->InjectedFragments = GraphBuilder.CreateSRV(FragmentBuffer);
         PassParams->OutExtinctionVolume = GraphBuilder.CreateUAV(ExtinctionVolume);
@@ -69,8 +72,10 @@ FAVBOITBackendReadbacks FAVBOITBackendRenderer::Execute(FRDGBuilder& GraphBuilde
     {
         FAVBOITIntegrateCS::FParameters* PassParams = GraphBuilder.AllocParameters<FAVBOITIntegrateCS::FParameters>();
         PassParams->ViewResolution = FVector2f((float)Res.X, (float)Res.Y);
+        PassParams->VolumeResolution = FVector2f((float)Res.X, (float)Res.Y);
           PassParams->ZNear = Settings.ZNear;
           PassParams->ZFar = Settings.ZFar;
+          PassParams->NumSlices = 64;
           PassParams->FragmentCount = FragCount;
         PassParams->InExtinctionVolume = GraphBuilder.CreateSRV(ExtinctionVolume);
         PassParams->OutTransmittanceVolume = GraphBuilder.CreateUAV(TransmittanceVolume);
@@ -85,6 +90,7 @@ FAVBOITBackendReadbacks FAVBOITBackendRenderer::Execute(FRDGBuilder& GraphBuilde
         PassParams->ViewResolution = FVector2f((float)Res.X, (float)Res.Y);
           PassParams->ZNear = Settings.ZNear;
           PassParams->ZFar = Settings.ZFar;
+          PassParams->NumSlices = 64;
           PassParams->FragmentCount = FragCount;
         PassParams->InTransmittanceVolume = GraphBuilder.CreateSRV(TransmittanceVolume);
         PassParams->OutResultTexture = GraphBuilder.CreateUAV(ResultTexture);
@@ -99,6 +105,7 @@ FAVBOITBackendReadbacks FAVBOITBackendRenderer::Execute(FRDGBuilder& GraphBuilde
         PassParams->ViewResolution = FVector2f((float)Res.X, (float)Res.Y);
         PassParams->ZNear = Settings.ZNear;
         PassParams->ZFar = Settings.ZFar;
+        PassParams->NumSlices = 64;
         PassParams->FragmentCount = FragCount;
         PassParams->InjectedFragments = GraphBuilder.CreateSRV(FragmentBuffer);
         PassParams->InTransmittanceVolume = GraphBuilder.CreateSRV(TransmittanceVolume);

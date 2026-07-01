@@ -12,6 +12,7 @@ class FAVBOITMappingTestCS : public FGlobalShader
     BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
         SHADER_PARAMETER(float, ZNear)
         SHADER_PARAMETER(float, ZFar)
+        SHADER_PARAMETER(uint32, NumSlices)
         SHADER_PARAMETER(uint32, ItemCount)
         SHADER_PARAMETER_RDG_BUFFER_SRV(StructuredBuffer<float>, InLinearDepths)
         SHADER_PARAMETER_RDG_BUFFER_UAV(RWStructuredBuffer<float>, OutNormalizedDepths)
@@ -46,6 +47,7 @@ FAVBOITMappingTestResult FAVBOITBackendDebugReadback::RunMappingTestSync(const T
             FAVBOITMappingTestCS::FParameters* PassParams = GraphBuilder.AllocParameters<FAVBOITMappingTestCS::FParameters>();
             PassParams->ZNear = ZNear;
             PassParams->ZFar = ZFar;
+            PassParams->NumSlices = 64;
             PassParams->ItemCount = ItemCount;
             PassParams->InLinearDepths = GraphBuilder.CreateSRV(InLinearDepthsBuf, PF_R32_FLOAT);
             PassParams->OutNormalizedDepths = GraphBuilder.CreateUAV(OutNormalizedDepthsBuf, PF_R32_FLOAT);
@@ -106,6 +108,7 @@ class FAVBOITDebugExtractCS : public FGlobalShader
         SHADER_PARAMETER(FVector2f, ViewResolution)
           SHADER_PARAMETER(float, ZNear)
           SHADER_PARAMETER(float, ZFar)
+          SHADER_PARAMETER(uint32, NumSlices)
           SHADER_PARAMETER(uint32, FragmentCount)
         SHADER_PARAMETER(FIntVector, CenterPixel)
         SHADER_PARAMETER_RDG_BUFFER_SRV(StructuredBuffer<uint>, InExtinctionVolume)
@@ -131,6 +134,7 @@ FAVBOITSliceLineReadbacks FAVBOITBackendDebugReadback::EnqueueExtractSliceLine(F
     PassParams->ViewResolution = FVector2f((float)ViewResolution.X, (float)ViewResolution.Y);
       PassParams->ZNear = 10.0f;
       PassParams->ZFar = 1000.0f;
+      PassParams->NumSlices = 64;
       PassParams->FragmentCount = 0;
     PassParams->CenterPixel = FIntVector(CenterPixel.X, CenterPixel.Y, 0);
     PassParams->InExtinctionVolume = GraphBuilder.CreateSRV(ExtinctionVolume);

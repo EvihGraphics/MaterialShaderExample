@@ -3,6 +3,7 @@
 
 Texture2DArray<float> InTransmittanceVolume;
 RWTexture2D<float4> OutResultTexture;
+uint NumSlices;
 
 [numthreads(8, 8, 1)]
 void CompositeCS(uint3 DispatchThreadId : SV_DispatchThreadID)
@@ -17,7 +18,8 @@ void CompositeCS(uint3 DispatchThreadId : SV_DispatchThreadID)
     float3 BgColor = float3(0.0f, 0.0f, 0.0f);
 
     // Get total transmittance from the furthest slice
-    uint3 Coords = uint3(PixelCoord.x, PixelCoord.y, AVBOIT_VOLUME_DEPTH - 1);
+    uint LastSlice = clamp(NumSlices, 1u, AVBOIT_MAX_VOLUME_DEPTH) - 1u;
+    uint3 Coords = uint3(PixelCoord.x, PixelCoord.y, LastSlice);
     float TotalTransmittance = InTransmittanceVolume[Coords];
 
     // OutResultTexture was cleared to 0,0,0,0. 

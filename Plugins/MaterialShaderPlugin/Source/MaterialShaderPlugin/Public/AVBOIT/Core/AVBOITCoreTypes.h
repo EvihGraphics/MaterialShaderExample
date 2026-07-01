@@ -10,7 +10,26 @@ namespace AVBOIT::Core
 		UESortedPixelsOIT,
 		PluginIdentity,
 		PluginAVBOIT,
+		ExactReference,
 		BufferOverview
+	};
+
+	enum class EFoundationScene : uint8
+	{
+		SingleLayerIdentity,
+		TwoIntersectingQuads,
+		ThreeLayerStress
+	};
+
+	enum class EFoundationSubmissionOrder : uint8
+	{
+		AB,
+		BA,
+		ABC,
+		CBA,
+		RandomSeed1,
+		RandomSeed2,
+		RandomSeed3
 	};
 
 	enum class EStageStatus : uint8
@@ -100,6 +119,8 @@ namespace AVBOIT::Core
 			return TEXT("PluginIdentity");
 		case ERuntimeMode::PluginAVBOIT:
 			return TEXT("PluginAVBOIT");
+		case ERuntimeMode::ExactReference:
+			return TEXT("ExactReference");
 		case ERuntimeMode::BufferOverview:
 			return TEXT("BufferOverview");
 		default:

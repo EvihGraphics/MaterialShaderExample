@@ -9,10 +9,15 @@ struct FAVBOITRasterDebugHeader
     float NormalizedDepth;
     uint Slice;
     uint FragmentCoverageCount;
+    uint NumSlices;
+    uint OverflowCount;
+    uint OutOfBoundsCount;
     int2 TextureExtent;
+    int2 VolumeExtent;
     int2 ViewRectMin;
     int2 ViewRectMax;
     int2 Padding;
+    uint3 HeaderPadding;
 };
 
 struct FAVBOITRasterDebugPayload
@@ -41,8 +46,13 @@ int2 DebugPixel;
 StructuredBuffer<FAVBOITRasterDebugPixelData> RasterDebugPixelBuffer;
 Buffer<uint> FragmentCoverageCounter;
 int2 TextureExtent;
+int2 VolumeExtent;
 int2 ViewRectMin;
 int2 ViewRectMax;
+uint NumSlices;
+uint DownsampleFactor;
+Buffer<uint> OverflowCounter;
+Buffer<uint> OutOfBoundsCounter;
 
 [numthreads(1, 1, 1)]
 void MainCS(uint3 DispatchThreadId : SV_DispatchThreadID)
@@ -57,18 +67,40 @@ void MainCS(uint3 DispatchThreadId : SV_DispatchThreadID)
         Header.NormalizedDepth = RasterDebugPixelBuffer[0].NormalizedDepth;
         Header.Slice = RasterDebugPixelBuffer[0].Slice;
         Header.FragmentCoverageCount = FragmentCoverageCounter[0];
+        Header.NumSlices = NumSlices;
+        Header.OverflowCount = OverflowCounter[0];
+        Header.OutOfBoundsCount = OutOfBoundsCounter[0];
         Header.TextureExtent = TextureExtent;
+        Header.VolumeExtent = VolumeExtent;
         Header.ViewRectMin = ViewRectMin;
         Header.ViewRectMax = ViewRectMax;
         Header.Padding = int2(0, 0);
+        Header.HeaderPadding = uint3(0, 0, 0);
 
         OutDebugPayload[0].Header = Header;
 
+        int2 LocalPixelSigned = DebugPixel - ViewRectMin;
+        uint2 VolumePixel = uint2(0, 0);
+        if (all(LocalPixelSigned >= int2(0, 0)) &&
+            LocalPixelSigned.x < (ViewRectMax.x - ViewRectMin.x) &&
+            LocalPixelSigned.y < (ViewRectMax.y - ViewRectMin.y))
+        {
+            VolumePixel = min(uint2(LocalPixelSigned) / max(DownsampleFactor, 1u), uint2(max(VolumeExtent.x, 1) - 1, max(VolumeExtent.y, 1) - 1));
+        }
+
         for (uint i = 0; i < 64; ++i)
         {
-            uint Index = i * (uint)TextureExtent.x * (uint)TextureExtent.y + (uint)DebugPixel.y * (uint)TextureExtent.x + (uint)DebugPixel.x;
-            OutDebugPayload[0].PackedExtinction[i] = ExtinctionVolume[Index];
-            OutDebugPayload[0].Transmittance[i] = TransmittanceVolume[uint3(DebugPixel.x, DebugPixel.y, i)];
+            if (i < NumSlices)
+            {
+                uint Index = i * (uint)VolumeExtent.x * (uint)VolumeExtent.y + VolumePixel.y * (uint)VolumeExtent.x + VolumePixel.x;
+                OutDebugPayload[0].PackedExtinction[i] = ExtinctionVolume[Index];
+                OutDebugPayload[0].Transmittance[i] = TransmittanceVolume[uint3(VolumePixel.x, VolumePixel.y, i)];
+            }
+            else
+            {
+                OutDebugPayload[0].PackedExtinction[i] = 0u;
+                OutDebugPayload[0].Transmittance[i] = 1.0f;
+            }
         }
     }
 }

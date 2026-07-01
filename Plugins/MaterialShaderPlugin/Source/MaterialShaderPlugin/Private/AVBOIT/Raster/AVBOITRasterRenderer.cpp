@@ -12,20 +12,86 @@
 #include "CommonRenderResources.h"
 #include "ScreenPass.h"
 #include "PixelShaderUtils.h"
+#include "HAL/IConsoleManager.h"
 
 BEGIN_SHADER_PARAMETER_STRUCT(FAVBOITRasterTargets, )
 	RENDER_TARGET_BINDING_SLOTS()
 END_SHADER_PARAMETER_STRUCT()
 
-// For testing purposes, we define a CVar
-static TAutoConsoleVariable<int32> CVarAVBOITRasterEnable(
-	TEXT("r.AVBOIT.Raster.Enable"),
-	0,
-	TEXT("AVBOIT Raster Enable\n")
-	TEXT(" 0: Disabled\n")
-	TEXT(" 1: Raster Validation\n"),
-	ECVF_RenderThreadSafe
-);
+namespace AVBOIT::Foundation
+{
+	static TAutoConsoleVariable<int32> CVarEnable(
+		TEXT("r.AVBOIT.Foundation.Enable"),
+		0,
+		TEXT("Enable AVBOIT Foundation raster validation path."),
+		ECVF_RenderThreadSafe);
+
+	static TAutoConsoleVariable<int32> CVarMode(
+		TEXT("r.AVBOIT.Foundation.Mode"),
+		3,
+		TEXT("0=EngineDefault 1=UESortedPixelsOIT 2=PluginIdentity 3=PluginAVBOIT 4=ExactReference 5=BufferOverview"),
+		ECVF_RenderThreadSafe);
+
+	static TAutoConsoleVariable<int32> CVarScene(
+		TEXT("r.AVBOIT.Foundation.Scene"),
+		1,
+		TEXT("0=SingleLayerIdentity 1=TwoIntersectingQuads 2=ThreeLayerStress"),
+		ECVF_RenderThreadSafe);
+
+	static TAutoConsoleVariable<int32> CVarSubmissionOrder(
+		TEXT("r.AVBOIT.Foundation.SubmissionOrder"),
+		0,
+		TEXT("0=AB 1=BA 2=ABC 3=CBA 4/5/6=RandomSeed1/2/3"),
+		ECVF_RenderThreadSafe);
+
+	static TAutoConsoleVariable<int32> CVarRandomSeed(
+		TEXT("r.AVBOIT.Foundation.RandomSeed"),
+		1,
+		TEXT("Random seed used by Foundation submission-order tests."),
+		ECVF_RenderThreadSafe);
+
+	static TAutoConsoleVariable<int32> CVarDebugPixelX(
+		TEXT("r.AVBOIT.Foundation.DebugPixelX"),
+		-1,
+		TEXT("Foundation debug readback pixel X."),
+		ECVF_RenderThreadSafe);
+
+	static TAutoConsoleVariable<int32> CVarDebugPixelY(
+		TEXT("r.AVBOIT.Foundation.DebugPixelY"),
+		-1,
+		TEXT("Foundation debug readback pixel Y."),
+		ECVF_RenderThreadSafe);
+
+	static TAutoConsoleVariable<int32> CVarDownsampleFactor(
+		TEXT("r.AVBOIT.Foundation.DownsampleFactor"),
+		8,
+		TEXT("Foundation low-resolution AVBOIT XY downsample factor."),
+		ECVF_RenderThreadSafe);
+
+	static TAutoConsoleVariable<int32> CVarNumSlices(
+		TEXT("r.AVBOIT.Foundation.NumSlices"),
+		64,
+		TEXT("Foundation AVBOIT depth slice count. Clamped to 1..64."),
+		ECVF_RenderThreadSafe);
+
+	static TAutoConsoleVariable<float> CVarNearDepthCm(
+		TEXT("r.AVBOIT.Foundation.NearDepthCm"),
+		100.0f,
+		TEXT("Foundation positive linear near depth in centimeters."),
+		ECVF_RenderThreadSafe);
+
+	static TAutoConsoleVariable<float> CVarFarDepthCm(
+		TEXT("r.AVBOIT.Foundation.FarDepthCm"),
+		400000.0f,
+		TEXT("Foundation positive linear far depth in centimeters."),
+		ECVF_RenderThreadSafe);
+
+	static TAutoConsoleVariable<int32> CVarRasterEnableAlias(
+		TEXT("r.AVBOIT.Raster.Enable"),
+		0,
+		TEXT("Deprecated alias for r.AVBOIT.Foundation.Enable."),
+		ECVF_RenderThreadSafe);
+}
 
 #if WITH_EDITOR || WITH_DEV_AUTOMATION_TESTS
 FAVBOITRasterExecutionProbe* GAVBOITRasterProbe = nullptr;
@@ -33,7 +99,8 @@ FAVBOITRasterExecutionProbe* GAVBOITRasterProbe = nullptr;
 
 bool FAVBOITRasterRenderer::IsEnabled()
 {
-	return CVarAVBOITRasterEnable.GetValueOnRenderThread() > 0;
+	return AVBOIT::Foundation::CVarEnable.GetValueOnRenderThread() > 0
+		|| AVBOIT::Foundation::CVarRasterEnableAlias.GetValueOnRenderThread() > 0;
 }
 
 void FAVBOITRasterRenderer::AddPasses(
@@ -102,11 +169,17 @@ void FAVBOITRasterRenderer::AddPasses(
 	FAVBOITRasterPassInputs PassInputs;
 	PassInputs.TextureExtent = Inputs.SceneTextures->GetParameters()->SceneDepthTexture->Desc.Extent;
 	PassInputs.ViewRect = View.UnconstrainedViewRect;
+	PassInputs.Config = FAVBOITFrameConfig::Build(
+		PassInputs.ViewRect,
+		PassInputs.TextureExtent,
+		AVBOIT::Foundation::CVarNearDepthCm.GetValueOnRenderThread(),
+		AVBOIT::Foundation::CVarFarDepthCm.GetValueOnRenderThread(),
+		static_cast<uint32>(FMath::Max(AVBOIT::Foundation::CVarDownsampleFactor.GetValueOnRenderThread(), 1)),
+		static_cast<uint32>(FMath::Clamp(AVBOIT::Foundation::CVarNumSlices.GetValueOnRenderThread(), 1, 64)));
 	PassInputs.WorldToView = FMatrix44f(View.ViewMatrices.GetViewMatrix());
 	PassInputs.WorldToClip = FMatrix44f(View.ViewMatrices.GetViewProjectionMatrix());
-	// Load parameters from camera contract or context
-	PassInputs.ZNear = 100.0f; // 1 Forge unit = 100cm
-	PassInputs.ZFar = 400000.0f; // 4000 Forge units = 400000cm
+	PassInputs.ZNear = PassInputs.Config.NearDepthCm;
+	PassInputs.ZFar = PassInputs.Config.FarDepthCm;
 	PassInputs.SceneDepth = Inputs.SceneTextures->GetParameters()->SceneDepthTexture;
 	PassInputs.SceneColor = Inputs.SceneTextures->GetParameters()->SceneColorTexture;
 	PassInputs.FragmentCoverageCounter = nullptr;
@@ -131,8 +204,16 @@ void FAVBOITRasterRenderer::AddPasses(
 		Data.VertexBufferRHI = Proxy->VertexBuffer.VertexBufferRHI;
 		Data.IndexBufferRHI = Proxy->IndexBuffer.IndexBufferRHI;
 		Data.VertexDeclaration = Proxy->VertexDeclaration;
+		Data.SubmissionOrder = static_cast<uint32>(FMath::Max(Proxy->SubmissionOrder, 0));
+		Data.VertexCount = 4;
+		Data.IndexCount = 6;
+		Data.PrimitiveCount = 2;
 		PassInputs.DrawData.Add(Data);
 	}
+	PassInputs.DrawData.Sort([](const FAVBOITRasterDrawData& A, const FAVBOITRasterDrawData& B)
+	{
+		return A.SubmissionOrder < B.SubmissionOrder;
+	});
 
 	AddCorePasses(GraphBuilder, PassInputs);
 }
@@ -151,7 +232,7 @@ FAVBOITRasterPassOutputs FAVBOITRasterRenderer::AddCorePasses(
 		return Outputs;
 	}
 
-	RDG_EVENT_SCOPE(GraphBuilder, "AVBOIT.Raster");
+	RDG_EVENT_SCOPE(GraphBuilder, "AVBOIT.Foundation");
 
 	// 1. Allocate RDG Textures
 	// We allocate matching SceneDepth extent to prevent ViewRectMin offset issues from causing out of bounds
@@ -160,15 +241,28 @@ FAVBOITRasterPassOutputs FAVBOITRasterRenderer::AddCorePasses(
 	{
 		return Outputs;
 	}
-	UE_LOG(LogTemp, Warning, TEXT("AVBOIT TextureExtent: %d x %d, ExtinctionElements: %lld"), TextureExtent.X, TextureExtent.Y, (long long)TextureExtent.X * TextureExtent.Y * 64);
 
-	
-	// Scale down for P2.6T low-res spline
-	int32 DownsampleFactor = 8;
-	FIntPoint SplatExtent = FIntPoint(FMath::DivideAndRoundUp(TextureExtent.X, DownsampleFactor), FMath::DivideAndRoundUp(TextureExtent.Y, DownsampleFactor));
-	
-	int32 NumSlices = 64; // Default slices
-	uint64 ExtinctionElements = (uint64)SplatExtent.X * (uint64)SplatExtent.Y * NumSlices;
+	const FIntRect ViewRect = Inputs.ViewRect.Width() > 0 && Inputs.ViewRect.Height() > 0
+		? Inputs.ViewRect
+		: FIntRect(FIntPoint::ZeroValue, TextureExtent);
+	FAVBOITFrameConfig Config = Inputs.Config.IsValid()
+		? Inputs.Config
+		: FAVBOITFrameConfig::Build(
+			ViewRect,
+			TextureExtent,
+			Inputs.ZNear > 0.0f ? Inputs.ZNear : 100.0f,
+			Inputs.ZFar > Inputs.ZNear ? Inputs.ZFar : 400000.0f,
+			8,
+			64);
+
+	TextureExtent = Config.TextureExtent;
+	const FIntPoint VolumeExtent = Config.VolumeExtent;
+	const uint32 DownsampleFactor = Config.DownsampleFactor;
+	const uint32 NumSlices = Config.NumSlices;
+	const FIntVector4 ViewRectMin(Config.ViewRect.Min.X, Config.ViewRect.Min.Y, 0, 0);
+	const FIntVector4 ViewRectSize(Config.ViewRect.Width(), Config.ViewRect.Height(), 0, 0);
+
+	uint64 ExtinctionElements = (uint64)VolumeExtent.X * (uint64)VolumeExtent.Y * NumSlices;
 	if (ExtinctionElements == 0) ExtinctionElements = 1;
 
 	FRDGBufferDesc ExtinctionDesc = FRDGBufferDesc::CreateStructuredDesc(4, ExtinctionElements);
@@ -184,23 +278,24 @@ FAVBOITRasterPassOutputs FAVBOITRasterRenderer::AddCorePasses(
 		UE_LOG(LogTemp, Fatal, TEXT("AVBOIT: ExtinctionVolume UAV is NULL!"));
 	}
 
+	Outputs.OverflowCounter = GraphBuilder.CreateBuffer(FRDGBufferDesc::CreateBufferDesc(sizeof(uint32), 1), TEXT("AVBOIT.Foundation.OverflowCounter"));
+	Outputs.OutOfBoundsCounter = GraphBuilder.CreateBuffer(FRDGBufferDesc::CreateBufferDesc(sizeof(uint32), 1), TEXT("AVBOIT.Foundation.OutOfBoundsCounter"));
+	AddClearUAVPass(GraphBuilder, GraphBuilder.CreateUAV(Outputs.OverflowCounter, PF_R32_UINT), 0);
+	AddClearUAVPass(GraphBuilder, GraphBuilder.CreateUAV(Outputs.OutOfBoundsCounter, PF_R32_UINT), 0);
+
 	FRDGBufferRef DummyCoverage = GraphBuilder.CreateBuffer(FRDGBufferDesc::CreateBufferDesc(4, 1), TEXT("DummyCoverage"));
 	FRDGBufferRef DummyDebugPixel = GraphBuilder.CreateBuffer(FRDGBufferDesc::CreateStructuredDesc(sizeof(FAVBOITRasterDebugPixelData), 1), TEXT("DummyDebugPixel"));
 	FRDGBufferUAVRef DummyCoverageUAV = GraphBuilder.CreateUAV(DummyCoverage, PF_R32_UINT);
 	FRDGBufferUAVRef DummyDebugPixelUAV = GraphBuilder.CreateUAV(DummyDebugPixel);
+	AddClearUAVPass(GraphBuilder, DummyCoverageUAV, 0);
+	AddClearUAVPass(GraphBuilder, DummyDebugPixelUAV, 0);
 	if (!DummyCoverageUAV || !DummyDebugPixelUAV)
 	{
 		UE_LOG(LogTemp, Fatal, TEXT("AVBOIT: Dummy UAVs are NULL!"));
 	}
 
-	UE_LOG(LogTemp, Warning, TEXT("AVBOIT: ExtinctionVolume Handle = %d"), Outputs.ExtinctionVolume ? Outputs.ExtinctionVolume->GetHandle().GetIndex() : -1);
-	UE_LOG(LogTemp, Warning, TEXT("AVBOIT: ExtUAV Handle = %d"), ExtUAV ? ExtUAV->GetHandle().GetIndex() : -1);
-	UE_LOG(LogTemp, Warning, TEXT("AVBOIT: DummyCoverage Handle = %d"), DummyCoverage ? DummyCoverage->GetHandle().GetIndex() : -1);
-	UE_LOG(LogTemp, Warning, TEXT("AVBOIT: DummyDebugPixel Handle = %d"), DummyDebugPixel ? DummyDebugPixel->GetHandle().GetIndex() : -1);
-
-
 	FRDGTextureDesc TransmittanceDesc = FRDGTextureDesc::Create2DArray(
-		SplatExtent,
+		VolumeExtent,
 		PF_R32_FLOAT,
 		FClearValueBinding::None,
 		TexCreate_ShaderResource | TexCreate_UAV,
@@ -213,17 +308,16 @@ FAVBOITRasterPassOutputs FAVBOITRasterRenderer::AddCorePasses(
 		FClearValueBinding::Transparent,
 		TexCreate_ShaderResource | TexCreate_RenderTargetable | TexCreate_UAV);
 	Outputs.ColorAccumulation = GraphBuilder.CreateTexture(ColorDesc, TEXT("AVBOIT.Outputs.ColorAccumulation"));
-
-	FIntRect ViewRect = Inputs.ViewRect;
-	FIntVector4 ViewRectMin(ViewRect.Min.X, ViewRect.Min.Y, 0, 0);
+	Outputs.AlphaAccumulation = GraphBuilder.CreateTexture(ColorDesc, TEXT("AVBOIT.Outputs.AlphaAccumulation"));
 
 	// Pass 1: Clear
 	{
 		auto* PassParameters = GraphBuilder.AllocParameters<FAVBOITClearCS::FParameters>();
-		PassParameters->ViewResolution = FVector2f(ViewRect.Width(), ViewRect.Height());
-		PassParameters->VolumeResolution = FVector2f(SplatExtent.X, SplatExtent.Y);
-		PassParameters->ZNear = 10.0f;
-		PassParameters->ZFar = 1000.0f;
+		PassParameters->ViewResolution = FVector2f(TextureExtent.X, TextureExtent.Y);
+		PassParameters->VolumeResolution = FVector2f(VolumeExtent.X, VolumeExtent.Y);
+		PassParameters->ZNear = Config.NearDepthCm;
+		PassParameters->ZFar = Config.FarDepthCm;
+		PassParameters->NumSlices = NumSlices;
 		PassParameters->FragmentCount = 0;
 		PassParameters->OutExtinctionVolume = ExtUAV;
 		PassParameters->OutTransmittanceVolume = GraphBuilder.CreateUAV(Outputs.TransmittanceVolume);
@@ -238,7 +332,7 @@ FAVBOITRasterPassOutputs FAVBOITRasterRenderer::AddCorePasses(
 
 		FComputeShaderUtils::AddPass(
 			GraphBuilder,
-			RDG_EVENT_NAME("AVBOIT.Raster.Clear"),
+			RDG_EVENT_NAME("AVBOIT.Foundation.Clear"),
 			ComputeShader,
 			PassParameters,
 			GroupCount
@@ -262,13 +356,17 @@ FAVBOITRasterPassOutputs FAVBOITRasterRenderer::AddCorePasses(
 		{
 			auto* PSParams = GraphBuilder.AllocParameters<FAVBOITRasterSplatPS::FParameters>();
 			PSParams->ZNear = ZNear;
-			PSParams->ZFar = 1000.0f;
+			PSParams->ZFar = ZFar;
 			PSParams->ViewResolution = FVector2f(TextureExtent.X, TextureExtent.Y);
-			PSParams->VolumeResolution = FVector2f(SplatExtent.X, SplatExtent.Y);
+			PSParams->VolumeResolution = FVector2f(VolumeExtent.X, VolumeExtent.Y);
 			PSParams->DownsampleFactor = DownsampleFactor;
+			PSParams->NumSlices = NumSlices;
 			PSParams->ColorAndAlpha = FVector4f(Data.Color.R, Data.Color.G, Data.Color.B, Data.Alpha);
 			PSParams->ViewRectMin = ViewRectMin;
+			PSParams->ViewRectSize = ViewRectSize;
 			PSParams->OutExtinctionVolume = GraphBuilder.CreateUAV(Outputs.ExtinctionVolume);
+			PSParams->OverflowCounter = GraphBuilder.CreateUAV(Outputs.OverflowCounter, PF_R32_UINT);
+			PSParams->OutOfBoundsCounter = GraphBuilder.CreateUAV(Outputs.OutOfBoundsCounter, PF_R32_UINT);
 			PSParams->DebugPixel = Inputs.DebugPixel;
 			
 			if (Inputs.FragmentCoverageCounter != nullptr && Inputs.RasterDebugPixelBuffer != nullptr)
@@ -321,7 +419,7 @@ FAVBOITRasterPassOutputs FAVBOITRasterRenderer::AddCorePasses(
 		PassParameters->RenderTargets.DepthStencil = FDepthStencilBinding(SceneDepthTexture, ERenderTargetLoadAction::ELoad, FExclusiveDepthStencil::DepthRead_StencilNop);
 
 		GraphBuilder.AddPass(
-			RDG_EVENT_NAME("AVBOIT.Raster.Splat"),
+			RDG_EVENT_NAME("AVBOIT.Foundation.Splat"),
 			PassParameters,
 			ERDGPassFlags::Raster,
 			[SplatVSParams, SplatPSParams, ViewRect, DrawDataArray, bTestCoverage, VertexShader, PixelShader](FRHICommandList& RHICmdList)
@@ -349,7 +447,7 @@ FAVBOITRasterPassOutputs FAVBOITRasterRenderer::AddCorePasses(
 				SetShaderParameters(RHICmdList, PixelShader, PixelShader.GetPixelShader(), *SplatPSParams[i]);
 
 				RHICmdList.SetStreamSource(0, DrawDataArray[i].VertexBufferRHI, 0);
-				RHICmdList.DrawIndexedPrimitive(DrawDataArray[i].IndexBufferRHI, 0, 0, 4, 0, 2, 1);
+				RHICmdList.DrawIndexedPrimitive(DrawDataArray[i].IndexBufferRHI, 0, 0, DrawDataArray[i].VertexCount, 0, DrawDataArray[i].PrimitiveCount, 1);
 			}
 		});
 	}
@@ -358,9 +456,10 @@ FAVBOITRasterPassOutputs FAVBOITRasterRenderer::AddCorePasses(
 	{
 		auto* PassParameters = GraphBuilder.AllocParameters<FAVBOITIntegrateCS::FParameters>();
 		PassParameters->ViewResolution = FVector2f(TextureExtent.X, TextureExtent.Y);
-		PassParameters->VolumeResolution = FVector2f(SplatExtent.X, SplatExtent.Y);
-		PassParameters->ZNear = 10.0f; // Note: Raster renderer doesn't strictly use ZNear/ZFar in IntegrateCS, but it must be bound
-		PassParameters->ZFar = 1000.0f;
+		PassParameters->VolumeResolution = FVector2f(VolumeExtent.X, VolumeExtent.Y);
+		PassParameters->ZNear = Config.NearDepthCm;
+		PassParameters->ZFar = Config.FarDepthCm;
+		PassParameters->NumSlices = NumSlices;
 		PassParameters->FragmentCount = 0;
 		PassParameters->InExtinctionVolume = GraphBuilder.CreateSRV(Outputs.ExtinctionVolume);
 		if (!PassParameters->InExtinctionVolume)
@@ -371,14 +470,14 @@ FAVBOITRasterPassOutputs FAVBOITRasterRenderer::AddCorePasses(
 
 		TShaderMapRef<FAVBOITIntegrateCS> ComputeShader(GetGlobalShaderMap(GMaxRHIFeatureLevel));
 		FIntVector GroupCount = FIntVector(
-			FMath::DivideAndRoundUp(TextureExtent.X, 8),
-			FMath::DivideAndRoundUp(TextureExtent.Y, 8),
+			FMath::DivideAndRoundUp(VolumeExtent.X, 8),
+			FMath::DivideAndRoundUp(VolumeExtent.Y, 8),
 			1
 		);
 
 		FComputeShaderUtils::AddPass(
 			GraphBuilder,
-			RDG_EVENT_NAME("AVBOIT.Raster.Integrate"),
+			RDG_EVENT_NAME("AVBOIT.Foundation.Integrate"),
 			ComputeShader,
 			PassParameters,
 			GroupCount
@@ -397,7 +496,11 @@ FAVBOITRasterPassOutputs FAVBOITRasterRenderer::AddCorePasses(
 			PSParams->ZFar = ZFar;
 			PSParams->ColorAndAlpha = FVector4f(Data.Color.R, Data.Color.G, Data.Color.B, Data.Alpha);
 			PSParams->ReferenceBrightnessMultiplier = 1.0f; // Fixed parameter
+			PSParams->VolumeResolution = FVector2f(VolumeExtent.X, VolumeExtent.Y);
+			PSParams->DownsampleFactor = DownsampleFactor;
+			PSParams->NumSlices = NumSlices;
 			PSParams->ViewRectMin = ViewRectMin;
+			PSParams->ViewRectSize = ViewRectSize;
 			PSParams->TransmittanceVolume = GraphBuilder.CreateSRV(Outputs.TransmittanceVolume);
 			PSParams->RenderTargets[0] = FRenderTargetBinding(Outputs.ColorAccumulation, ERenderTargetLoadAction::ELoad);
 			PSParams->RenderTargets.DepthStencil = FDepthStencilBinding(SceneDepthTexture, ERenderTargetLoadAction::ELoad, FExclusiveDepthStencil::DepthRead_StencilNop);
@@ -428,7 +531,7 @@ FAVBOITRasterPassOutputs FAVBOITRasterRenderer::AddCorePasses(
 		PassParameters->RenderTargets.DepthStencil = FDepthStencilBinding(SceneDepthTexture, ERenderTargetLoadAction::ELoad, FExclusiveDepthStencil::DepthRead_StencilNop);
 
 		GraphBuilder.AddPass(
-			RDG_EVENT_NAME("AVBOIT.Raster.ForwardShade"),
+			RDG_EVENT_NAME("AVBOIT.Foundation.ForwardUnlit"),
 			PassParameters,
 			ERDGPassFlags::Raster,
 			[ForwardVSParams, ForwardPSParams, ViewRect, DrawDataArray, VertexShader, PixelShader](FRHICommandList& RHICmdList)
@@ -456,7 +559,7 @@ FAVBOITRasterPassOutputs FAVBOITRasterRenderer::AddCorePasses(
 				SetShaderParameters(RHICmdList, PixelShader, PixelShader.GetPixelShader(), *ForwardPSParams[i]);
 
 				RHICmdList.SetStreamSource(0, DrawDataArray[i].VertexBufferRHI, 0);
-				RHICmdList.DrawIndexedPrimitive(DrawDataArray[i].IndexBufferRHI, 0, 0, 4, 0, 2, 1);
+				RHICmdList.DrawIndexedPrimitive(DrawDataArray[i].IndexBufferRHI, 0, 0, DrawDataArray[i].VertexCount, 0, DrawDataArray[i].PrimitiveCount, 1);
 			}
 		});
 	}
@@ -491,9 +594,12 @@ FAVBOITRasterPassOutputs FAVBOITRasterRenderer::AddCorePasses(
 	{
 		auto* PassParameters = GraphBuilder.AllocParameters<FAVBOITRasterCompositePS::FParameters>();
 		PassParameters->ViewRectMin = ViewRectMin;
+		PassParameters->ViewRectSize = ViewRectSize;
+		PassParameters->VolumeExtent = VolumeExtent;
 		PassParameters->ColorAccumulation = Outputs.ColorAccumulation;
 		PassParameters->TransmittanceVolume = GraphBuilder.CreateSRV(Outputs.TransmittanceVolume);
 		PassParameters->DownsampleFactor = DownsampleFactor;
+		PassParameters->NumSlices = NumSlices;
 		PassParameters->RenderTargets[0] = FRenderTargetBinding(SceneColorTexture, ERenderTargetLoadAction::ELoad);
 
 		TShaderMapRef<FAVBOITRasterCompositePS> PixelShader(GetGlobalShaderMap(GMaxRHIFeatureLevel));
@@ -502,7 +608,7 @@ FAVBOITRasterPassOutputs FAVBOITRasterRenderer::AddCorePasses(
 		FPixelShaderUtils::AddFullscreenPass(
 			GraphBuilder,
 			GetGlobalShaderMap(GMaxRHIFeatureLevel),
-			RDG_EVENT_NAME("AVBOIT.Raster.Composite"),
+			RDG_EVENT_NAME("AVBOIT.Foundation.Composite"),
 			PixelShader,
 			PassParameters,
 			ViewRect,
@@ -535,14 +641,19 @@ FAVBOITRasterPassOutputs FAVBOITRasterRenderer::AddCorePasses(
 		DebugParams->FragmentCoverageCounter = GraphBuilder.CreateSRV(Inputs.FragmentCoverageCounter ? Inputs.FragmentCoverageCounter : GraphBuilder.CreateBuffer(FRDGBufferDesc::CreateBufferDesc(4, 1), TEXT("Dummy")), PF_R32_UINT);
 		DebugParams->RasterDebugPixelBuffer = GraphBuilder.CreateSRV(Inputs.RasterDebugPixelBuffer ? Inputs.RasterDebugPixelBuffer : GraphBuilder.CreateBuffer(FRDGBufferDesc::CreateStructuredDesc(sizeof(FAVBOITRasterDebugPixelData), 1), TEXT("Dummy")));
 		DebugParams->OutDebugPayload = GraphBuilder.CreateUAV(OutDebugBuffer);
-		DebugParams->TextureExtent = TextureExtent;
-		DebugParams->ViewRectMin = Inputs.ViewRect.Min;
-		DebugParams->ViewRectMax = Inputs.ViewRect.Max;
+			DebugParams->TextureExtent = TextureExtent;
+			DebugParams->VolumeExtent = VolumeExtent;
+			DebugParams->ViewRectMin = Inputs.ViewRect.Min;
+			DebugParams->ViewRectMax = Inputs.ViewRect.Max;
+			DebugParams->NumSlices = NumSlices;
+			DebugParams->DownsampleFactor = DownsampleFactor;
+			DebugParams->OverflowCounter = GraphBuilder.CreateSRV(Outputs.OverflowCounter, PF_R32_UINT);
+			DebugParams->OutOfBoundsCounter = GraphBuilder.CreateSRV(Outputs.OutOfBoundsCounter, PF_R32_UINT);
 
 		TShaderMapRef<FAVBOITRasterDebugExtractCS> DebugComputeShader(GetGlobalShaderMap(GMaxRHIFeatureLevel));
 		FComputeShaderUtils::AddPass(
 			GraphBuilder,
-			RDG_EVENT_NAME("AVBOIT.Raster.DebugExtract"),
+			RDG_EVENT_NAME("AVBOIT.Foundation.DebugExtract"),
 			DebugComputeShader,
 			DebugParams,
 			FIntVector(1, 1, 1)

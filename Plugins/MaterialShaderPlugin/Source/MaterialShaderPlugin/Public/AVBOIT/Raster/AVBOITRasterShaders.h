@@ -47,10 +47,14 @@ class FAVBOITRasterSplatPS : public FGlobalShader
 		SHADER_PARAMETER(FVector2f, ViewResolution)
 		SHADER_PARAMETER(FVector2f, VolumeResolution)
 		SHADER_PARAMETER(uint32, DownsampleFactor)
+		SHADER_PARAMETER(uint32, NumSlices)
 		SHADER_PARAMETER(FVector4f, ColorAndAlpha)
 		SHADER_PARAMETER(FIntVector4, ViewRectMin)
+		SHADER_PARAMETER(FIntVector4, ViewRectSize)
 		SHADER_PARAMETER(FIntPoint, DebugPixel)
 		SHADER_PARAMETER_RDG_BUFFER_UAV(RWStructuredBuffer<uint>, OutExtinctionVolume)
+		SHADER_PARAMETER_RDG_BUFFER_UAV(RWBuffer<uint>, OverflowCounter)
+		SHADER_PARAMETER_RDG_BUFFER_UAV(RWBuffer<uint>, OutOfBoundsCounter)
 		SHADER_PARAMETER_RDG_BUFFER_UAV(RWBuffer<uint>, FragmentCoverageCounter)
 		SHADER_PARAMETER_RDG_BUFFER_UAV(RWStructuredBuffer<FAVBOITRasterDebugPixelData>, OutDebugPixelBuffer)
 		RENDER_TARGET_BINDING_SLOTS()
@@ -88,7 +92,11 @@ class FAVBOITRasterForwardPS : public FGlobalShader
 		SHADER_PARAMETER(float, ZFar)
 		SHADER_PARAMETER(FVector4f, ColorAndAlpha)
 		SHADER_PARAMETER(float, ReferenceBrightnessMultiplier)
+		SHADER_PARAMETER(FVector2f, VolumeResolution)
+		SHADER_PARAMETER(uint32, DownsampleFactor)
+		SHADER_PARAMETER(uint32, NumSlices)
 		SHADER_PARAMETER(FIntVector4, ViewRectMin)
+		SHADER_PARAMETER(FIntVector4, ViewRectSize)
 		SHADER_PARAMETER_RDG_TEXTURE_SRV(Texture2DArray<float>, TransmittanceVolume)
 		RENDER_TARGET_BINDING_SLOTS()
 	END_SHADER_PARAMETER_STRUCT()
@@ -109,7 +117,10 @@ class FAVBOITRasterCompositePS : public FGlobalShader
 		SHADER_PARAMETER_RDG_TEXTURE(Texture2D<float4>, ColorAccumulation)
 		SHADER_PARAMETER_RDG_TEXTURE_SRV(Texture2DArray<float>, TransmittanceVolume)
 		SHADER_PARAMETER(FIntVector4, ViewRectMin)
+		SHADER_PARAMETER(FIntVector4, ViewRectSize)
+		SHADER_PARAMETER(FIntPoint, VolumeExtent)
 		SHADER_PARAMETER(uint32, DownsampleFactor)
+		SHADER_PARAMETER(uint32, NumSlices)
 		RENDER_TARGET_BINDING_SLOTS()
 	END_SHADER_PARAMETER_STRUCT()
 
@@ -125,10 +136,15 @@ struct FAVBOITRasterDebugHeader
 	float NormalizedDepth;
 	uint32 Slice;
 	uint32 FragmentCoverageCount;
+	uint32 NumSlices;
+	uint32 OverflowCount;
+	uint32 OutOfBoundsCount;
 	FIntPoint TextureExtent;
+	FIntPoint VolumeExtent;
 	FIntPoint ViewRectMin;
 	FIntPoint ViewRectMax;
 	FIntPoint Padding;
+	uint32 HeaderPadding[3];
 };
 
 struct FAVBOITRasterDebugPayload
@@ -156,8 +172,13 @@ class MATERIALSHADEREXAMPLE_API FAVBOITRasterDebugExtractCS : public FGlobalShad
 		SHADER_PARAMETER_RDG_BUFFER_SRV(StructuredBuffer<FAVBOITRasterDebugPixelData>, RasterDebugPixelBuffer)
 		SHADER_PARAMETER_RDG_BUFFER_SRV(Buffer<uint>, FragmentCoverageCounter)
 		SHADER_PARAMETER(FIntPoint, TextureExtent)
+		SHADER_PARAMETER(FIntPoint, VolumeExtent)
 		SHADER_PARAMETER(FIntPoint, ViewRectMin)
 		SHADER_PARAMETER(FIntPoint, ViewRectMax)
+		SHADER_PARAMETER(uint32, NumSlices)
+		SHADER_PARAMETER(uint32, DownsampleFactor)
+		SHADER_PARAMETER_RDG_BUFFER_SRV(Buffer<uint>, OverflowCounter)
+		SHADER_PARAMETER_RDG_BUFFER_SRV(Buffer<uint>, OutOfBoundsCounter)
 	END_SHADER_PARAMETER_STRUCT()
 
 	static bool ShouldCompilePermutation(const FGlobalShaderPermutationParameters& Parameters) { return true; }

@@ -215,6 +215,7 @@ static FAVBOITDirectRasterCaseResult RunDirectRasterCase(const FAVBOITDirectRast
 			FAVBOITRasterPassInputs PassInputs;
 			PassInputs.TextureExtent = Case.Resolution;
 			PassInputs.ViewRect = Case.ViewRect;
+			PassInputs.Config = FAVBOITFrameConfig::Build(Case.ViewRect, Case.Resolution, Case.ZNear, Case.ZFar, 1, 64);
 			
 			
 			float FOV = PI / 4.0f; 
@@ -251,8 +252,13 @@ static FAVBOITDirectRasterCaseResult RunDirectRasterCase(const FAVBOITDirectRast
 			DebugParams->RasterDebugPixelBuffer = GraphBuilder.CreateSRV(DebugPixelBuffer);
 			DebugParams->FragmentCoverageCounter = GraphBuilder.CreateSRV(CoverageBuffer, PF_R32_UINT);
 			DebugParams->TextureExtent = Case.Resolution;
+			DebugParams->VolumeExtent = Case.Resolution;
 			DebugParams->ViewRectMin = Case.ViewRect.Min;
 			DebugParams->ViewRectMax = Case.ViewRect.Max;
+			DebugParams->NumSlices = 64;
+			DebugParams->DownsampleFactor = 1;
+			DebugParams->OverflowCounter = GraphBuilder.CreateSRV(Outputs.OverflowCounter, PF_R32_UINT);
+			DebugParams->OutOfBoundsCounter = GraphBuilder.CreateSRV(Outputs.OutOfBoundsCounter, PF_R32_UINT);
 
 			TShaderMapRef<FAVBOITRasterDebugExtractCS> ComputeShader(GetGlobalShaderMap(GMaxRHIFeatureLevel));
 			FComputeShaderUtils::AddPass(

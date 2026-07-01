@@ -4,6 +4,7 @@
 StructuredBuffer<FInjectedFragment> InjectedFragments;
 Texture2DArray<float> InTransmittanceVolume;
 RWTexture2D<float4> OutResultTexture;
+uint NumSlices;
 
 // InterlockedAdd on float textures is not natively supported without special extensions.
 // However, since we are doing synthetic testing, we can use a naive loop in a single thread per pixel
@@ -34,7 +35,7 @@ void ShadeCS(uint3 DispatchThreadId : SV_DispatchThreadID)
             if (Alpha > 0.01f)
             {
                 float NormDepth = MapLinearDepthToNormDepth(Frag.LinearDepth, ZNear, ZFar);
-                uint ZIndex = GetSliceIndex(NormDepth);
+                uint ZIndex = GetSliceIndex(NormDepth, NumSlices);
 
                 float FrontTransmittance = 1.0f;
                 if (ZIndex > 0)

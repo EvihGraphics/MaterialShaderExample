@@ -11,3 +11,26 @@ struct FAVBOITRasterInterpolants
 };
 
 int4 ViewRectMin;
+int4 ViewRectSize;
+
+bool AVBOITGetLocalPixel(uint2 AbsolutePixel, out uint2 LocalPixel)
+{
+	int2 LocalPixelSigned = int2(AbsolutePixel) - ViewRectMin.xy;
+	if (any(LocalPixelSigned < int2(0, 0)) ||
+		LocalPixelSigned.x >= ViewRectSize.x ||
+		LocalPixelSigned.y >= ViewRectSize.y)
+	{
+		LocalPixel = uint2(0, 0);
+		return false;
+	}
+
+	LocalPixel = uint2(LocalPixelSigned);
+	return true;
+}
+
+uint2 AVBOITGetVolumePixel(uint2 LocalPixel, uint DownsampleFactor, float2 VolumeResolution)
+{
+	uint Factor = max(DownsampleFactor, 1u);
+	uint2 MaxVolumePixel = uint2(max((uint)VolumeResolution.x, 1u) - 1u, max((uint)VolumeResolution.y, 1u) - 1u);
+	return min(LocalPixel / Factor, MaxVolumePixel);
+}

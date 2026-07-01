@@ -3,21 +3,29 @@
 #include "/Engine/Public/Platform.ush"
 #include "/Engine/Private/Common.ush"
 #include "/Engine/Private/ScreenPass.ush"
+#include "AVBOITRasterCommon.ush"
 
 Texture2D<float4> ColorAccumulation;
 Texture2DArray<float> TransmittanceVolume;
-int4 ViewRectMin;
+int2 VolumeExtent;
 uint DownsampleFactor;
+uint NumSlices;
 
 void MainPS(
 	in float4 SvPosition : SV_Position,
 	out float4 OutColor : SV_Target0)
 {
-	uint2 PixelPos = uint2(SvPosition.xy);
+	uint2 AbsolutePixel = uint2(SvPosition.xy);
+	uint2 LocalPixel;
+	if (!AVBOITGetLocalPixel(AbsolutePixel, LocalPixel))
+	{
+		discard;
+	}
 
-	float4 Accum = ColorAccumulation.Load(int3(PixelPos, 0));
-	uint2 VolumePos = PixelPos / DownsampleFactor;
-	float TotalTransmittance = TransmittanceVolume.Load(int4(VolumePos.x, VolumePos.y, 63, 0));
+	float4 Accum = ColorAccumulation.Load(int3(AbsolutePixel, 0));
+	uint2 VolumePos = min(LocalPixel / max(DownsampleFactor, 1u), uint2(max(VolumeExtent.x, 1) - 1, max(VolumeExtent.y, 1) - 1));
+	uint LastSlice = clamp(NumSlices, 1u, AVBOIT_MAX_VOLUME_DEPTH) - 1u;
+	float TotalTransmittance = TransmittanceVolume.Load(int4(VolumePos.x, VolumePos.y, LastSlice, 0));
 
 	OutColor = float4(Accum.rgb, TotalTransmittance);
 }

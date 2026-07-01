@@ -9,6 +9,9 @@ float4x4 WorldToView;
 
 float4 ColorAndAlpha;
 float ReferenceBrightnessMultiplier;
+float2 VolumeResolution;
+uint DownsampleFactor;
+uint NumSlices;
 
 Texture2DArray<float> TransmittanceVolume;
 
@@ -34,14 +37,20 @@ void MainPS(
 	}
 
 	float NormDepth = MapLinearDepthToNormDepth(In.LinearViewDepth, ZNear, ZFar);
-	uint Slice = GetSliceIndex(NormDepth);
+	uint Slice = GetSliceIndex(NormDepth, NumSlices);
 
-	uint2 PixelPos = uint2(In.Position.xy);
+	uint2 AbsolutePixel = uint2(In.Position.xy);
+	uint2 LocalPixel;
+	if (!AVBOITGetLocalPixel(AbsolutePixel, LocalPixel))
+	{
+		discard;
+	}
+	uint2 VolumePixel = AVBOITGetVolumePixel(LocalPixel, DownsampleFactor, VolumeResolution);
 
 	float FrontTransmittance = 1.0f;
 	if (Slice > 0)
 	{
-		FrontTransmittance = TransmittanceVolume.Load(int4(PixelPos.x, PixelPos.y, Slice - 1, 0));
+		FrontTransmittance = TransmittanceVolume.Load(int4(VolumePixel.x, VolumePixel.y, Slice - 1, 0));
 	}
 
 	float3 Contribution = ColorAndAlpha.rgb * Alpha * FrontTransmittance * ReferenceBrightnessMultiplier;

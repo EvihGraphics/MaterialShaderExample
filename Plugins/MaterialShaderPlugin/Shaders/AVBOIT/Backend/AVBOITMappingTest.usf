@@ -6,6 +6,7 @@ RWStructuredBuffer<float> OutNormalizedDepths;
 RWStructuredBuffer<uint> OutSliceIndices;
 
 uint ItemCount;
+uint NumSlices;
 
 [numthreads(64, 1, 1)]
 void AVBOITMappingTestCS(uint3 DispatchThreadId : SV_DispatchThreadID)
@@ -18,7 +19,7 @@ void AVBOITMappingTestCS(uint3 DispatchThreadId : SV_DispatchThreadID)
 
     float LinearDepth = InLinearDepths[Index];
     float NormDepth = MapLinearDepthToNormDepth(LinearDepth, ZNear, ZFar);
-    uint SliceIndex = GetSliceIndex(NormDepth);
+    uint SliceIndex = GetSliceIndex(NormDepth, NumSlices);
 
     OutNormalizedDepths[Index] = NormDepth;
     OutSliceIndices[Index] = SliceIndex;
