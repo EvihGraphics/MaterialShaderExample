@@ -1,105 +1,116 @@
-# CURRENT - UE-4.2G.1 AVBOIT Foundation Visual Closeout
+# CURRENT - UE-4.2G.3 Manual Transparent Sorting Entry
 
-Generated UTC: 2026-07-01T14:56:42Z
+Generated UTC: 2026-07-02T06:52:42Z
 
 ## Active Stage
 
-- Stage: UE-4.2G.1 AVBOIT Foundation Quad Validation Closeout
+- Stage: UE-4.2G.3 Foundation manual transparent sorting viewport entry
 - StageStatus: partial
 - OverallProjectStatus: partial
 - Branch: current upstream-tracked AVBOIT development branch
-- Local HEAD: `25d8e3bee4b38701c66b62e7ada8423d8e0200ed`
-- Upstream HEAD: `25d8e3bee4b38701c66b62e7ada8423d8e0200ed`
-- UE Source HEAD: `260bb2e1c5610b31c63a36206eedd289409c5f11`
-- The Forge HEAD: `6d4f4a207bf3a7bef2bc5c4768001298b5bfffba`
-- Dirty-tree condition: pre-existing untracked `LocalVisualResults/UE57/` is preserved and must not be staged as acceptance evidence.
+- Local HEAD: `10883e4743f78d2e69c2f01ff37d567cec7b21b2`
+- Upstream HEAD: `10883e4743f78d2e69c2f01ff37d567cec7b21b2`
 
 ## Landed This Stage
 
-- Added `FAVBOITFrameConfig` and `FAVBOITPrimitivePacket` under `MaterialShaderPlugin` core public headers.
-- Added Foundation CVars:
-  `r.AVBOIT.Foundation.Enable`,
-  `Mode`,
-  `Scene`,
-  `SubmissionOrder`,
-  `RandomSeed`,
-  `DebugPixelX/Y`,
-  `DownsampleFactor`,
-  `NumSlices`,
-  `NearDepthCm`,
-  `FarDepthCm`.
-- Kept `r.AVBOIT.Raster.Enable` as a deprecated alias for the Foundation path.
-- Rewired the existing Raster renderer to use one frame config, sort actual draw calls by `SubmissionOrder`, and emit `AVBOIT.Foundation.*` RDG events.
-- Updated raster/backend shaders to support active `NumSlices` and removed the Foundation path's hardcoded far slice `63`.
-- Fixed low-resolution volume addressing so Splat, Forward, Composite, and Debug readback use ViewRect-local `VolumePixel`.
-- Added overflow and out-of-bounds counters to the Foundation raster path.
-- Added `Scripts/Run-AVBOITFoundationQuadValidation.ps1`.
-- Added UE5.7 Native OIT reaudit and Foundation actual-state audit docs.
-- Added UE-4.2G.1 direct Foundation visual suite in the headless commandlet.
-- Added `PluginIdentity` raster shaders and `ResolvedAlpha` compute shader/pass.
-- Added CPU exact reference image generation, full-image GPU readback helpers, per-image manifests, and actual draw-order capture for the direct Foundation suite.
-- Replaced fake/fixed log scan with real pattern scanning into `Metrics/LogScan.json`.
-- Replaced deprecated/pass-early marker behavior with runner-owned `PASSED.marker` / `FAILED.marker` after all gates are evaluated.
+- Fixed the invalid manual assumption that `r.AVBOIT.Foundation.Scene 1` creates viewport geometry.
+- Added `AVBOIT.Foundation.SpawnTransparentSortingScene order=AB mode=PluginAVBOIT`.
+- Added transient `TwoIntersectingQuads` proxy scene and transient camera alignment.
+- Added `AVBOIT.Foundation.SetOrder`, `SetMode`, `Status`, and `CleanupTransparentSortingScene`.
+- Added renderer probe draw-order/status fields.
+- Routed `r.AVBOIT.Foundation.Mode 2` to a real PluginIdentity source-over pass.
+- Updated manual reproduction docs and checkpoint 0050.
+- Updated `Scripts/Run-AVBOITFoundationQuadValidation.ps1` to use a G.3 stage and standalone manual repro manifest gate.
 
-## Verified So Far
+## Manual Repro
+
+Close the currently running Unreal Editor, rebuild, reopen `MaterialShaderDemo.uproject`, then run:
+
+```text
+AVBOIT.Foundation.SpawnTransparentSortingScene order=AB mode=PluginAVBOIT
+AVBOIT.Foundation.Status
+```
+
+Expected visual: two intersecting transparent quads in the viewport, with left side A/Green in front and right side B/Cyan in front.
+
+Switch order:
+
+```text
+AVBOIT.Foundation.SetOrder AB
+AVBOIT.Foundation.SetOrder BA
+AVBOIT.Foundation.SetOrder RandomSeed1
+AVBOIT.Foundation.SetOrder RandomSeed2
+AVBOIT.Foundation.SetOrder RandomSeed3
+```
+
+Switch mode:
+
+```text
+AVBOIT.Foundation.SetMode PluginIdentity
+AVBOIT.Foundation.SetMode PluginAVBOIT
+```
+
+## Verified
+
+Attempted:
 
 ```powershell
 D:\UE\UnrealEngine_Animation_Tech\Engine\Build\BatchFiles\Build.bat MaterialShaderDemoEditor Win64 Development -Project="D:\Users\l3d\Documents\AVBOIT\MaterialShaderExample_AVBOIT\MaterialShaderDemo.uproject" -WaitMutex -NoHotReloadFromIDE
 ```
 
-Exit Code: 0.
+Result:
 
-```powershell
-D:\UE\UnrealEngine_Animation_Tech\Engine\Build\BatchFiles\Build.bat ContentExamplesEditor Win64 Development -Project="D:\Users\l3d\Documents\Unreal Projects\ContentExamples\ContentExamples.uproject" -WaitMutex -NoHotReloadFromIDE
+```text
+Build succeeded after closing the editor.
 ```
 
-Exit Code: 0.
+Automated manual validation:
 
-```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File Scripts\Run-AVBOITFoundationQuadValidation.ps1 -ProjectPath "D:\Users\l3d\Documents\AVBOIT\MaterialShaderExample_AVBOIT\MaterialShaderDemo.uproject" -SkipBuild -CaptureTool None -RunRandomOrders -TimeoutSeconds 420
+```text
+AVBOIT.Foundation.ValidateTransparentSortingSceneAndExit order=AB mode=PluginAVBOIT root=<TempRoot> screenshot=<TempRoot>\Raw\Manual_PluginAVBOIT_AB_Final.png
 ```
 
-Exit Code: 5.
+Latest TempResults:
 
-TempResults: `LocalVisualResults\TempResults\UE57\HIVE_4090x2\UE4-2G-AVBOIT-Quad-Foundation\20260701T145304Z`
+```text
+LocalVisualResults\TempResults\UE57\HIVE_4090x2\UE4-2G3-ManualTransparentSorting-Repro\20260702T082318Z
+```
 
-KeyResults: none.
+Render execution evidence:
 
-Latest metrics:
+- ManualComponents: 2
+- RegistryProxyCount: 2
+- AcceptedProxyCount: 2
+- SkipReason: `Executed`
+- ActualDrawOrder: `A_Green,B_Cyan`
+- Passes: Clear/Splat/Integrate/ForwardUnlit/Composite all true
 
-- Log scan: `TotalErrors=0`
-- Direct raster: 6 / 6 passed
-- Synthetic: 12 / 12 passed
-- A-front pixels: 583200
-- B-front pixels: 583200
-- AVBOIT vs Exact RGB MAE: 0.279496436
-- AVBOIT vs Exact P95 abs: 0.533333333
-- Order AB vs BA RGB MAE: 0.249121070
-- Order AB vs BA MaxAbs: 0.768627451
-- Markers: `SUITE_FINISHED.marker`, `FAILED.marker`
-- `PASSED.marker`: absent
-- Deprecated `COMPLETED.marker`: absent
+Visual evidence:
+
+- `Raw\Manual_PluginAVBOIT_AB_Final.png` is still green-only.
+- Pixel sample: left `(0,193,0)`, center `(0,202,0)`, right `(0,189,0)`.
+- `blueish_ratio=0.0`.
+- A temporary no-transmittance shader experiment showed both Green and Cyan, proving the second draw executes and the remaining issue is in transmittance/extinction, not scene spawning.
+
+## Latest Docs
+
+```text
+docs/knowledge/ue5_avboit/UE42G2_MANUAL_TRANSPARENT_SORTING_REPRO_20260702T043439Z.md
+docs/knowledge/ue5_avboit/UE42G3_MANUAL_TRANSPARENT_SORTING_ENTRY_REPAIR_20260702T065242Z.md
+UE5_AVBOIT_Agent_Guidance_Package_v1/docs/checkpoints/archive/CHECKPOINT-0050-20260702T065242Z-UE-4-2G3-MANUAL-TRANSPARENT-SORTING-ENTRY.md
+```
 
 ## Remaining Hard Gates
 
-- Full Foundation screenshot matrix is incomplete: missing `01`, `02`, `12`, `13`, `16`, `20`, and `21`.
-- PluginAVBOIT vs Exact parity fails current thresholds.
-- PluginAVBOIT AB vs BA order independence fails current thresholds.
+- Rebuild after closing the open Editor and verify the new commands are loaded.
+- Fix PluginAVBOIT transmittance/extinction so manual AB visual shows the expected Cyan/B-front contribution.
+- Confirm manual viewport visual after the fix; current command/status execution is proven, but visual repro is not passed.
+- Splat/extinction order dependency still needs repair.
+- PluginAVBOIT vs GPU Exact parity still fails current thresholds.
+- PluginAVBOIT AB/BA order independence still fails current thresholds.
 - Native UE Sorted Pixels OIT runtime comparison is not yet captured/proven.
 - RenderDoc or PIX capture is not yet produced.
 - Editor/PIE/Standalone lifecycle matrix is not yet complete.
 - KeyResults promotion is not allowed.
-
-Latest closeout audit:
-
-```text
-docs/knowledge/ue5_avboit/UE42G1_REMOTE_AND_EXECUTION_AUDIT_20260701T145642Z.md
-```
-
-Latest checkpoint:
-
-```text
-UE5_AVBOIT_Agent_Guidance_Package_v1/docs/checkpoints/archive/CHECKPOINT-0048-20260701T145642Z-UE-4-2G-FOUNDATION-VISUAL-CLOSEOUT.md
-```
 
 Do not mark `SUCCESS`, `COMPLETED`, or `passed-local`, and do not proceed to UE-4.2H.

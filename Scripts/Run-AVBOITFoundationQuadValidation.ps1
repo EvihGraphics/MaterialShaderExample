@@ -10,6 +10,7 @@ param (
     [int]$DownsampleFactor = 8,
     [int]$NumSlices = 64,
     [switch]$SkipBuild,
+    [switch]$SkipManualViewportRepro,
     [switch]$RunNativeOIT,
     [switch]$RunRandomOrders,
     [ValidateSet("None", "RenderDoc", "PIX")]
@@ -114,10 +115,10 @@ if ([string]::IsNullOrWhiteSpace($TheForgeRoot)) {
 
 $Timestamp = (Get-Date).ToUniversalTime().ToString("yyyyMMddTHHmmssZ")
 $MachineId = "HIVE_4090x2"
-$StageName = "UE4-2G-AVBOIT-Quad-Foundation"
+$StageName = "UE4-2G3-AVBOIT-Manual-Transparent-Sorting-Repro"
 $TempRoot = Join-Path $RepositoryRoot "LocalVisualResults\TempResults\UE57\$MachineId\$StageName\$Timestamp"
 $KeyRoot = Join-Path $RepositoryRoot "LocalVisualResults\KeyResults\UE57\$MachineId\$StageName\$Timestamp"
-$Dirs = @("Raw", "Derived", "Metrics", "Capture", "Logs", "Readback", "Preflight")
+$Dirs = @("Raw", "Derived", "Metrics", "Capture", "Logs", "Readback", "Preflight", "ManualRepro")
 foreach ($d in $Dirs) {
     New-Item -ItemType Directory -Force -Path (Join-Path $TempRoot $d) | Out-Null
 }
@@ -152,6 +153,7 @@ $GitState = [ordered]@{
         RunNativeOIT = [bool]$RunNativeOIT
         RunRandomOrders = [bool]$RunRandomOrders
         CaptureTool = $CaptureTool
+        SkipManualViewportRepro = [bool]$SkipManualViewportRepro
     }
 }
 Save-Json (Join-Path $TempRoot "Preflight\GitState.json") $GitState
@@ -209,7 +211,9 @@ try {
         "-tracefile=`"$TracePath`"",
         "-abslog=`"$CommandletLog`"",
         "-resx=$ResolutionX",
-        "-resy=$ResolutionY"
+        "-resy=$ResolutionY",
+        "-AVBOITDownsampleFactor=$DownsampleFactor",
+        "-AVBOITNumSlices=$NumSlices"
     )
 
     $CommandletExit = Invoke-LoggedProcess -FilePath $EditorCmd -ArgumentList $CommandletArgs -StdOutPath $CommandletLog -StdErrPath $CommandletErr -TimeoutSeconds $TimeoutSeconds
@@ -217,6 +221,35 @@ try {
     if ($CommandletExit -ne 0) {
         $BlockingReasons.Add("Foundation commandlet failed with exit code $CommandletExit")
         $ExitCode = $CommandletExit
+    }
+
+    if (-not $SkipManualViewportRepro) {
+        $EditorExe = Join-Path $UERoot "Engine\Binaries\Win64\UnrealEditor.exe"
+        $ManualReproLog = Join-Path $TempRoot "Logs\ManualViewportRepro.log"
+        $ManualReproErr = Join-Path $TempRoot "Logs\ManualViewportRepro.err.log"
+        $ManualShot = Join-Path $TempRoot "Raw\Manual_PluginAVBOIT_AB.png"
+        $ManualExecCmds = "AVBOIT.Foundation.ValidateTransparentSortingSceneAndExit order=AB mode=PluginAVBOIT root=$TempRoot screenshot=$ManualShot"
+        $ManualReproArgs = @(
+            "`"$ProjectPath`"",
+            "-game",
+            "-windowed",
+            "-dx12",
+            "-unattended",
+            "-nop4",
+            "-nosplash",
+            "-NoSound",
+            "-NoLiveCoding",
+            "-resx=$ResolutionX",
+            "-resy=$ResolutionY",
+            "-ExecCmds=`"$ManualExecCmds`"",
+            "-abslog=`"$ManualReproLog`""
+        )
+        $ManualReproExit = Invoke-LoggedProcess -FilePath $EditorExe -ArgumentList $ManualReproArgs -StdOutPath $ManualReproLog -StdErrPath $ManualReproErr -TimeoutSeconds ([Math]::Min($TimeoutSeconds, 180))
+        $CommandRecords.Add([ordered]@{ Name = "ManualViewportRepro"; File = $EditorExe; Args = $ManualReproArgs; ExitCode = $ManualReproExit; Log = $ManualReproLog; ErrorLog = $ManualReproErr })
+        if ($ManualReproExit -ne 0) {
+            $BlockingReasons.Add("Manual viewport repro failed with exit code $ManualReproExit")
+            if ($ExitCode -eq 0) { $ExitCode = $ManualReproExit }
+        }
     }
 
     $LogPaths = @(Get-ChildItem -Path (Join-Path $TempRoot "Logs") -File -ErrorAction SilentlyContinue | ForEach-Object { $_.FullName })
@@ -237,14 +270,17 @@ try {
 
     $RequiredImages = @(
         "00_ExactReference_AB.png",
-        "01_EngineDefault_AB.png", "02_EngineDefault_BA.png",
         "05_PluginIdentity_AB.png", "06_PluginIdentity_BA.png",
         "07_PluginAVBOIT_AB.png", "08_PluginAVBOIT_BA.png",
-        "12_ExtinctionOverview.png", "13_TransmittanceOverview.png", "14_ColorAccumulationOverview.png",
-        "15_ResolvedAlphaOverview.png", "16_SliceOverview.png",
+        "LayerA_Coverage.png", "LayerB_Coverage.png",
+        "LayerA_LinearDepth.png", "LayerB_LinearDepth.png",
+        "LayerA_PremultipliedColor.png", "LayerB_PremultipliedColor.png",
+        "14_ColorAccumulationOverview.png", "15_ResolvedAlphaOverview.png",
         "17_AVBOIT_vs_Exact_Difference.png", "18_AVBOIT_vs_Exact_Heatmap.png",
-        "19_OrderAB_vs_BA_Difference.png", "20_SideBySide.png", "21_AnnotatedGoal.png",
-        "CoverageMask.png", "EqualDepthExclusionMask.png"
+        "19_OrderAB_vs_BA_Difference.png",
+        "CoverageMask.png", "EqualDepthExclusionMask.png",
+        "CoverageUnionMask.png", "OverlapCoverageMask.png", "SameSliceAmbiguityMask.png",
+        "ValidExactComparisonMask.png", "FrontLayerClassification.png"
     )
     if ($RunNativeOIT) {
         $RequiredImages += @("03_UESortedPixelsOIT_AB.png", "04_UESortedPixelsOIT_BA.png")
@@ -264,10 +300,50 @@ try {
         $FoundationMetrics = Get-Content -Raw $FoundationMetricsPath | ConvertFrom-Json
         if ($FoundationMetrics.AFrontPixelCount -le 5000) { $BlockingReasons.Add("AFrontPixelCount <= 5000") }
         if ($FoundationMetrics.BFrontPixelCount -le 5000) { $BlockingReasons.Add("BFrontPixelCount <= 5000") }
+        if ($FoundationMetrics.ValidExactComparisonPixelCount -le 5000) { $BlockingReasons.Add("ValidExactComparisonPixelCount <= 5000") }
         if ($FoundationMetrics.AVBOIT_vs_Exact.RGB_MAE -gt 0.03) { $BlockingReasons.Add("PluginAVBOIT vs Exact RGB_MAE > 0.03") }
         if ($FoundationMetrics.AVBOIT_vs_Exact.P95Abs -gt 0.08) { $BlockingReasons.Add("PluginAVBOIT vs Exact P95Abs > 0.08") }
         if ($FoundationMetrics.OrderAB_vs_BA.RGB_MAE -gt (1.0 / 255.0)) { $BlockingReasons.Add("PluginAVBOIT AB vs BA RGB_MAE > 1/255") }
         if ($FoundationMetrics.OrderAB_vs_BA.MaxAbs -gt (2.0 / 255.0)) { $BlockingReasons.Add("PluginAVBOIT AB vs BA MaxAbs > 2/255") }
+    }
+
+    $GroundTruthMetricsPath = Join-Path $TempRoot "Metrics\GroundTruthMetrics.json"
+    if (-not (Test-Path $GroundTruthMetricsPath)) {
+        $BlockingReasons.Add("GroundTruthMetrics.json missing")
+    }
+    $EarliestDivergencePath = Join-Path $TempRoot "Metrics\EarliestDivergence.json"
+    if (-not (Test-Path $EarliestDivergencePath)) {
+        $BlockingReasons.Add("EarliestDivergence.json missing")
+    } else {
+        $Earliest = Get-Content -Raw $EarliestDivergencePath | ConvertFrom-Json
+        if ($Earliest.Extinction.DifferentElementCount -ne 0) {
+            $BlockingReasons.Add("Splat Extinction AB/BA differs")
+        }
+        if ($Earliest.Forward.MaxAbs -gt (2.0 / 255.0)) {
+            $BlockingReasons.Add("Forward accumulation AB/BA MaxAbs > 2/255")
+        }
+        if ($Earliest.Composite.MaxAbs -gt (2.0 / 255.0)) {
+            $BlockingReasons.Add("Composite AB/BA MaxAbs > 2/255")
+        }
+    }
+
+    $ManualManifestPath = Join-Path $TempRoot "ManualRepro\ManualReproManifest.json"
+    if (-not (Test-Path $ManualManifestPath)) {
+        $BlockingReasons.Add("ManualReproManifest.json missing")
+    } else {
+        $ManualManifest = Get-Content -Raw $ManualManifestPath | ConvertFrom-Json
+        if ($ManualManifest.SpawnedComponentCount -lt 2) {
+            $BlockingReasons.Add("Manual viewport repro spawned fewer than two Foundation components")
+        }
+    }
+    $ManualValidationPath = Join-Path $TempRoot "Metrics\ManualViewportValidation.json"
+    if (-not (Test-Path $ManualValidationPath)) {
+        $BlockingReasons.Add("ManualViewportValidation.json missing")
+    } else {
+        $ManualValidation = Get-Content -Raw $ManualValidationPath | ConvertFrom-Json
+        if (-not $ManualValidation.Passed) { $BlockingReasons.Add("Manual viewport render execution validation failed") }
+        if ($ManualValidation.RegistryProxyCount -lt 2) { $BlockingReasons.Add("Manual viewport RegistryProxyCount < 2") }
+        if ($ManualValidation.SkipReason -ne "Executed") { $BlockingReasons.Add("Manual viewport SkipReason was not Executed") }
     }
 
     if ($CaptureTool -eq "None") {
@@ -302,7 +378,7 @@ finally {
     }
     $PromotionDecision = @{
         SchemaVersion = 1
-        Stage = "UE-4.2G AVBOIT Quad Foundation"
+        Stage = "UE-4.2G.3 AVBOIT Manual Transparent Sorting Repro"
         GeneratedUtc = (Get-Date).ToUniversalTime().ToString("o")
         Status = $Status
         PromotionEligible = ($Status -eq "passed-local")

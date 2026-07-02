@@ -105,6 +105,8 @@ struct FAVBOITRasterExecutionProbe
 	int32 SplatDrawCount = 0;
 	int32 ForwardDrawCount = 0;
 	int32 CompositeDrawCount = 0;
+	FString ActualDrawOrder;
+	TArray<uint32> ActualSubmissionOrders;
 	
 	bool bDebugReadbackScheduled = false;
 	EAVBOITRasterSkipReason SkipReason = EAVBOITRasterSkipReason::Disabled;

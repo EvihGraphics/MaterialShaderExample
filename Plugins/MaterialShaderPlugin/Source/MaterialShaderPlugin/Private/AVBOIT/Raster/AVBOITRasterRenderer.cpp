@@ -97,6 +97,141 @@ namespace AVBOIT::Foundation
 FAVBOITRasterExecutionProbe* GAVBOITRasterProbe = nullptr;
 #endif
 
+namespace
+{
+	static FString DescribeDrawDataForProbe(const FAVBOITRasterDrawData& Data)
+	{
+		if (Data.Color.G > 0.9f && Data.Color.B < 0.1f)
+		{
+			return TEXT("A_Green");
+		}
+		if (Data.Color.G > 0.5f && Data.Color.B > 0.5f)
+		{
+			return TEXT("B_Cyan");
+		}
+		if (Data.Color.R > 0.9f && Data.Color.G < 0.1f && Data.Color.B < 0.1f)
+		{
+			return TEXT("Red");
+		}
+		if (Data.Color.B > 0.9f && Data.Color.R < 0.1f)
+		{
+			return TEXT("Blue");
+		}
+		return FString::Printf(TEXT("Order%u"), Data.SubmissionOrder);
+	}
+
+#if WITH_EDITOR || WITH_DEV_AUTOMATION_TESTS
+	static void UpdateProbeDrawOrder(const TArray<FAVBOITRasterDrawData>& DrawData)
+	{
+		if (!GAVBOITRasterProbe)
+		{
+			return;
+		}
+
+		GAVBOITRasterProbe->ActualSubmissionOrders.Reset(DrawData.Num());
+		GAVBOITRasterProbe->ActualDrawOrder.Reset();
+		for (int32 Index = 0; Index < DrawData.Num(); ++Index)
+		{
+			if (Index > 0)
+			{
+				GAVBOITRasterProbe->ActualDrawOrder += TEXT(",");
+			}
+			GAVBOITRasterProbe->ActualDrawOrder += DescribeDrawDataForProbe(DrawData[Index]);
+			GAVBOITRasterProbe->ActualSubmissionOrders.Add(DrawData[Index].SubmissionOrder);
+		}
+	}
+#endif
+
+	static void AddFoundationIdentityPass(
+		FRDGBuilder& GraphBuilder,
+		const FAVBOITRasterPassInputs& Inputs)
+	{
+		if (!Inputs.SceneDepth || !Inputs.SceneColor || Inputs.DrawData.IsEmpty())
+		{
+			return;
+		}
+
+		const FIntRect ViewRect = Inputs.ViewRect.Width() > 0 && Inputs.ViewRect.Height() > 0
+			? Inputs.ViewRect
+			: FIntRect(FIntPoint::ZeroValue, Inputs.TextureExtent);
+		const FIntPoint ViewRectSizePoint = ViewRect.Size();
+		const FIntVector4 ViewRectMin(ViewRect.Min.X, ViewRect.Min.Y, 0, 0);
+		const FIntVector4 ViewRectSize(ViewRectSizePoint.X, ViewRectSizePoint.Y, 0, 0);
+
+		TArray<FAVBOITRasterIdentityPS::FParameters*> PSParamsArray;
+		TArray<FAVBOITRasterIdentityVS::FParameters*> VSParamsArray;
+		for (const FAVBOITRasterDrawData& DrawData : Inputs.DrawData)
+		{
+			auto* PSParams = GraphBuilder.AllocParameters<FAVBOITRasterIdentityPS::FParameters>();
+			PSParams->ColorAndAlpha = FVector4f(DrawData.Color.R, DrawData.Color.G, DrawData.Color.B, DrawData.Alpha);
+			PSParams->ViewRectMin = ViewRectMin;
+			PSParams->ViewRectSize = ViewRectSize;
+			PSParams->RenderTargets[0] = FRenderTargetBinding(Inputs.SceneColor, ERenderTargetLoadAction::ELoad);
+			PSParams->RenderTargets.DepthStencil = FDepthStencilBinding(Inputs.SceneDepth, ERenderTargetLoadAction::ELoad, FExclusiveDepthStencil::DepthRead_StencilNop);
+			PSParamsArray.Add(PSParams);
+
+			auto* VSParams = GraphBuilder.AllocParameters<FAVBOITRasterIdentityVS::FParameters>();
+			VSParams->LocalToWorld = FMatrix44f(DrawData.LocalToWorld);
+			VSParams->WorldToClip = Inputs.WorldToClip;
+			VSParams->WorldToView = Inputs.WorldToView;
+			VSParams->ViewRectMin = ViewRectMin;
+			VSParamsArray.Add(VSParams);
+		}
+
+		auto* PassParameters = GraphBuilder.AllocParameters<FAVBOITRasterIdentityPS::FParameters>();
+		*PassParameters = *PSParamsArray[0];
+
+		TShaderMapRef<FAVBOITRasterIdentityVS> VertexShader(GetGlobalShaderMap(GMaxRHIFeatureLevel));
+		TShaderMapRef<FAVBOITRasterIdentityPS> PixelShader(GetGlobalShaderMap(GMaxRHIFeatureLevel));
+		ClearUnusedGraphResources(PixelShader, PassParameters);
+		const TArray<FAVBOITRasterDrawData> DrawDataCopy = Inputs.DrawData;
+
+		GraphBuilder.AddPass(
+			RDG_EVENT_NAME("AVBOIT.Foundation.PluginIdentity"),
+			PassParameters,
+			ERDGPassFlags::Raster,
+			[VSParamsArray, PSParamsArray, ViewRect, DrawDataCopy, VertexShader, PixelShader](FRHICommandList& RHICmdList)
+		{
+			RHICmdList.SetViewport(ViewRect.Min.X, ViewRect.Min.Y, 0.0f, ViewRect.Max.X, ViewRect.Max.Y, 1.0f);
+
+			FGraphicsPipelineStateInitializer GraphicsPSOInit;
+			RHICmdList.ApplyCachedRenderTargets(GraphicsPSOInit);
+			GraphicsPSOInit.BlendState = TStaticBlendState<CW_RGB, BO_Add, BF_One, BF_InverseSourceAlpha, BO_Add, BF_Zero, BF_One>::GetRHI();
+			GraphicsPSOInit.RasterizerState = TStaticRasterizerState<FM_Solid, CM_None>::GetRHI();
+			GraphicsPSOInit.DepthStencilState = TStaticDepthStencilState<false, CF_DepthNearOrEqual>::GetRHI();
+
+			for (int32 Index = 0; Index < DrawDataCopy.Num(); ++Index)
+			{
+				GraphicsPSOInit.BoundShaderState.VertexDeclarationRHI = DrawDataCopy[Index].VertexDeclaration;
+				GraphicsPSOInit.BoundShaderState.VertexShaderRHI = VertexShader.GetVertexShader();
+				GraphicsPSOInit.BoundShaderState.PixelShaderRHI = PixelShader.GetPixelShader();
+				GraphicsPSOInit.PrimitiveType = PT_TriangleList;
+
+				SetGraphicsPipelineState(RHICmdList, GraphicsPSOInit, 0);
+				SetShaderParameters(RHICmdList, VertexShader, VertexShader.GetVertexShader(), *VSParamsArray[Index]);
+				SetShaderParameters(RHICmdList, PixelShader, PixelShader.GetPixelShader(), *PSParamsArray[Index]);
+				RHICmdList.SetStreamSource(0, DrawDataCopy[Index].VertexBufferRHI, 0);
+				RHICmdList.DrawIndexedPrimitive(DrawDataCopy[Index].IndexBufferRHI, 0, 0, DrawDataCopy[Index].VertexCount, 0, DrawDataCopy[Index].PrimitiveCount, 1);
+			}
+		});
+
+#if WITH_EDITOR || WITH_DEV_AUTOMATION_TESTS
+		if (GAVBOITRasterProbe)
+		{
+			GAVBOITRasterProbe->bClearPassScheduled = false;
+			GAVBOITRasterProbe->bSplatPassScheduled = false;
+			GAVBOITRasterProbe->bIntegratePassScheduled = false;
+			GAVBOITRasterProbe->bForwardPassScheduled = false;
+			GAVBOITRasterProbe->bCompositePassScheduled = false;
+			GAVBOITRasterProbe->SplatDrawCount = 0;
+			GAVBOITRasterProbe->ForwardDrawCount = DrawDataCopy.Num();
+			GAVBOITRasterProbe->CompositeDrawCount = 0;
+			GAVBOITRasterProbe->SkipReason = EAVBOITRasterSkipReason::Executed;
+		}
+#endif
+	}
+}
+
 bool FAVBOITRasterRenderer::IsEnabled()
 {
 	return AVBOIT::Foundation::CVarEnable.GetValueOnRenderThread() > 0
@@ -140,9 +275,11 @@ void FAVBOITRasterRenderer::AddPasses(
 	if (!IsEnabled())
 	{
 #if WITH_EDITOR || WITH_DEV_AUTOMATION_TESTS
-		if (GAVBOITRasterProbe && GAVBOITRasterProbe->SkipReason == EAVBOITRasterSkipReason::Disabled)
+		if (GAVBOITRasterProbe)
 		{
 			GAVBOITRasterProbe->SkipReason = EAVBOITRasterSkipReason::Disabled;
+			GAVBOITRasterProbe->ActualDrawOrder.Reset();
+			GAVBOITRasterProbe->ActualSubmissionOrders.Reset();
 		}
 #endif
 		return;
@@ -161,7 +298,12 @@ void FAVBOITRasterRenderer::AddPasses(
 	if (Proxies.IsEmpty())
 	{
 #if WITH_EDITOR || WITH_DEV_AUTOMATION_TESTS
-		if (GAVBOITRasterProbe) GAVBOITRasterProbe->SkipReason = EAVBOITRasterSkipReason::NoProxies;
+		if (GAVBOITRasterProbe)
+		{
+			GAVBOITRasterProbe->SkipReason = EAVBOITRasterSkipReason::NoProxies;
+			GAVBOITRasterProbe->ActualDrawOrder.Reset();
+			GAVBOITRasterProbe->ActualSubmissionOrders.Reset();
+		}
 #endif
 		return;
 	}
@@ -214,6 +356,17 @@ void FAVBOITRasterRenderer::AddPasses(
 	{
 		return A.SubmissionOrder < B.SubmissionOrder;
 	});
+
+#if WITH_EDITOR || WITH_DEV_AUTOMATION_TESTS
+	UpdateProbeDrawOrder(PassInputs.DrawData);
+#endif
+
+	const int32 FoundationMode = AVBOIT::Foundation::CVarMode.GetValueOnRenderThread();
+	if (FoundationMode == 2)
+	{
+		AddFoundationIdentityPass(GraphBuilder, PassInputs);
+		return;
+	}
 
 	AddCorePasses(GraphBuilder, PassInputs);
 }
@@ -640,10 +793,16 @@ FAVBOITRasterPassOutputs FAVBOITRasterRenderer::AddCorePasses(
 	}
 
 #if WITH_EDITOR || WITH_DEV_AUTOMATION_TESTS
-	if (GAVBOITRasterProbe && GAVBOITRasterProbe->RequestedDebugPixel.X >= 0 && Inputs.FragmentCoverageCounter != nullptr && Inputs.RasterDebugPixelBuffer != nullptr && Inputs.DrawData.Num() > 0)
+	if (GAVBOITRasterProbe)
 	{
 		GAVBOITRasterProbe->bCompositePassScheduled = true;
 		GAVBOITRasterProbe->CompositeDrawCount = 1;
+	}
+#endif
+
+#if WITH_EDITOR || WITH_DEV_AUTOMATION_TESTS
+	if (GAVBOITRasterProbe && GAVBOITRasterProbe->RequestedDebugPixel.X >= 0 && Inputs.FragmentCoverageCounter != nullptr && Inputs.RasterDebugPixelBuffer != nullptr && Inputs.DrawData.Num() > 0)
+	{
 		GAVBOITRasterProbe->bDebugReadbackScheduled = true;
 
 		FRDGBufferDesc BufDesc = FRDGBufferDesc::CreateStructuredDesc(sizeof(FAVBOITRasterDebugPayload), 1);

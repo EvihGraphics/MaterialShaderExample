@@ -13,6 +13,7 @@
 #include "Modules/ModuleManager.h"
 #include "UnrealClient.h"
 #include "AVBOIT/Testing/AVBOITEvidenceCommands.h"
+#include "AVBOIT/Testing/AVBOITFoundationManualReproCommands.h"
 #include "AVBOIT/Testing/AVBOITBackendTestAutomation.h"
 #if WITH_EDITOR
 #include "AVBOIT/Testing/AVBOITEditorPIEAutomation.h"
@@ -34,6 +35,7 @@ public:
 		AddShaderSourceDirectoryMapping(TEXT("/Plugin/MaterialShaderExample"), Path);
 
 		FAVBOITEvidenceCommands::RegisterCommands();
+		FAVBOITFoundationManualReproCommands::RegisterCommands();
 		FAVBOITBackendTestAutomation::Initialize();
 	}
 
@@ -44,6 +46,7 @@ public:
 #endif
 
 		FAVBOITEvidenceCommands::UnregisterCommands();
+		FAVBOITFoundationManualReproCommands::UnregisterCommands();
 		FAVBOITBackendTestAutomation::Shutdown();
 	}
 	//~ End IModuleInterface Implementation

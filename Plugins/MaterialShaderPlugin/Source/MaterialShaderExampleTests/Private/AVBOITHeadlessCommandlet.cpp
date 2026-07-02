@@ -62,6 +62,18 @@ static bool SaveColorPng(const FString& Path, const TArray<FColor>& Pixels, cons
 	return FImageUtils::SaveImageByExtension(*Path, Image);
 }
 
+static bool SaveUInt32Raw(const FString& Path, const TArray<uint32>& Words)
+{
+	EnsureParentDirectory(Path);
+	TArray<uint8> Bytes;
+	Bytes.SetNumUninitialized(Words.Num() * sizeof(uint32));
+	if (Bytes.Num() > 0)
+	{
+		FMemory::Memcpy(Bytes.GetData(), Words.GetData(), Bytes.Num());
+	}
+	return FFileHelper::SaveArrayToFile(Bytes, *Path);
+}
+
 struct FAVBOITFoundationImageReadback
 {
 	FString Name;
@@ -124,6 +136,51 @@ struct FAVBOITFoundationDirectScene
 	FIntRect RoiRect = FIntRect(64, 64, 448, 448);
 	float NearDepthCm = 100.0f;
 	float FarDepthCm = 400000.0f;
+	uint32 DownsampleFactor = 8;
+	uint32 NumSlices = 64;
+};
+
+struct FAVBOITFoundationLayerTruth
+{
+	FString Id;
+	FLinearColor Color = FLinearColor::Black;
+	float Alpha = 0.0f;
+	TArray<uint8> Coverage;
+	TArray<float> PositiveDepthCm;
+	TArray<uint32> Slice;
+	TArray<FColor> PremultipliedColorPixels;
+	TArray<FColor> CoveragePixels;
+	TArray<FColor> DepthPixels;
+	int32 CoveredPixelCount = 0;
+	bool bValid = false;
+};
+
+struct FAVBOITFoundationTruthSet
+{
+	FAVBOITFoundationLayerTruth A;
+	FAVBOITFoundationLayerTruth B;
+	TArray<uint8> CoverageUnionMask;
+	TArray<uint8> OverlapCoverageMask;
+	TArray<uint8> SameSliceAmbiguityMask;
+	TArray<uint8> DilatedSameSliceAmbiguityMask;
+	TArray<uint8> ValidExactComparisonMask;
+	TArray<FColor> ExactPixels;
+	TArray<FColor> FrontLayerClassificationPixels;
+	TArray<FColor> CoverageUnionPixels;
+	TArray<FColor> OverlapCoveragePixels;
+	TArray<FColor> SameSliceAmbiguityPixels;
+	TArray<FColor> ValidExactComparisonPixels;
+	int32 AFrontPixelCount = 0;
+	int32 BFrontPixelCount = 0;
+	int32 SameSlicePixelCount = 0;
+	int32 ValidComparisonPixelCount = 0;
+	bool bValid = false;
+};
+
+struct FAVBOITFoundationBufferReadback
+{
+	TArray<uint32> Words;
+	bool bPerformed = false;
 };
 
 static FMatrix44f MakeFoundationClipMatrix()
@@ -525,6 +582,10 @@ struct FAVBOITFoundationRenderResult
 	TArray<FColor> CompositePixels;
 	TArray<FColor> ColorAccumulationPixels;
 	TArray<FColor> ResolvedAlphaPixels;
+	TArray<uint32> ExtinctionWords;
+	FIntPoint VolumeExtent = FIntPoint::ZeroValue;
+	uint32 DownsampleFactor = 8;
+	uint32 NumSlices = 64;
 	FIntPoint Size = FIntPoint::ZeroValue;
 };
 
@@ -536,9 +597,14 @@ static FAVBOITFoundationRenderResult RenderFoundationDirectMode(
 	TSharedRef<FAVBOITFoundationImageReadback, ESPMode::ThreadSafe> CompositeReadback = MakeShared<FAVBOITFoundationImageReadback, ESPMode::ThreadSafe>();
 	TSharedRef<FAVBOITFoundationImageReadback, ESPMode::ThreadSafe> ColorReadback = MakeShared<FAVBOITFoundationImageReadback, ESPMode::ThreadSafe>();
 	TSharedRef<FAVBOITFoundationImageReadback, ESPMode::ThreadSafe> AlphaReadback = MakeShared<FAVBOITFoundationImageReadback, ESPMode::ThreadSafe>();
+	TSharedRef<FAVBOITFoundationBufferReadback, ESPMode::ThreadSafe> ExtinctionBufferReadback = MakeShared<FAVBOITFoundationBufferReadback, ESPMode::ThreadSafe>();
+	const FAVBOITFrameConfig ReadbackConfig = FAVBOITFrameConfig::Build(Scene.ViewRect, Scene.Resolution, Scene.NearDepthCm, Scene.FarDepthCm, Scene.DownsampleFactor, Scene.NumSlices);
+	const uint64 ExtinctionWordCount64 = FMath::Max<uint64>(1, static_cast<uint64>(ReadbackConfig.VolumeExtent.X) * static_cast<uint64>(ReadbackConfig.VolumeExtent.Y) * static_cast<uint64>(ReadbackConfig.NumSlices));
+	const uint32 ExtinctionByteCount = static_cast<uint32>(ExtinctionWordCount64 * sizeof(uint32));
+	FRHIGPUBufferReadback* ExtinctionReadback = bPluginIdentity ? nullptr : new FRHIGPUBufferReadback(TEXT("AVBOIT.Foundation.ExtinctionReadback"));
 
 	ENQUEUE_RENDER_COMMAND(RenderFoundationDirectMode)(
-		[Scene, bPluginIdentity, CompositeReadback, ColorReadback, AlphaReadback](FRHICommandListImmediate& RHICmdList)
+		[Scene, bPluginIdentity, CompositeReadback, ColorReadback, AlphaReadback, ExtinctionReadback, ExtinctionByteCount](FRHICommandListImmediate& RHICmdList)
 	{
 		FRDGBuilder GraphBuilder(RHICmdList);
 
@@ -574,7 +640,7 @@ static FAVBOITFoundationRenderResult RenderFoundationDirectMode(
 			FAVBOITRasterPassInputs PassInputs;
 			PassInputs.TextureExtent = Scene.Resolution;
 			PassInputs.ViewRect = Scene.ViewRect;
-			PassInputs.Config = FAVBOITFrameConfig::Build(Scene.ViewRect, Scene.Resolution, Scene.NearDepthCm, Scene.FarDepthCm, 8, 64);
+			PassInputs.Config = FAVBOITFrameConfig::Build(Scene.ViewRect, Scene.Resolution, Scene.NearDepthCm, Scene.FarDepthCm, Scene.DownsampleFactor, Scene.NumSlices);
 			PassInputs.WorldToClip = WorldToClip;
 			PassInputs.WorldToView = WorldToView;
 			PassInputs.ZNear = Scene.NearDepthCm;
@@ -586,6 +652,10 @@ static FAVBOITFoundationRenderResult RenderFoundationDirectMode(
 			CompositeTexture = Outputs.CompositeOutput ? Outputs.CompositeOutput : SceneColor;
 			ColorAccumulationTexture = Outputs.ColorAccumulation;
 			ResolvedAlphaTexture = Outputs.AlphaAccumulation;
+			if (Outputs.ExtinctionVolume && ExtinctionReadback && ExtinctionByteCount > 0)
+			{
+				AddEnqueueCopyPass(GraphBuilder, ExtinctionReadback, Outputs.ExtinctionVolume, ExtinctionByteCount);
+			}
 		}
 
 		AddTextureReadbackPass(GraphBuilder, CompositeTexture, Scene.ViewRect, CompositeReadback);
@@ -602,6 +672,24 @@ static FAVBOITFoundationRenderResult RenderFoundationDirectMode(
 	});
 	FlushRenderingCommands();
 
+	if (ExtinctionReadback)
+	{
+		ENQUEUE_RENDER_COMMAND(LockFoundationExtinctionReadback)(
+			[ExtinctionReadback, ExtinctionByteCount, ExtinctionBufferReadback](FRHICommandListImmediate& RHICmdList)
+		{
+			if (ExtinctionReadback->IsReady())
+			{
+				void* Data = ExtinctionReadback->Lock(ExtinctionByteCount);
+				ExtinctionBufferReadback->Words.SetNumUninitialized(ExtinctionByteCount / sizeof(uint32));
+				FMemory::Memcpy(ExtinctionBufferReadback->Words.GetData(), Data, ExtinctionByteCount);
+				ExtinctionReadback->Unlock();
+				ExtinctionBufferReadback->bPerformed = true;
+			}
+			delete ExtinctionReadback;
+		});
+		FlushRenderingCommands();
+	}
+
 	if (!CompositeReadback->bPerformed)
 	{
 		Result.FailureReason = TEXT("Composite full-image readback did not complete");
@@ -612,22 +700,440 @@ static FAVBOITFoundationRenderResult RenderFoundationDirectMode(
 	Result.CompositePixels = CompositeReadback->Pixels;
 	Result.ColorAccumulationPixels = ColorReadback->Pixels;
 	Result.ResolvedAlphaPixels = AlphaReadback->Pixels;
+	Result.VolumeExtent = ReadbackConfig.VolumeExtent;
+	Result.DownsampleFactor = ReadbackConfig.DownsampleFactor;
+	Result.NumSlices = ReadbackConfig.NumSlices;
 	Result.Size = CompositeReadback->Size;
+	Result.ExtinctionWords = ExtinctionBufferReadback->Words;
 	return Result;
+}
+
+static uint32 GetSliceIndexForConfigCPP(float NormDepth, uint32 NumSlices)
+{
+	const uint32 ActiveSlices = FMath::Clamp<uint32>(NumSlices, 1u, 64u);
+	const float IndexF = NormDepth * static_cast<float>(ActiveSlices);
+	return FMath::Clamp<uint32>(FMath::FloorToInt(IndexF), 0u, ActiveSlices - 1u);
+}
+
+static float MapLinearDepthToNormDepthForConfigCPP(float LinearDepth, float ZNear, float ZFar)
+{
+	if (LinearDepth <= ZNear)
+	{
+		return 0.0f;
+	}
+	if (LinearDepth >= ZFar)
+	{
+		return 1.0f;
+	}
+	return FMath::Loge(LinearDepth / ZNear) / FMath::Loge(ZFar / ZNear);
+}
+
+static float FoundationDepthAtGpuCoveredPixel(const FAVBOITFoundationDirectPrimitive& Primitive, const FAVBOITFoundationDirectScene& Scene, int32 X)
+{
+	const float ClipX = ((static_cast<float>(X) + 0.5f) / FMath::Max(1.0f, static_cast<float>(Scene.Resolution.X))) * 2.0f - 1.0f;
+	const float Denom = Primitive.Vertices[1].X - Primitive.Vertices[0].X;
+	const float T = FMath::Clamp((ClipX - Primitive.Vertices[0].X) / (FMath::Abs(Denom) > KINDA_SMALL_NUMBER ? Denom : 1.0f), 0.0f, 1.0f);
+	return FMath::Lerp(Primitive.Vertices[0].Z, Primitive.Vertices[1].Z, T);
+}
+
+static uint64 HashBytesFNV1a64(const void* Data, SIZE_T NumBytes)
+{
+	const uint8* Bytes = static_cast<const uint8*>(Data);
+	uint64 Hash = 1469598103934665603ull;
+	for (SIZE_T Index = 0; Index < NumBytes; ++Index)
+	{
+		Hash ^= static_cast<uint64>(Bytes[Index]);
+		Hash *= 1099511628211ull;
+	}
+	return Hash;
+}
+
+static FString HashColorPixels(const TArray<FColor>& Pixels)
+{
+	return FString::Printf(TEXT("%016llx"), Pixels.Num() > 0 ? HashBytesFNV1a64(Pixels.GetData(), Pixels.Num() * sizeof(FColor)) : 0ull);
+}
+
+static FString HashUInt32Array(const TArray<uint32>& Words)
+{
+	return FString::Printf(TEXT("%016llx"), Words.Num() > 0 ? HashBytesFNV1a64(Words.GetData(), Words.Num() * sizeof(uint32)) : 0ull);
+}
+
+static TArray<FColor> MaskToPixels(const TArray<uint8>& Mask, FIntPoint Size, FColor OnColor = FColor::White)
+{
+	TArray<FColor> Out;
+	Out.SetNumZeroed(Size.X * Size.Y);
+	for (int32 Index = 0; Index < Out.Num(); ++Index)
+	{
+		Out[Index] = Mask.IsValidIndex(Index) && Mask[Index] ? OnColor : FColor::Black;
+		Out[Index].A = 255;
+	}
+	return Out;
+}
+
+static int32 CountMaskPixels(const TArray<uint8>& Mask)
+{
+	int32 Count = 0;
+	for (uint8 Value : Mask)
+	{
+		Count += Value ? 1 : 0;
+	}
+	return Count;
+}
+
+static TArray<uint8> DilateMask3x3Radius(const TArray<uint8>& Mask, FIntPoint Size, int32 Radius)
+{
+	TArray<uint8> Out;
+	Out.SetNumZeroed(Size.X * Size.Y);
+	for (int32 Y = 0; Y < Size.Y; ++Y)
+	{
+		for (int32 X = 0; X < Size.X; ++X)
+		{
+			bool bOn = false;
+			for (int32 DY = -Radius; DY <= Radius && !bOn; ++DY)
+			{
+				for (int32 DX = -Radius; DX <= Radius; ++DX)
+				{
+					const int32 SX = X + DX;
+					const int32 SY = Y + DY;
+					if (SX >= 0 && SY >= 0 && SX < Size.X && SY < Size.Y && Mask[SY * Size.X + SX])
+					{
+						bOn = true;
+						break;
+					}
+				}
+			}
+			Out[Y * Size.X + X] = bOn ? 1 : 0;
+		}
+	}
+	return Out;
+}
+
+static void CompareImagesMasked(
+	const TArray<FColor>& A,
+	const TArray<FColor>& B,
+	const TArray<uint8>& Mask,
+	FIntPoint Size,
+	double& OutMae,
+	double& OutMaxAbs,
+	double& OutP95,
+	int32& OutComparedPixels)
+{
+	TArray<double> Errors;
+	double Sum = 0.0;
+	double MaxAbs = 0.0;
+	for (int32 Index = 0; Index < Size.X * Size.Y; ++Index)
+	{
+		if (!A.IsValidIndex(Index) || !B.IsValidIndex(Index) || (Mask.Num() > 0 && (!Mask.IsValidIndex(Index) || Mask[Index] == 0)))
+		{
+			continue;
+		}
+		const double ER = FMath::Abs(static_cast<double>(A[Index].R) - static_cast<double>(B[Index].R)) / 255.0;
+		const double EG = FMath::Abs(static_cast<double>(A[Index].G) - static_cast<double>(B[Index].G)) / 255.0;
+		const double EB = FMath::Abs(static_cast<double>(A[Index].B) - static_cast<double>(B[Index].B)) / 255.0;
+		const double E = (ER + EG + EB) / 3.0;
+		Sum += E;
+		MaxAbs = FMath::Max(MaxAbs, FMath::Max3(ER, EG, EB));
+		Errors.Add(E);
+	}
+	Errors.Sort();
+	OutComparedPixels = Errors.Num();
+	OutMae = Errors.Num() > 0 ? Sum / Errors.Num() : 1.0;
+	OutMaxAbs = MaxAbs;
+	OutP95 = Errors.Num() > 0 ? Errors[FMath::Clamp(FMath::RoundToInt((Errors.Num() - 1) * 0.95f), 0, Errors.Num() - 1)] : 1.0;
+}
+
+static const FAVBOITFoundationDirectPrimitive* FindPrimitiveByPrefix(const FAVBOITFoundationDirectScene& Scene, const TCHAR* Prefix)
+{
+	for (const FAVBOITFoundationDirectPrimitive& Primitive : Scene.Primitives)
+	{
+		if (Primitive.Id.StartsWith(Prefix))
+		{
+			return &Primitive;
+		}
+	}
+	return nullptr;
+}
+
+static FAVBOITFoundationLayerTruth RenderFoundationLayerTruth(
+	const FAVBOITFoundationDirectScene& Scene,
+	const TCHAR* PrimitivePrefix)
+{
+	FAVBOITFoundationLayerTruth Truth;
+	const FAVBOITFoundationDirectPrimitive* Primitive = FindPrimitiveByPrefix(Scene, PrimitivePrefix);
+	if (!Primitive)
+	{
+		return Truth;
+	}
+
+	FAVBOITFoundationDirectScene LayerScene = Scene;
+	LayerScene.Primitives.Reset();
+	FAVBOITFoundationDirectPrimitive LayerPrimitive = *Primitive;
+	LayerPrimitive.SubmissionOrder = 0;
+	LayerScene.Primitives.Add(LayerPrimitive);
+
+	FAVBOITFoundationRenderResult Render = RenderFoundationDirectMode(LayerScene, true);
+	if (!Render.bSucceeded || Render.CompositePixels.Num() != Scene.Resolution.X * Scene.Resolution.Y)
+	{
+		return Truth;
+	}
+
+	Truth.Id = Primitive->Id;
+	Truth.Color = Primitive->Color;
+	Truth.Alpha = Primitive->Alpha;
+	Truth.PremultipliedColorPixels = Render.CompositePixels;
+	Truth.Coverage.SetNumZeroed(Scene.Resolution.X * Scene.Resolution.Y);
+	Truth.PositiveDepthCm.SetNumZeroed(Scene.Resolution.X * Scene.Resolution.Y);
+	Truth.Slice.SetNumZeroed(Scene.Resolution.X * Scene.Resolution.Y);
+	Truth.CoveragePixels.SetNumZeroed(Scene.Resolution.X * Scene.Resolution.Y);
+	Truth.DepthPixels.SetNumZeroed(Scene.Resolution.X * Scene.Resolution.Y);
+
+	for (int32 Y = 0; Y < Scene.Resolution.Y; ++Y)
+	{
+		for (int32 X = 0; X < Scene.Resolution.X; ++X)
+		{
+			const int32 PixelIndex = Y * Scene.Resolution.X + X;
+			const FColor Pixel = Render.CompositePixels[PixelIndex];
+			const bool bCovered = Pixel.R > 1 || Pixel.G > 1 || Pixel.B > 1;
+			if (!bCovered)
+			{
+				Truth.CoveragePixels[PixelIndex] = FColor::Black;
+				Truth.DepthPixels[PixelIndex] = FColor::Black;
+				continue;
+			}
+
+			const float Depth = FoundationDepthAtGpuCoveredPixel(*Primitive, Scene, X);
+			const float NormDepth = MapLinearDepthToNormDepthForConfigCPP(Depth, Scene.NearDepthCm, Scene.FarDepthCm);
+			Truth.Coverage[PixelIndex] = 1;
+			Truth.PositiveDepthCm[PixelIndex] = Depth;
+			Truth.Slice[PixelIndex] = GetSliceIndexForConfigCPP(NormDepth, Scene.NumSlices);
+			Truth.CoveredPixelCount++;
+			Truth.CoveragePixels[PixelIndex] = FColor::White;
+			const uint8 DepthVis = static_cast<uint8>(FMath::Clamp(NormDepth, 0.0f, 1.0f) * 255.0f);
+			Truth.DepthPixels[PixelIndex] = FColor(DepthVis, DepthVis, DepthVis, 255);
+		}
+	}
+
+	Truth.bValid = Truth.CoveredPixelCount > 0;
+	return Truth;
+}
+
+static FAVBOITFoundationTruthSet BuildGpuLayerTruthSet(const FAVBOITFoundationDirectScene& Scene)
+{
+	FAVBOITFoundationTruthSet Truth;
+	Truth.A = RenderFoundationLayerTruth(Scene, TEXT("A_"));
+	Truth.B = RenderFoundationLayerTruth(Scene, TEXT("B_"));
+	const int32 PixelCount = Scene.Resolution.X * Scene.Resolution.Y;
+	Truth.CoverageUnionMask.SetNumZeroed(PixelCount);
+	Truth.OverlapCoverageMask.SetNumZeroed(PixelCount);
+	Truth.SameSliceAmbiguityMask.SetNumZeroed(PixelCount);
+	Truth.ValidExactComparisonMask.SetNumZeroed(PixelCount);
+	Truth.ExactPixels.SetNumZeroed(PixelCount);
+	Truth.FrontLayerClassificationPixels.SetNumZeroed(PixelCount);
+
+	if (!Truth.A.bValid)
+	{
+		return Truth;
+	}
+
+	for (int32 Index = 0; Index < PixelCount; ++Index)
+	{
+		const bool bACovered = Truth.A.Coverage.IsValidIndex(Index) && Truth.A.Coverage[Index] != 0;
+		const bool bBCovered = Truth.B.Coverage.IsValidIndex(Index) && Truth.B.Coverage[Index] != 0;
+		Truth.CoverageUnionMask[Index] = (bACovered || bBCovered) ? 1 : 0;
+		Truth.OverlapCoverageMask[Index] = (bACovered && bBCovered) ? 1 : 0;
+		Truth.SameSliceAmbiguityMask[Index] = (bACovered && bBCovered && Truth.A.Slice[Index] == Truth.B.Slice[Index]) ? 1 : 0;
+		if (Truth.SameSliceAmbiguityMask[Index])
+		{
+			Truth.SameSlicePixelCount++;
+		}
+
+		FVector3f Accum = FVector3f::Zero();
+		float RemainingT = 1.0f;
+		auto AccumulateLayer = [&Accum, &RemainingT](const FAVBOITFoundationLayerTruth& Layer)
+		{
+			Accum += FVector3f(Layer.Color.R, Layer.Color.G, Layer.Color.B) * Layer.Alpha * RemainingT;
+			RemainingT *= (1.0f - Layer.Alpha);
+		};
+
+		if (bACovered && bBCovered)
+		{
+			const bool bAFront = Truth.A.PositiveDepthCm[Index] <= Truth.B.PositiveDepthCm[Index];
+			if (bAFront)
+			{
+				Truth.AFrontPixelCount++;
+				Truth.FrontLayerClassificationPixels[Index] = FColor::Green;
+				AccumulateLayer(Truth.A);
+				AccumulateLayer(Truth.B);
+			}
+			else
+			{
+				Truth.BFrontPixelCount++;
+				Truth.FrontLayerClassificationPixels[Index] = FColor::Cyan;
+				AccumulateLayer(Truth.B);
+				AccumulateLayer(Truth.A);
+			}
+		}
+		else if (bACovered)
+		{
+			Truth.FrontLayerClassificationPixels[Index] = FColor(0, 96, 0, 255);
+			AccumulateLayer(Truth.A);
+		}
+		else if (bBCovered)
+		{
+			Truth.FrontLayerClassificationPixels[Index] = FColor(0, 96, 128, 255);
+			AccumulateLayer(Truth.B);
+		}
+		else
+		{
+			Truth.FrontLayerClassificationPixels[Index] = FColor::Black;
+		}
+
+		const FLinearColor ExactLinear(Accum.X, Accum.Y, Accum.Z, 1.0f - RemainingT);
+		Truth.ExactPixels[Index] = ExactLinear.ToFColor(true);
+		Truth.ExactPixels[Index].A = 255;
+	}
+
+	Truth.DilatedSameSliceAmbiguityMask = DilateMask3x3Radius(Truth.SameSliceAmbiguityMask, Scene.Resolution, 3);
+	for (int32 Index = 0; Index < PixelCount; ++Index)
+	{
+		Truth.ValidExactComparisonMask[Index] = (Truth.OverlapCoverageMask[Index] && !Truth.DilatedSameSliceAmbiguityMask[Index]) ? 1 : 0;
+		if (Truth.ValidExactComparisonMask[Index])
+		{
+			Truth.ValidComparisonPixelCount++;
+		}
+	}
+
+	Truth.CoverageUnionPixels = MaskToPixels(Truth.CoverageUnionMask, Scene.Resolution);
+	Truth.OverlapCoveragePixels = MaskToPixels(Truth.OverlapCoverageMask, Scene.Resolution);
+	Truth.SameSliceAmbiguityPixels = MaskToPixels(Truth.SameSliceAmbiguityMask, Scene.Resolution, FColor::Red);
+	Truth.ValidExactComparisonPixels = MaskToPixels(Truth.ValidExactComparisonMask, Scene.Resolution, FColor::Green);
+	Truth.bValid = Truth.A.bValid && (Scene.Scene == EAVBOITFoundationDirectScene::SingleLayerIdentity || Truth.B.bValid);
+	return Truth;
+}
+
+static void CompareUInt32Arrays(
+	const TArray<uint32>& A,
+	const TArray<uint32>& B,
+	int32& OutDifferentCount,
+	uint32& OutMaxDifference,
+	int32& OutFirstDifferentIndex)
+{
+	OutDifferentCount = 0;
+	OutMaxDifference = 0;
+	OutFirstDifferentIndex = -1;
+	const int32 Count = FMath::Min(A.Num(), B.Num());
+	for (int32 Index = 0; Index < Count; ++Index)
+	{
+		if (A[Index] != B[Index])
+		{
+			if (OutFirstDifferentIndex < 0)
+			{
+				OutFirstDifferentIndex = Index;
+			}
+			OutDifferentCount++;
+			OutMaxDifference = FMath::Max<uint32>(OutMaxDifference, static_cast<uint32>(FMath::Abs(static_cast<int64>(A[Index]) - static_cast<int64>(B[Index]))));
+		}
+	}
+	OutDifferentCount += FMath::Abs(A.Num() - B.Num());
+	if (OutFirstDifferentIndex < 0 && A.Num() != B.Num())
+	{
+		OutFirstDifferentIndex = Count;
+	}
+}
+
+static FString BuildEarliestDivergenceJson(
+	const FAVBOITFoundationRenderResult& AB,
+	const FAVBOITFoundationRenderResult& BA,
+	const FAVBOITFoundationTruthSet& Truth,
+	FIntPoint Size)
+{
+	int32 ExtDiffCount = 0;
+	uint32 ExtMaxDiff = 0;
+	int32 ExtFirstDiff = -1;
+	CompareUInt32Arrays(AB.ExtinctionWords, BA.ExtinctionWords, ExtDiffCount, ExtMaxDiff, ExtFirstDiff);
+
+	double AccumMae = 1.0, AccumMax = 1.0, AccumP95 = 1.0;
+	double AlphaMae = 1.0, AlphaMax = 1.0, AlphaP95 = 1.0;
+	double CompositeMae = 1.0, CompositeMax = 1.0, CompositeP95 = 1.0;
+	int32 AccumPixels = 0, AlphaPixels = 0, CompositePixels = 0;
+	CompareImagesMasked(AB.ColorAccumulationPixels, BA.ColorAccumulationPixels, Truth.ValidExactComparisonMask, Size, AccumMae, AccumMax, AccumP95, AccumPixels);
+	CompareImagesMasked(AB.ResolvedAlphaPixels, BA.ResolvedAlphaPixels, Truth.ValidExactComparisonMask, Size, AlphaMae, AlphaMax, AlphaP95, AlphaPixels);
+	CompareImagesMasked(AB.CompositePixels, BA.CompositePixels, Truth.ValidExactComparisonMask, Size, CompositeMae, CompositeMax, CompositeP95, CompositePixels);
+
+	FString Earliest = TEXT("None");
+	if (ExtDiffCount > 0)
+	{
+		Earliest = TEXT("Splat.Extinction");
+	}
+	else if (AlphaMax > (1.0 / 255.0))
+	{
+		Earliest = TEXT("ResolvedAlpha.TransmittanceProxy");
+	}
+	else if (AccumMax > (1.0 / 255.0))
+	{
+		Earliest = TEXT("ForwardAccumulation");
+	}
+	else if (CompositeMax > (1.0 / 255.0))
+	{
+		Earliest = TEXT("Composite");
+	}
+
+	return FString::Printf(
+		TEXT("{\"SchemaVersion\":1,\"EarliestDivergentPass\":\"%s\",\"Extinction\":{\"ABHash\":\"%s\",\"BAHash\":\"%s\",\"DifferentElementCount\":%d,\"MaxDifference\":%u,\"FirstDifferentIndex\":%d,\"ABWordCount\":%d,\"BAWordCount\":%d},\"Transmittance\":{\"Source\":\"ResolvedAlphaFarSliceProxy\",\"ABHash\":\"%s\",\"BAHash\":\"%s\",\"RGB_MAE\":%.9f,\"MaxAbs\":%.9f,\"P95Abs\":%.9f,\"ComparedPixels\":%d},\"Forward\":{\"Source\":\"ColorAccumulation\",\"ABHash\":\"%s\",\"BAHash\":\"%s\",\"RGB_MAE\":%.9f,\"MaxAbs\":%.9f,\"P95Abs\":%.9f,\"ComparedPixels\":%d},\"Composite\":{\"ABHash\":\"%s\",\"BAHash\":\"%s\",\"RGB_MAE\":%.9f,\"MaxAbs\":%.9f,\"P95Abs\":%.9f,\"ComparedPixels\":%d}}"),
+		*JsonEscape(Earliest),
+		*HashUInt32Array(AB.ExtinctionWords),
+		*HashUInt32Array(BA.ExtinctionWords),
+		ExtDiffCount,
+		ExtMaxDiff,
+		ExtFirstDiff,
+		AB.ExtinctionWords.Num(),
+		BA.ExtinctionWords.Num(),
+		*HashColorPixels(AB.ResolvedAlphaPixels),
+		*HashColorPixels(BA.ResolvedAlphaPixels),
+		AlphaMae,
+		AlphaMax,
+		AlphaP95,
+		AlphaPixels,
+		*HashColorPixels(AB.ColorAccumulationPixels),
+		*HashColorPixels(BA.ColorAccumulationPixels),
+		AccumMae,
+		AccumMax,
+		AccumP95,
+		AccumPixels,
+		*HashColorPixels(AB.CompositePixels),
+		*HashColorPixels(BA.CompositePixels),
+		CompositeMae,
+		CompositeMax,
+		CompositeP95,
+		CompositePixels);
 }
 
 static int32 RunFoundationVisualSuite(const FString& EvidenceRoot, const FString& RunId)
 {
 	int32 ResX = 1920;
 	int32 ResY = 1080;
+	int32 DownsampleFactor = 8;
+	int32 NumSlices = 64;
 	FParse::Value(FCommandLine::Get(), TEXT("resx="), ResX);
 	FParse::Value(FCommandLine::Get(), TEXT("resy="), ResY);
+	FParse::Value(FCommandLine::Get(), TEXT("AVBOITDownsampleFactor="), DownsampleFactor);
+	FParse::Value(FCommandLine::Get(), TEXT("AVBOITNumSlices="), NumSlices);
 	const FIntPoint Resolution(FMath::Max(64, ResX), FMath::Max(64, ResY));
 
 	IFileManager::Get().MakeDirectory(*(EvidenceRoot / TEXT("Raw")), true);
 	IFileManager::Get().MakeDirectory(*(EvidenceRoot / TEXT("Derived")), true);
 	IFileManager::Get().MakeDirectory(*(EvidenceRoot / TEXT("Metrics")), true);
 	IFileManager::Get().MakeDirectory(*(EvidenceRoot / TEXT("Readback")), true);
+	IFileManager::Get().MakeDirectory(*(EvidenceRoot / TEXT("ManualRepro")), true);
+
+	const FString ManualManifestJson = FString::Printf(
+		TEXT("{\"SchemaVersion\":1,\"RunId\":\"%s\",\"Entry\":\"MaterialShaderDemo Foundation transparent sorting direct-RDG scene\",\"Scene\":\"TwoIntersectingQuads\",\"ExpectedVisual\":\"Left side A/Green front, right side B/Cyan front, center crossing excluded by SameSliceAmbiguityMask when needed\",\"Project\":\"MaterialShaderDemo.uproject\",\"DesktopScreenshotUsed\":false,\"RHI\":\"%s\",\"GPU\":\"%s\",\"CVars\":[\"r.AVBOIT.Foundation.Enable 1\",\"r.AVBOIT.Foundation.Scene 1\",\"r.AVBOIT.Foundation.Mode 3\",\"r.AVBOIT.Foundation.SubmissionOrder 0\",\"r.AVBOIT.Foundation.DownsampleFactor %d\",\"r.AVBOIT.Foundation.NumSlices %d\"],\"ModeGuide\":{\"2\":\"PluginIdentity\",\"3\":\"PluginAVBOIT\",\"4\":\"ExactReference\",\"5\":\"BufferOverview\"},\"SubmissionOrderGuide\":{\"0\":\"AB\",\"1\":\"BA\",\"4\":\"RandomSeed1\",\"5\":\"RandomSeed2\",\"6\":\"RandomSeed3\"}}"),
+		*JsonEscape(RunId),
+		GDynamicRHI ? *JsonEscape(GDynamicRHI->GetName()) : TEXT("None"),
+		*JsonEscape(GRHIAdapterName),
+		DownsampleFactor,
+		NumSlices);
+	SaveJsonAtomic(EvidenceRoot / TEXT("ManualRepro/ManualReproManifest.json"), ManualManifestJson);
 
 	TArray<FString> BlockingReasons;
 	FString MetricsJson = FString::Printf(TEXT("{\"SchemaVersion\":1,\"RunId\":\"%s\",\"SuiteName\":\"FoundationVisual\",\"Images\":["), *JsonEscape(RunId));
@@ -642,19 +1148,45 @@ static int32 RunFoundationVisualSuite(const FString& EvidenceRoot, const FString
 			*JsonEscape(Name), bReadback ? TEXT("true") : TEXT("false"), *JsonEscape(Mode), *JsonEscape(Order), *JsonEscape(ActualOrder));
 	};
 
-	const FAVBOITFoundationDirectScene ExactScene = BuildFoundationDirectScene(EAVBOITFoundationDirectScene::TwoIntersectingQuads, EAVBOITFoundationDirectOrder::AB, Resolution);
-	int32 AFrontCount = 0;
-	int32 BFrontCount = 0;
-	const TArray<FColor> ExactPixels = GenerateExactReferencePixels(ExactScene, &AFrontCount, &BFrontCount);
+	FAVBOITFoundationDirectScene ExactScene = BuildFoundationDirectScene(EAVBOITFoundationDirectScene::TwoIntersectingQuads, EAVBOITFoundationDirectOrder::AB, Resolution);
+	ExactScene.DownsampleFactor = FMath::Max(1, DownsampleFactor);
+	ExactScene.NumSlices = FMath::Clamp(NumSlices, 1, 64);
+	int32 AnalyticAFrontCount = 0;
+	int32 AnalyticBFrontCount = 0;
+	const TArray<FColor> AnalyticDebugPixels = GenerateExactReferencePixels(ExactScene, &AnalyticAFrontCount, &AnalyticBFrontCount);
+	SaveColorPng(EvidenceRoot / TEXT("Derived/AnalyticReference_DebugOnly.png"), AnalyticDebugPixels, Resolution);
+
+	const FAVBOITFoundationTruthSet TruthSet = BuildGpuLayerTruthSet(ExactScene);
+	if (!TruthSet.bValid)
+	{
+		BlockingReasons.Add(TEXT("GPU layer ground truth readback failed"));
+	}
+	const TArray<FColor>& ExactPixels = TruthSet.ExactPixels;
 	const FString ExactPath = EvidenceRoot / TEXT("Raw/00_ExactReference_AB.png");
 	SaveColorPng(ExactPath, ExactPixels, Resolution);
-	SaveFoundationImageManifest(ExactPath, TEXT("ExactReference"), FoundationSceneToString(ExactScene.Scene), TEXT("AB"), TEXT("CPUDepthSort"), TEXT("CPUExactReference"), Resolution);
-	AddImageRecord(TEXT("00_ExactReference_AB.png"), false, TEXT("ExactReference"), TEXT("AB"), TEXT("CPUDepthSort"));
+	SaveFoundationImageManifest(ExactPath, TEXT("ExactReference"), FoundationSceneToString(ExactScene.Scene), TEXT("AB"), TEXT("GPULayerDepthSort"), TEXT("GPULayerReadbackCPUResolve"), Resolution);
+	AddImageRecord(TEXT("00_ExactReference_AB.png"), true, TEXT("ExactReference"), TEXT("AB"), TEXT("GPULayerDepthSort"));
+
+	SaveColorPng(EvidenceRoot / TEXT("Raw/LayerA_Coverage.png"), TruthSet.A.CoveragePixels, Resolution);
+	SaveColorPng(EvidenceRoot / TEXT("Raw/LayerB_Coverage.png"), TruthSet.B.CoveragePixels, Resolution);
+	SaveColorPng(EvidenceRoot / TEXT("Raw/LayerA_LinearDepth.png"), TruthSet.A.DepthPixels, Resolution);
+	SaveColorPng(EvidenceRoot / TEXT("Raw/LayerB_LinearDepth.png"), TruthSet.B.DepthPixels, Resolution);
+	SaveColorPng(EvidenceRoot / TEXT("Raw/LayerA_PremultipliedColor.png"), TruthSet.A.PremultipliedColorPixels, Resolution);
+	SaveColorPng(EvidenceRoot / TEXT("Raw/LayerB_PremultipliedColor.png"), TruthSet.B.PremultipliedColorPixels, Resolution);
+	SaveColorPng(EvidenceRoot / TEXT("Derived/ExactReference_GPUCoverage.png"), TruthSet.CoverageUnionPixels, Resolution);
+	SaveColorPng(EvidenceRoot / TEXT("Derived/CoverageUnionMask.png"), TruthSet.CoverageUnionPixels, Resolution);
+	SaveColorPng(EvidenceRoot / TEXT("Derived/OverlapCoverageMask.png"), TruthSet.OverlapCoveragePixels, Resolution);
+	SaveColorPng(EvidenceRoot / TEXT("Derived/SameSliceAmbiguityMask.png"), TruthSet.SameSliceAmbiguityPixels, Resolution);
+	SaveColorPng(EvidenceRoot / TEXT("Derived/ValidExactComparisonMask.png"), TruthSet.ValidExactComparisonPixels, Resolution);
+	SaveColorPng(EvidenceRoot / TEXT("Derived/FrontLayerClassification.png"), TruthSet.FrontLayerClassificationPixels, Resolution);
 
 	TMap<FString, TArray<FColor>> Captured;
+	TMap<FString, FAVBOITFoundationRenderResult> Rendered;
 	auto CaptureMode = [&](const FString& FileName, bool bIdentity, EAVBOITFoundationDirectOrder Order)
 	{
-		const FAVBOITFoundationDirectScene Scene = BuildFoundationDirectScene(EAVBOITFoundationDirectScene::TwoIntersectingQuads, Order, Resolution);
+		FAVBOITFoundationDirectScene Scene = BuildFoundationDirectScene(EAVBOITFoundationDirectScene::TwoIntersectingQuads, Order, Resolution);
+		Scene.DownsampleFactor = ExactScene.DownsampleFactor;
+		Scene.NumSlices = ExactScene.NumSlices;
 		const FString ActualOrder = ActualOrderString(Scene);
 		FAVBOITFoundationRenderResult Render = RenderFoundationDirectMode(Scene, bIdentity);
 		const FString ModeName = bIdentity ? TEXT("PluginIdentity") : TEXT("PluginAVBOIT");
@@ -670,22 +1202,24 @@ static int32 RunFoundationVisualSuite(const FString& EvidenceRoot, const FString
 		SaveColorPng(RawPath, Render.CompositePixels, Render.Size);
 		SaveFoundationImageManifest(RawPath, ModeName, FoundationSceneToString(Scene.Scene), OrderName, ActualOrder, TEXT("RDGTextureReadback"), Render.Size);
 		Captured.Add(FileName, Render.CompositePixels);
+		Rendered.Add(FileName, MoveTemp(Render));
 		AddImageRecord(FileName, true, ModeName, OrderName, ActualOrder);
 
 		if (!bIdentity && Order == EAVBOITFoundationDirectOrder::AB)
 		{
-			if (Render.ColorAccumulationPixels.Num() == Render.Size.X * Render.Size.Y)
+			const FAVBOITFoundationRenderResult* StoredRender = Rendered.Find(FileName);
+			if (StoredRender && StoredRender->ColorAccumulationPixels.Num() == StoredRender->Size.X * StoredRender->Size.Y)
 			{
 				const FString ColorPath = EvidenceRoot / TEXT("Raw/14_ColorAccumulationOverview.png");
-				SaveColorPng(ColorPath, Render.ColorAccumulationPixels, Render.Size);
-				SaveFoundationImageManifest(ColorPath, TEXT("BufferOverview"), FoundationSceneToString(Scene.Scene), OrderName, ActualOrder, TEXT("RDGColorAccumulationReadback"), Render.Size);
+				SaveColorPng(ColorPath, StoredRender->ColorAccumulationPixels, StoredRender->Size);
+				SaveFoundationImageManifest(ColorPath, TEXT("BufferOverview"), FoundationSceneToString(Scene.Scene), OrderName, ActualOrder, TEXT("RDGColorAccumulationReadback"), StoredRender->Size);
 				AddImageRecord(TEXT("14_ColorAccumulationOverview.png"), true, TEXT("BufferOverview"), OrderName, ActualOrder);
 			}
-			if (Render.ResolvedAlphaPixels.Num() == Render.Size.X * Render.Size.Y)
+			if (StoredRender && StoredRender->ResolvedAlphaPixels.Num() == StoredRender->Size.X * StoredRender->Size.Y)
 			{
 				const FString AlphaPath = EvidenceRoot / TEXT("Raw/15_ResolvedAlphaOverview.png");
-				SaveColorPng(AlphaPath, Render.ResolvedAlphaPixels, Render.Size);
-				SaveFoundationImageManifest(AlphaPath, TEXT("BufferOverview"), FoundationSceneToString(Scene.Scene), OrderName, ActualOrder, TEXT("RDGResolvedAlphaReadback"), Render.Size);
+				SaveColorPng(AlphaPath, StoredRender->ResolvedAlphaPixels, StoredRender->Size);
+				SaveFoundationImageManifest(AlphaPath, TEXT("BufferOverview"), FoundationSceneToString(Scene.Scene), OrderName, ActualOrder, TEXT("RDGResolvedAlphaReadback"), StoredRender->Size);
 				AddImageRecord(TEXT("15_ResolvedAlphaOverview.png"), true, TEXT("BufferOverview"), OrderName, ActualOrder);
 			}
 		}
@@ -699,8 +1233,8 @@ static int32 RunFoundationVisualSuite(const FString& EvidenceRoot, const FString
 	CaptureMode(TEXT("10_PluginAVBOIT_RandomSeed2.png"), false, EAVBOITFoundationDirectOrder::RandomSeed2);
 	CaptureMode(TEXT("11_PluginAVBOIT_RandomSeed3.png"), false, EAVBOITFoundationDirectOrder::RandomSeed3);
 
-	SaveColorPng(EvidenceRoot / TEXT("Derived/CoverageMask.png"), GenerateMaskPixels(ExactScene, false), Resolution);
-	SaveColorPng(EvidenceRoot / TEXT("Derived/EqualDepthExclusionMask.png"), GenerateMaskPixels(ExactScene, true), Resolution);
+	SaveColorPng(EvidenceRoot / TEXT("Derived/CoverageMask.png"), TruthSet.CoverageUnionPixels, Resolution);
+	SaveColorPng(EvidenceRoot / TEXT("Derived/EqualDepthExclusionMask.png"), TruthSet.SameSliceAmbiguityPixels, Resolution);
 
 	double AvboitExactMae = 1.0;
 	double AvboitExactMax = 1.0;
@@ -708,9 +1242,11 @@ static int32 RunFoundationVisualSuite(const FString& EvidenceRoot, const FString
 	double OrderMae = 1.0;
 	double OrderMax = 1.0;
 	double OrderP95 = 1.0;
+	int32 AvboitExactComparedPixels = 0;
+	int32 OrderComparedPixels = 0;
 	if (const TArray<FColor>* AvboitAB = Captured.Find(TEXT("07_PluginAVBOIT_AB.png")))
 	{
-		CompareImages(*AvboitAB, ExactPixels, Resolution, ExactScene.RoiRect, AvboitExactMae, AvboitExactMax, AvboitExactP95);
+		CompareImagesMasked(*AvboitAB, ExactPixels, TruthSet.ValidExactComparisonMask, Resolution, AvboitExactMae, AvboitExactMax, AvboitExactP95, AvboitExactComparedPixels);
 		SaveColorPng(EvidenceRoot / TEXT("Derived/17_AVBOIT_vs_Exact_Difference.png"), GenerateDifferencePixels(*AvboitAB, ExactPixels, Resolution, false), Resolution);
 		SaveColorPng(EvidenceRoot / TEXT("Derived/18_AVBOIT_vs_Exact_Heatmap.png"), GenerateDifferencePixels(*AvboitAB, ExactPixels, Resolution, true), Resolution);
 	}
@@ -718,21 +1254,53 @@ static int32 RunFoundationVisualSuite(const FString& EvidenceRoot, const FString
 	{
 		if (const TArray<FColor>* AvboitBA = Captured.Find(TEXT("08_PluginAVBOIT_BA.png")))
 		{
-			CompareImages(*AvboitAB, *AvboitBA, Resolution, ExactScene.RoiRect, OrderMae, OrderMax, OrderP95);
+			CompareImagesMasked(*AvboitAB, *AvboitBA, TruthSet.ValidExactComparisonMask, Resolution, OrderMae, OrderMax, OrderP95, OrderComparedPixels);
 			SaveColorPng(EvidenceRoot / TEXT("Derived/19_OrderAB_vs_BA_Difference.png"), GenerateDifferencePixels(*AvboitAB, *AvboitBA, Resolution, false), Resolution);
 		}
 	}
 
+	if (const FAVBOITFoundationRenderResult* AvboitAB = Rendered.Find(TEXT("07_PluginAVBOIT_AB.png")))
+	{
+		if (const FAVBOITFoundationRenderResult* AvboitBA = Rendered.Find(TEXT("08_PluginAVBOIT_BA.png")))
+		{
+			SaveUInt32Raw(EvidenceRoot / TEXT("Readback/ExtinctionVolume_AB.raw"), AvboitAB->ExtinctionWords);
+			SaveUInt32Raw(EvidenceRoot / TEXT("Readback/ExtinctionVolume_BA.raw"), AvboitBA->ExtinctionWords);
+			SaveJsonAtomic(EvidenceRoot / TEXT("Metrics/EarliestDivergence.json"), BuildEarliestDivergenceJson(*AvboitAB, *AvboitBA, TruthSet, Resolution));
+		}
+	}
+
+	const FString GroundTruthJson = FString::Printf(
+		TEXT("{\"SchemaVersion\":1,\"Source\":\"GPULayerReadbackCPUResolve\",\"AnalyticReferenceDebugOnly\":true,\"LayerA\":{\"Id\":\"%s\",\"CoveredPixels\":%d},\"LayerB\":{\"Id\":\"%s\",\"CoveredPixels\":%d},\"MaskCounts\":{\"CoverageUnion\":%d,\"OverlapCoverage\":%d,\"SameSliceAmbiguity\":%d,\"ValidExactComparison\":%d},\"FrontCounts\":{\"AFrontPixelCount\":%d,\"BFrontPixelCount\":%d},\"Config\":{\"DownsampleFactor\":%u,\"NumSlices\":%u}}"),
+		*JsonEscape(TruthSet.A.Id),
+		TruthSet.A.CoveredPixelCount,
+		*JsonEscape(TruthSet.B.Id),
+		TruthSet.B.CoveredPixelCount,
+		CountMaskPixels(TruthSet.CoverageUnionMask),
+		CountMaskPixels(TruthSet.OverlapCoverageMask),
+		TruthSet.SameSlicePixelCount,
+		TruthSet.ValidComparisonPixelCount,
+		TruthSet.AFrontPixelCount,
+		TruthSet.BFrontPixelCount,
+		ExactScene.DownsampleFactor,
+		ExactScene.NumSlices);
+	SaveJsonAtomic(EvidenceRoot / TEXT("Metrics/GroundTruthMetrics.json"), GroundTruthJson);
+
 	MetricsJson += FString::Printf(
-		TEXT("],\"AFrontPixelCount\":%d,\"BFrontPixelCount\":%d,\"AVBOIT_vs_Exact\":{\"RGB_MAE\":%.9f,\"MaxAbs\":%.9f,\"P95Abs\":%.9f},\"OrderAB_vs_BA\":{\"RGB_MAE\":%.9f,\"MaxAbs\":%.9f,\"P95Abs\":%.9f},\"BlockingReasons\":["),
-		AFrontCount,
-		BFrontCount,
+		TEXT("],\"GroundTruthSource\":\"GPULayerReadbackCPUResolve\",\"AFrontPixelCount\":%d,\"BFrontPixelCount\":%d,\"SameSliceAmbiguityPixelCount\":%d,\"ValidExactComparisonPixelCount\":%d,\"AnalyticDebugOnly\":{\"AFrontPixelCount\":%d,\"BFrontPixelCount\":%d},\"AVBOIT_vs_Exact\":{\"RGB_MAE\":%.9f,\"MaxAbs\":%.9f,\"P95Abs\":%.9f,\"ComparedPixels\":%d},\"OrderAB_vs_BA\":{\"RGB_MAE\":%.9f,\"MaxAbs\":%.9f,\"P95Abs\":%.9f,\"ComparedPixels\":%d},\"BlockingReasons\":["),
+		TruthSet.AFrontPixelCount,
+		TruthSet.BFrontPixelCount,
+		TruthSet.SameSlicePixelCount,
+		TruthSet.ValidComparisonPixelCount,
+		AnalyticAFrontCount,
+		AnalyticBFrontCount,
 		AvboitExactMae,
 		AvboitExactMax,
 		AvboitExactP95,
+		AvboitExactComparedPixels,
 		OrderMae,
 		OrderMax,
-		OrderP95);
+		OrderP95,
+		OrderComparedPixels);
 	for (int32 Index = 0; Index < BlockingReasons.Num(); ++Index)
 	{
 		if (Index > 0)

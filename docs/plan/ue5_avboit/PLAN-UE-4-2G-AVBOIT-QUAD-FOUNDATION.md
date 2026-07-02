@@ -26,3 +26,9 @@ Build a deterministic Foundation raster gate in `MaterialShaderPlugin` for inter
 - Latest status is `partial`, not `passed-local`.
 - Current blockers: incomplete screenshot matrix, failed AVBOIT-vs-Exact parity, failed AB/BA order-independence, missing Native OIT proof, missing lifecycle matrix, and missing RenderDoc/PIX capture.
 - KeyResults promotion and UE-4.2H entry remain forbidden until all hard gates pass.
+- UE-4.2G.2 supersedes the old analytic reference with GPU layer readback ground truth and finds the earliest AB/BA divergence at `Splat.Extinction`.
+- Latest G.2 TempResults: `LocalVisualResults\TempResults\UE57\HIVE_4090x2\UE4-2G2-AVBOIT-Transparent-Sorting-Forensics\20260702T043159Z`.
+- G.2 status remains `partial`; fix Splat/extinction order dependency before EngineDefault, Native OIT, BufferOverview, GPU capture, lifecycle, or UE-4.2H.
+- UE-4.2G.3 repairs the manual viewport entry: `AVBOIT.Foundation.SpawnTransparentSortingScene order=AB mode=PluginAVBOIT` now creates transient `TwoIntersectingQuads` proxies and a camera instead of relying on CVar-only geometry creation.
+- G.3 build verification is currently blocked at final link because an open UnrealEditor instance holds `UnrealEditor-MaterialShaderExample.dll` and `UnrealEditor-MaterialShaderExampleTests.dll`; close Editor, rebuild, reopen, and run `AVBOIT.Foundation.Status`.
+- G.3 status remains `partial`; manual viewport repro must show two intersecting transparent quads and report `SkipReason=Executed` before it can be treated as evidence.
