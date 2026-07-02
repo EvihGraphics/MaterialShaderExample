@@ -6,12 +6,24 @@
 #include "AVBOITRasterSceneData.h"
 #include "PipelineStateCache.h"
 
+FAVBOITRasterVertexBuffer::FAVBOITRasterVertexBuffer()
+{
+	Vertices[0] = FVector3f(-50.f, -50.f, 0.f);
+	Vertices[1] = FVector3f( 50.f, -50.f, 0.f);
+	Vertices[2] = FVector3f( 50.f,  50.f, 0.f);
+	Vertices[3] = FVector3f(-50.f,  50.f, 0.f);
+}
+
 FAVBOITTestMeshSceneProxy::FAVBOITTestMeshSceneProxy(UAVBOITTestMeshComponent* Component)
 	: FPrimitiveSceneProxy(Component)
 	, MaterialParams(Component->MaterialParams)
 	, bIsTransparent(Component->bIsTransparent)
 	, SubmissionOrder(Component->SubmissionOrder)
 {
+	if (Component->bUseCustomLocalVertices)
+	{
+		VertexBuffer.Vertices = Component->CustomLocalVertices;
+	}
 	bWillEverBeLit = false;
 }
 
@@ -21,16 +33,16 @@ FAVBOITTestMeshSceneProxy::~FAVBOITTestMeshSceneProxy()
 
 void FAVBOITRasterVertexBuffer::InitRHI(FRHICommandListBase& RHICmdList)
 {
-	TResourceArray<FVector3f, VERTEXBUFFER_ALIGNMENT> Vertices;
-	Vertices.SetNumUninitialized(4);
-	Vertices[0] = FVector3f(-50.f, -50.f, 0.f);
-	Vertices[1] = FVector3f( 50.f, -50.f, 0.f);
-	Vertices[2] = FVector3f( 50.f,  50.f, 0.f);
-	Vertices[3] = FVector3f(-50.f,  50.f, 0.f);
+	TResourceArray<FVector3f, VERTEXBUFFER_ALIGNMENT> LocalVertices;
+	LocalVertices.SetNumUninitialized(4);
+	for (int32 Index = 0; Index < 4; ++Index)
+	{
+		LocalVertices[Index] = Vertices[Index];
+	}
 
-	FRHIBufferCreateDesc CreateDesc(TEXT("AVBOITRasterVertexBuffer"), Vertices.GetResourceDataSize(), 0, BUF_Static | BUF_VertexBuffer);
+	FRHIBufferCreateDesc CreateDesc(TEXT("AVBOITRasterVertexBuffer"), LocalVertices.GetResourceDataSize(), 0, BUF_Static | BUF_VertexBuffer);
 	CreateDesc.SetInitialState(ERHIAccess::VertexOrIndexBuffer);
-	CreateDesc.SetInitActionResourceArray(&Vertices);
+	CreateDesc.SetInitActionResourceArray(&LocalVertices);
 	VertexBufferRHI = RHICmdList.CreateBuffer(CreateDesc);
 }
 

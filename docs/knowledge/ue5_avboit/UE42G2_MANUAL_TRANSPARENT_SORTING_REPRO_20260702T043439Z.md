@@ -122,13 +122,13 @@ For automated command-path validation without running the full suite:
 AVBOIT.Foundation.ValidateTransparentSortingSceneAndExit order=AB mode=PluginAVBOIT root=<TempRoot> screenshot=<TempRoot>\Raw\Manual_PluginAVBOIT_AB.png
 ```
 
-Latest local validation after closing the editor:
+Latest local validation after the UE-4.2G.3 repair:
 
 ```text
-LocalVisualResults\TempResults\UE57\HIVE_4090x2\UE4-2G3-ManualTransparentSorting-Repro\20260702T082318Z
+LocalVisualResults\TempResults\UE57\HIVE_4090x2\UE4-2G3-ManualTransparentSorting-Repro\20260702T113757Z
 ```
 
-This proves the command path and Foundation pass execution:
+This proves the command path, Foundation pass execution, and PluginAVBOIT visual repro:
 
 ```text
 ManualComponents=2
@@ -136,9 +136,36 @@ RegistryProxyCount=2
 SkipReason=Executed
 ActualDrawOrder=A_Green,B_Cyan
 Clear/Splat/Integrate/ForwardUnlit/Composite=true
+DebugPixelHitCount=2
+PackedExtinction slice 16 and 19 are nonzero
+Transmittance reaches 0.204497397
+OverflowCount=0
+OutOfBoundsCount=0
 ```
 
-It does not prove the final PluginAVBOIT visual. The latest PluginAVBOIT screenshot is still green-only, with `blueish_ratio=0.0`. `PluginIdentity` shows both Green and Cyan geometry, so the remaining issue is in PluginAVBOIT transmittance/extinction, not in scene spawning.
+Latest screenshot:
+
+```text
+LocalVisualResults\TempResults\UE57\HIVE_4090x2\UE4-2G3-ManualTransparentSorting-Repro\20260702T113757Z\Raw\Manual_PluginAVBOIT_AB.png
+```
+
+Pixel sample:
+
+```text
+left=(0,203,133)
+center=(57,217,189)
+right=(0,192,180)
+blueish_ratio=0.8625
+```
+
+Order spot checks:
+
+```text
+BA: LocalVisualResults\TempResults\UE57\HIVE_4090x2\UE4-2G3-ManualTransparentSorting-Repro\20260702T112758Z
+RandomSeed1: LocalVisualResults\TempResults\UE57\HIVE_4090x2\UE4-2G3-ManualTransparentSorting-Repro\20260702T113932Z
+AB vs BA RGB MAE normalized=0.000468168459513435
+AB vs RandomSeed1 RGB MAE normalized=0.0005443318241648512
+```
 
 ## ContentExamples
 
@@ -164,6 +191,6 @@ D:\Users\l3d\Documents\Unreal Projects\ContentExamples\Content\NiagaraExamples\U
 
 ## Current Status
 
-Status remains `partial`. The manual scene entry and render execution are repaired, but the PluginAVBOIT visual result is not passed yet. UE-4.2G still cannot be promoted until visual repro, order invariance, exact parity, Native OIT proof, GPU capture, and lifecycle gates all pass with real evidence.
+Status remains `partial` for the overall UE-4.2G stage. The manual scene entry and PluginAVBOIT visual repro are repaired, but UE-4.2G still cannot be promoted until full order-invariance gates, exact parity, Native OIT proof, GPU capture, and lifecycle gates all pass with real evidence.
 
 不允许进入 UE-4.2H.

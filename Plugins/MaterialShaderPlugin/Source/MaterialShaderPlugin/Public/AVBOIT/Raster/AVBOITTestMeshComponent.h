@@ -35,6 +35,9 @@ public:
 	UPROPERTY(EditAnywhere, Category = "AVBOIT")
 	int32 SubmissionOrder = 0; // For testing explicit sorting
 
+	bool bUseCustomLocalVertices = false;
+	TStaticArray<FVector3f, 4> CustomLocalVertices;
+
 	//~ Begin UPrimitiveComponent Interface
 	virtual FPrimitiveSceneProxy* CreateSceneProxy() override;
 	virtual FBoxSphereBounds CalcBounds(const FTransform& LocalToWorld) const override;

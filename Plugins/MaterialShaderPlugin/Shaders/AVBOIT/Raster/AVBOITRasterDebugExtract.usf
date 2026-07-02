@@ -8,6 +8,10 @@ struct FAVBOITRasterDebugHeader
     float LinearViewDepth;
     float NormalizedDepth;
     uint Slice;
+    uint DebugPixelHitCount;
+    float LastLinearViewDepth;
+    float LastNormalizedDepth;
+    uint LastSlice;
     uint FragmentCoverageCount;
     uint NumSlices;
     uint OverflowCount;
@@ -33,6 +37,10 @@ struct FAVBOITRasterDebugPixelData
 	float NormalizedDepth;
 	uint Slice;
 	uint WriteFlag;
+	uint HitCount;
+	float LastLinearViewDepth;
+	float LastNormalizedDepth;
+	uint LastSlice;
 };
 
 StructuredBuffer<uint> ExtinctionVolume;
@@ -66,6 +74,10 @@ void MainCS(uint3 DispatchThreadId : SV_DispatchThreadID)
         Header.LinearViewDepth = RasterDebugPixelBuffer[0].LinearViewDepth;
         Header.NormalizedDepth = RasterDebugPixelBuffer[0].NormalizedDepth;
         Header.Slice = RasterDebugPixelBuffer[0].Slice;
+        Header.DebugPixelHitCount = RasterDebugPixelBuffer[0].HitCount;
+        Header.LastLinearViewDepth = RasterDebugPixelBuffer[0].LastLinearViewDepth;
+        Header.LastNormalizedDepth = RasterDebugPixelBuffer[0].LastNormalizedDepth;
+        Header.LastSlice = RasterDebugPixelBuffer[0].LastSlice;
         Header.FragmentCoverageCount = FragmentCoverageCounter[0];
         Header.NumSlices = NumSlices;
         Header.OverflowCount = OverflowCounter[0];

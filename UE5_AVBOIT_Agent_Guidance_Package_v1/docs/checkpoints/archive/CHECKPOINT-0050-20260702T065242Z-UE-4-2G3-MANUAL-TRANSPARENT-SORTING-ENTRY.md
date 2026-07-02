@@ -15,6 +15,9 @@ Repaired the manual viewport entry for Foundation transparent sorting. The previ
 - Added `AVBOIT.Foundation.SetOrder`, `SetMode`, `Status`, and `CleanupTransparentSortingScene`.
 - Added renderer probe draw-order fields.
 - Added runtime PluginIdentity mode routing for `r.AVBOIT.Foundation.Mode 2`.
+- Added custom per-vertex quad geometry for the manual scene: A/Green left-near/right-far and B/Cyan left-far/right-near.
+- Fixed the PluginAVBOIT multi-primitive RDG parameter contract by issuing Splat and ForwardUnlit as one RDG raster pass per primitive.
+- Added debug hit-count fields and explicit clears for the actual debug/coverage readback buffers.
 - Updated manual repro documentation with the corrected command-driven flow.
 - Updated the validation runner to use the UE-4.2G.3 stage and a standalone manual repro manifest gate.
 
@@ -42,7 +45,7 @@ Automated delayed validation command:
 AVBOIT.Foundation.ValidateTransparentSortingSceneAndExit order=AB mode=PluginAVBOIT root=<TempRoot> screenshot=<TempRoot>\Raw\Manual_PluginAVBOIT_AB_Final.png
 ```
 
-Latest TempResults:
+Earlier TempResults before the RDG multi-draw repair:
 
 ```text
 LocalVisualResults\TempResults\UE57\HIVE_4090x2\UE4-2G3-ManualTransparentSorting-Repro\20260702T082318Z
@@ -59,7 +62,7 @@ ActualDrawOrder=A_Green,B_Cyan
 Clear/Splat/Integrate/ForwardUnlit/Composite=true
 ```
 
-Visual result did not pass:
+That visual result did not pass:
 
 ```text
 Manual_PluginAVBOIT_AB_Final.png remains green-only.
@@ -67,11 +70,37 @@ Pixel sample left=(0,193,0), center=(0,202,0), right=(0,189,0).
 blueish_ratio=0.0.
 ```
 
+Updated TempResults after the repair:
+
+```text
+AB: LocalVisualResults\TempResults\UE57\HIVE_4090x2\UE4-2G3-ManualTransparentSorting-Repro\20260702T113757Z
+BA: LocalVisualResults\TempResults\UE57\HIVE_4090x2\UE4-2G3-ManualTransparentSorting-Repro\20260702T112758Z
+RandomSeed1: LocalVisualResults\TempResults\UE57\HIVE_4090x2\UE4-2G3-ManualTransparentSorting-Repro\20260702T113932Z
+```
+
+Current manual visual result passes the G.3 reproduction goal:
+
+```text
+Raw\Manual_PluginAVBOIT_AB.png shows Green on the left and Cyan/Blue on the right.
+Pixel sample left=(0,203,133), center=(57,217,189), right=(0,192,180).
+blueish_ratio=0.8625.
+DebugPixelHitCount=2.
+PackedExtinction has nonzero slices 16 and 19.
+Transmittance reaches 0.204497397.
+OverflowCount=0.
+OutOfBoundsCount=0.
+```
+
+Order spot checks:
+
+```text
+AB vs BA RGB MAE normalized=0.000468168459513435.
+AB vs RandomSeed1 RGB MAE normalized=0.0005443318241648512.
+```
+
 ## Remaining Blockers
 
-- Fix PluginAVBOIT transmittance/extinction so AB visual shows the expected Cyan/B-front contribution.
-- Manually verify the viewport after the visual fix.
-- Run the G.3 validation runner and collect updated `ManualReproManifest.json` plus `ManualViewportValidation.json`.
-- Resolve the known G.2 core blockers: Splat extinction divergence, AVBOIT/exact parity, AB/BA invariance, Native OIT proof, GPU capture, and lifecycle.
+- Run the full G.3 validation runner and collect updated matrix evidence.
+- Resolve the remaining UE-4.2G hard gates: full exact parity, full masked order-invariance metrics, Native OIT proof, GPU capture, and lifecycle.
 
 不允许进入 UE-4.2H.

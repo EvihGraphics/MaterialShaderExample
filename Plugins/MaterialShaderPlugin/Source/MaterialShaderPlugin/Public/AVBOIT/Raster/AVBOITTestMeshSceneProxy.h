@@ -12,6 +12,9 @@
 class FAVBOITRasterVertexBuffer : public FVertexBuffer
 {
 public:
+	FAVBOITRasterVertexBuffer();
+	TStaticArray<FVector3f, 4> Vertices;
+
 	virtual void InitRHI(FRHICommandListBase& RHICmdList) override;
 };
 

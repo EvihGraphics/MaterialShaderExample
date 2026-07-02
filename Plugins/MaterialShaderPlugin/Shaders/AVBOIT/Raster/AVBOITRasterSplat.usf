@@ -20,6 +20,10 @@ struct FAVBOITRasterDebugPixelData
 	float NormalizedDepth;
 	uint Slice;
 	uint WriteFlag;
+	uint HitCount;
+	float LastLinearViewDepth;
+	float LastNormalizedDepth;
+	uint LastSlice;
 };
 
 RWStructuredBuffer<uint> OutExtinctionVolume;
@@ -42,7 +46,6 @@ void MainVS(
 	Out.LinearViewDepth = ViewPos.z;
 }
 
-[earlydepthstencil]
 void MainPS(
 	in FAVBOITRasterInterpolants In,
 	out float4 OutDummy : SV_Target0)
@@ -87,6 +90,12 @@ void MainPS(
 	InterlockedAdd(FragmentCoverageCounter[0], 1);
 	if (AbsolutePixel.x == (uint)DebugPixel.x && AbsolutePixel.y == (uint)DebugPixel.y)
 	{
+		uint PreviousHitCount;
+		InterlockedAdd(OutDebugPixelBuffer[0].HitCount, 1, PreviousHitCount);
+		OutDebugPixelBuffer[0].LastLinearViewDepth = In.LinearViewDepth;
+		OutDebugPixelBuffer[0].LastNormalizedDepth = NormDepth;
+		OutDebugPixelBuffer[0].LastSlice = Slice;
+
 		uint OriginalValue;
 		InterlockedCompareExchange(OutDebugPixelBuffer[0].WriteFlag, 0, 1, OriginalValue);
 		if (OriginalValue == 0)

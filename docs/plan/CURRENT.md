@@ -19,6 +19,9 @@ Generated UTC: 2026-07-02T06:52:42Z
 - Added `AVBOIT.Foundation.SetOrder`, `SetMode`, `Status`, and `CleanupTransparentSortingScene`.
 - Added renderer probe draw-order/status fields.
 - Routed `r.AVBOIT.Foundation.Mode 2` to a real PluginIdentity source-over pass.
+- Added custom per-vertex manual quad geometry so `TwoIntersectingQuads` has A/Green front on the left and B/Cyan front on the right without saving a map.
+- Fixed the PluginAVBOIT multi-primitive RDG parameter contract by issuing Splat and ForwardUnlit as one RDG raster pass per primitive.
+- Added debug hit-count fields and explicit debug/coverage buffer clears for the manual evidence path.
 - Updated manual reproduction docs and checkpoint 0050.
 - Updated `Scripts/Run-AVBOITFoundationQuadValidation.ps1` to use a G.3 stage and standalone manual repro manifest gate.
 
@@ -73,7 +76,7 @@ AVBOIT.Foundation.ValidateTransparentSortingSceneAndExit order=AB mode=PluginAVB
 Latest TempResults:
 
 ```text
-LocalVisualResults\TempResults\UE57\HIVE_4090x2\UE4-2G3-ManualTransparentSorting-Repro\20260702T082318Z
+LocalVisualResults\TempResults\UE57\HIVE_4090x2\UE4-2G3-ManualTransparentSorting-Repro\20260702T113757Z
 ```
 
 Render execution evidence:
@@ -87,10 +90,17 @@ Render execution evidence:
 
 Visual evidence:
 
-- `Raw\Manual_PluginAVBOIT_AB_Final.png` is still green-only.
-- Pixel sample: left `(0,193,0)`, center `(0,202,0)`, right `(0,189,0)`.
-- `blueish_ratio=0.0`.
-- A temporary no-transmittance shader experiment showed both Green and Cyan, proving the second draw executes and the remaining issue is in transmittance/extinction, not scene spawning.
+- `Raw\Manual_PluginAVBOIT_AB.png` shows Green on the left and Cyan/Blue on the right.
+- Pixel sample: left `(0,203,133)`, center `(57,217,189)`, right `(0,192,180)`.
+- `blueish_ratio=0.8625`.
+- Manual debug payload: `DebugPixelHitCount=2`, nonzero extinction slices `16` and `19`, transmittance reaches `0.204497397`, overflow/out-of-bounds are `0`.
+
+Order spot checks:
+
+- BA evidence: `LocalVisualResults\TempResults\UE57\HIVE_4090x2\UE4-2G3-ManualTransparentSorting-Repro\20260702T112758Z`, `ActualDrawOrder=B_Cyan,A_Green`.
+- RandomSeed1 evidence: `LocalVisualResults\TempResults\UE57\HIVE_4090x2\UE4-2G3-ManualTransparentSorting-Repro\20260702T113932Z`, `ActualDrawOrder=B_Cyan,A_Green`.
+- AB vs BA RGB MAE normalized: `0.000468168459513435`.
+- AB vs RandomSeed1 RGB MAE normalized: `0.0005443318241648512`.
 
 ## Latest Docs
 
@@ -102,12 +112,8 @@ UE5_AVBOIT_Agent_Guidance_Package_v1/docs/checkpoints/archive/CHECKPOINT-0050-20
 
 ## Remaining Hard Gates
 
-- Rebuild after closing the open Editor and verify the new commands are loaded.
-- Fix PluginAVBOIT transmittance/extinction so manual AB visual shows the expected Cyan/B-front contribution.
-- Confirm manual viewport visual after the fix; current command/status execution is proven, but visual repro is not passed.
-- Splat/extinction order dependency still needs repair.
-- PluginAVBOIT vs GPU Exact parity still fails current thresholds.
-- PluginAVBOIT AB/BA order independence still fails current thresholds.
+- Full prompted exact-reference parity still needs a fresh pass/fail report.
+- Full prompted AB/BA/Random order-independence still needs masked metrics and threshold judgment.
 - Native UE Sorted Pixels OIT runtime comparison is not yet captured/proven.
 - RenderDoc or PIX capture is not yet produced.
 - Editor/PIE/Standalone lifecycle matrix is not yet complete.

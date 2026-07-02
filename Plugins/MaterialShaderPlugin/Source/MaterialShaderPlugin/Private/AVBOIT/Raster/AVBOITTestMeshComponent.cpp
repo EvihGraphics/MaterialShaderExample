@@ -17,7 +17,17 @@ FPrimitiveSceneProxy* UAVBOITTestMeshComponent::CreateSceneProxy()
 
 FBoxSphereBounds UAVBOITTestMeshComponent::CalcBounds(const FTransform& LocalToWorld) const
 {
-	// Simple quad bounds from -50 to 50 on X and Y
-	FBox Box(FVector(-50.0f, -50.0f, 0.0f), FVector(50.0f, 50.0f, 0.0f));
+	FBox Box(ForceInit);
+	if (bUseCustomLocalVertices)
+	{
+		for (const FVector3f& Vertex : CustomLocalVertices)
+		{
+			Box += FVector(Vertex);
+		}
+	}
+	else
+	{
+		Box = FBox(FVector(-50.0f, -50.0f, 0.0f), FVector(50.0f, 50.0f, 0.0f));
+	}
 	return FBoxSphereBounds(Box).TransformBy(LocalToWorld);
 }

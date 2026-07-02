@@ -1,6 +1,7 @@
 #include "AVBOITFoundationManualReproCommands.h"
 
 #include "AVBOIT/Raster/AVBOITRasterRenderer.h"
+#include "AVBOIT/Raster/AVBOITRasterShaders.h"
 #include "AVBOIT/Raster/AVBOITTestMeshComponent.h"
 #include "AVBOITScreenshotAutomation.h"
 #include "Camera/CameraActor.h"
@@ -44,6 +45,10 @@ namespace
 	static FString GManualValidationScreenshotPath;
 	static double GManualValidationStartTime = 0.0;
 	static bool bManualValidationExitAfter = true;
+	static bool bManualValidationRequireDebugReadback = false;
+#if WITH_EDITOR || WITH_DEV_AUTOMATION_TESTS
+	static FAVBOITRasterDebugPayload GManualDebugPayload;
+#endif
 
 #if WITH_EDITOR || WITH_DEV_AUTOMATION_TESTS
 	static FAVBOITRasterExecutionProbe GManualRasterProbe;
@@ -265,7 +270,7 @@ namespace
 #endif
 	}
 
-	static void ApplyFoundationCVars(int32 Mode, int32 Order)
+	static void ApplyFoundationCVars(int32 Mode, int32 Order, int32 DownsampleFactor, int32 NumSlices)
 	{
 		SetIntCVar(TEXT("r.AVBOIT.Smoke.Enable"), 0);
 		SetIntCVar(TEXT("r.AVBOIT.Test.Enable"), 0);
@@ -274,8 +279,8 @@ namespace
 		SetIntCVar(TEXT("r.AVBOIT.Foundation.Scene"), 1);
 		SetIntCVar(TEXT("r.AVBOIT.Foundation.Mode"), Mode);
 		SetIntCVar(TEXT("r.AVBOIT.Foundation.SubmissionOrder"), Order);
-		SetIntCVar(TEXT("r.AVBOIT.Foundation.DownsampleFactor"), 8);
-		SetIntCVar(TEXT("r.AVBOIT.Foundation.NumSlices"), 64);
+		SetIntCVar(TEXT("r.AVBOIT.Foundation.DownsampleFactor"), FMath::Max(DownsampleFactor, 1));
+		SetIntCVar(TEXT("r.AVBOIT.Foundation.NumSlices"), FMath::Clamp(NumSlices, 1, 64));
 	}
 
 	static UAVBOITTestMeshComponent* CreateManualQuad(
@@ -285,7 +290,8 @@ namespace
 		const FLinearColor& Color,
 		float Alpha,
 		int32 SubmissionOrder,
-		float YawDegrees)
+		float LeftDepthCm,
+		float RightDepthCm)
 	{
 		UAVBOITTestMeshComponent* Component = NewObject<UAVBOITTestMeshComponent>(Owner, ComponentName, RF_Transient);
 		Component->SetupAttachment(Root);
@@ -296,10 +302,12 @@ namespace
 		Component->MaterialParams.Alpha = Alpha;
 		Component->bIsTransparent = true;
 		Component->SubmissionOrder = SubmissionOrder;
-		Component->SetWorldTransform(FTransform(
-			FRotator(270.0f, YawDegrees, 0.0f),
-			FVector(1000.0f, 0.0f, 650.0f),
-			FVector(8.0f, 14.0f, 1.0f)));
+		Component->bUseCustomLocalVertices = true;
+		Component->CustomLocalVertices[0] = FVector3f(LeftDepthCm, -600.0f, 100.0f);
+		Component->CustomLocalVertices[1] = FVector3f(RightDepthCm, 600.0f, 100.0f);
+		Component->CustomLocalVertices[2] = FVector3f(RightDepthCm, 600.0f, 1200.0f);
+		Component->CustomLocalVertices[3] = FVector3f(LeftDepthCm, -600.0f, 1200.0f);
+		Component->SetWorldTransform(FTransform::Identity);
 		Owner->AddInstanceComponent(Component);
 		Component->RegisterComponent();
 		return Component;
@@ -431,6 +439,8 @@ namespace
 		const FString& EvidenceRoot,
 		int32 Mode,
 		int32 Order,
+		int32 DownsampleFactor,
+		int32 NumSlices,
 		int32 SpawnedActorCount,
 		int32 SpawnedComponentCount)
 	{
@@ -466,13 +476,13 @@ namespace
 			TEXT("    \"r.AVBOIT.Foundation.Scene 1\",\n")
 			TEXT("    \"r.AVBOIT.Foundation.Mode %d\",\n")
 			TEXT("    \"r.AVBOIT.Foundation.SubmissionOrder %d\",\n")
-			TEXT("    \"r.AVBOIT.Foundation.DownsampleFactor 8\",\n")
-			TEXT("    \"r.AVBOIT.Foundation.NumSlices 64\"\n")
+			TEXT("    \"r.AVBOIT.Foundation.DownsampleFactor %d\",\n")
+			TEXT("    \"r.AVBOIT.Foundation.NumSlices %d\"\n")
 			TEXT("  ],\n")
 			TEXT("  \"Camera\": { \"Location\": [0.0, 0.0, 650.0], \"Rotation\": [0.0, 0.0, 0.0], \"FOV\": 65.0 },\n")
 		TEXT("  \"Quads\": [\n")
-			TEXT("    { \"Name\": \"A_Green\", \"Color\": [0.0, 1.0, 0.0, 1.0], \"Alpha\": 0.55, \"YawDegrees\": -25.0 },\n")
-			TEXT("    { \"Name\": \"B_Cyan\", \"Color\": [0.0, 0.75, 1.0, 1.0], \"Alpha\": 0.55, \"YawDegrees\": 25.0 }\n")
+			TEXT("    { \"Name\": \"A_Green\", \"Color\": [0.0, 1.0, 0.0, 1.0], \"Alpha\": 0.55, \"LeftDepthCm\": 700.0, \"RightDepthCm\": 1300.0 },\n")
+			TEXT("    { \"Name\": \"B_Cyan\", \"Color\": [0.0, 0.75, 1.0, 1.0], \"Alpha\": 0.55, \"LeftDepthCm\": 1300.0, \"RightDepthCm\": 700.0 }\n")
 			TEXT("  ],\n")
 			TEXT("  \"DesktopScreenshotUsed\": false,\n")
 			TEXT("  \"ScreenshotSource\": \"none-spawn-manifest-only\",\n")
@@ -495,6 +505,8 @@ namespace
 			SpawnedComponentCount,
 			Mode,
 			Order,
+			DownsampleFactor,
+			NumSlices,
 			*EscapeJson(GDynamicRHI ? GDynamicRHI->GetName() : TEXT("unknown")),
 			TEXT("unknown-runtime"),
 			*EscapeJson(ResolveGitHead()));
@@ -616,6 +628,99 @@ namespace
 		return FFileHelper::SaveStringToFile(Json, *Path);
 	}
 
+	static void WriteManualDebugPayload(const FString& Root)
+	{
+#if WITH_EDITOR || WITH_DEV_AUTOMATION_TESTS
+		if (!GAVBOITRasterProbe || !GAVBOITRasterProbe->bReadbackReady || !GAVBOITRasterProbe->ReadbackPayload)
+		{
+			return;
+		}
+
+		const FAVBOITRasterDebugPayload& Payload = *GAVBOITRasterProbe->ReadbackPayload;
+		FString ExtinctionJson;
+		FString TransmittanceJson;
+		const uint32 ActiveSlices = FMath::Clamp(Payload.Header.NumSlices, 1u, 64u);
+		for (uint32 Index = 0; Index < ActiveSlices; ++Index)
+		{
+			if (Index > 0)
+			{
+				ExtinctionJson += TEXT(",");
+				TransmittanceJson += TEXT(",");
+			}
+			ExtinctionJson += FString::Printf(TEXT("%u"), Payload.PackedExtinction[Index]);
+			TransmittanceJson += FString::Printf(TEXT("%.9g"), Payload.Transmittance[Index]);
+		}
+
+		const FString MetricsDir = FPaths::ConvertRelativePathToFull(Root / TEXT("Metrics"));
+		IFileManager::Get().MakeDirectory(*MetricsDir, true);
+		const FString Path = MetricsDir / TEXT("ManualDebugPayload.json");
+		const FString Json = FString::Printf(
+			TEXT("{\n")
+			TEXT("  \"SchemaVersion\": 1,\n")
+			TEXT("  \"GeneratedUtc\": \"%s\",\n")
+			TEXT("  \"DebugPixel\": [%d, %d],\n")
+			TEXT("  \"LinearViewDepth\": %.9g,\n")
+			TEXT("  \"NormalizedDepth\": %.9g,\n")
+			TEXT("  \"Slice\": %u,\n")
+			TEXT("  \"DebugPixelHitCount\": %u,\n")
+			TEXT("  \"LastLinearViewDepth\": %.9g,\n")
+			TEXT("  \"LastNormalizedDepth\": %.9g,\n")
+			TEXT("  \"LastSlice\": %u,\n")
+			TEXT("  \"FragmentCoverageCount\": %u,\n")
+			TEXT("  \"NumSlices\": %u,\n")
+			TEXT("  \"OverflowCount\": %u,\n")
+			TEXT("  \"OutOfBoundsCount\": %u,\n")
+			TEXT("  \"TextureExtent\": [%d, %d],\n")
+			TEXT("  \"VolumeExtent\": [%d, %d],\n")
+			TEXT("  \"ViewRectMin\": [%d, %d],\n")
+			TEXT("  \"ViewRectMax\": [%d, %d],\n")
+			TEXT("  \"ColorAccumulation\": [%.9g, %.9g, %.9g, %.9g],\n")
+			TEXT("  \"SceneColorBefore\": [%.9g, %.9g, %.9g, %.9g],\n")
+			TEXT("  \"SceneColorAfter\": [%.9g, %.9g, %.9g, %.9g],\n")
+			TEXT("  \"PackedExtinction\": [%s],\n")
+			TEXT("  \"Transmittance\": [%s]\n")
+			TEXT("}\n"),
+			*EscapeJson(FDateTime::UtcNow().ToIso8601()),
+			GAVBOITRasterProbe->RequestedDebugPixel.X,
+			GAVBOITRasterProbe->RequestedDebugPixel.Y,
+			Payload.Header.LinearViewDepth,
+			Payload.Header.NormalizedDepth,
+			Payload.Header.Slice,
+			Payload.Header.DebugPixelHitCount,
+			Payload.Header.LastLinearViewDepth,
+			Payload.Header.LastNormalizedDepth,
+			Payload.Header.LastSlice,
+			Payload.Header.FragmentCoverageCount,
+			Payload.Header.NumSlices,
+			Payload.Header.OverflowCount,
+			Payload.Header.OutOfBoundsCount,
+			Payload.Header.TextureExtent.X,
+			Payload.Header.TextureExtent.Y,
+			Payload.Header.VolumeExtent.X,
+			Payload.Header.VolumeExtent.Y,
+			Payload.Header.ViewRectMin.X,
+			Payload.Header.ViewRectMin.Y,
+			Payload.Header.ViewRectMax.X,
+			Payload.Header.ViewRectMax.Y,
+			Payload.Header.ColorAccumulation.X,
+			Payload.Header.ColorAccumulation.Y,
+			Payload.Header.ColorAccumulation.Z,
+			Payload.Header.ColorAccumulation.W,
+			Payload.Header.SceneColorBefore.X,
+			Payload.Header.SceneColorBefore.Y,
+			Payload.Header.SceneColorBefore.Z,
+			Payload.Header.SceneColorBefore.W,
+			Payload.Header.SceneColorAfter.X,
+			Payload.Header.SceneColorAfter.Y,
+			Payload.Header.SceneColorAfter.Z,
+			Payload.Header.SceneColorAfter.W,
+			*ExtinctionJson,
+			*TransmittanceJson);
+
+		FFileHelper::SaveStringToFile(Json, *Path);
+#endif
+	}
+
 	static bool IsManualViewportExecuted()
 	{
 #if WITH_EDITOR || WITH_DEV_AUTOMATION_TESTS
@@ -634,7 +739,13 @@ namespace
 	{
 		const double Elapsed = FPlatformTime::Seconds() - GManualValidationStartTime;
 		const bool bExecuted = IsManualViewportExecuted();
-		if (!bExecuted && Elapsed < 10.0)
+		const bool bDebugReady =
+#if WITH_EDITOR || WITH_DEV_AUTOMATION_TESTS
+			!bManualValidationRequireDebugReadback || (GAVBOITRasterProbe && GAVBOITRasterProbe->bReadbackReady);
+#else
+			!bManualValidationRequireDebugReadback;
+#endif
+		if ((!bExecuted || !bDebugReady) && Elapsed < 30.0)
 		{
 			return true;
 		}
@@ -644,9 +755,15 @@ namespace
 
 		const bool bPassed = bExecuted;
 		const FString Reason = bPassed
-			? TEXT("Manual transparent sorting scene reached Foundation render execution.")
-			: FString::Printf(TEXT("Timed out waiting for Foundation render execution. Last SkipReason=%s."), *SkipReasonToString());
+			? (bDebugReady
+				? TEXT("Manual transparent sorting scene reached Foundation render execution and debug readback.")
+				: TEXT("Manual transparent sorting scene reached Foundation render execution; debug readback timed out."))
+			: FString::Printf(TEXT("Timed out waiting for Foundation render execution/readback. Last SkipReason=%s Executed=%s DebugReady=%s."),
+				*SkipReasonToString(),
+				bExecuted ? TEXT("true") : TEXT("false"),
+				bDebugReady ? TEXT("true") : TEXT("false"));
 		WriteManualValidationResult(GManualValidationRoot, GManualValidationScreenshotPath, bPassed, Reason);
+		WriteManualDebugPayload(GManualValidationRoot);
 		LogStatus(ResolveActiveWorld());
 
 		UE_LOG(LogAVBOITFoundationManualRepro, Display, TEXT("Manual viewport validation %s: %s"), bPassed ? TEXT("PASSED") : TEXT("FAILED"), *Reason);
@@ -731,11 +848,15 @@ void FAVBOITFoundationManualReproCommands::SpawnTransparentSortingScene(const TA
 	const FString OrderArg = !FindArgValue(Args, TEXT("order=")).IsEmpty() ? FindArgValue(Args, TEXT("order=")) : TEXT("AB");
 	const FString ModeArg = !FindArgValue(Args, TEXT("mode=")).IsEmpty() ? FindArgValue(Args, TEXT("mode=")) : TEXT("PluginAVBOIT");
 	const FString EvidenceRoot = FindArgValue(Args, TEXT("root="));
+	const FString DownsampleArg = FindArgValue(Args, TEXT("downsample="));
+	const FString NumSlicesArg = FindArgValue(Args, TEXT("numslices="));
 	const int32 Order = ParseOrderValue(OrderArg);
 	const int32 Mode = ParseModeValue(ModeArg);
+	const int32 DownsampleFactor = DownsampleArg.IsEmpty() ? 8 : FMath::Max(FCString::Atoi(*DownsampleArg), 1);
+	const int32 NumSlices = NumSlicesArg.IsEmpty() ? 64 : FMath::Clamp(FCString::Atoi(*NumSlicesArg), 1, 64);
 
 	InstallManualRasterProbe();
-	ApplyFoundationCVars(Mode, Order);
+	ApplyFoundationCVars(Mode, Order, DownsampleFactor, NumSlices);
 	const int32 DestroyedActors = CleanupManualActors(World);
 
 	FActorSpawnParameters SpawnParams;
@@ -767,7 +888,8 @@ void FAVBOITFoundationManualReproCommands::SpawnTransparentSortingScene(const TA
 		FLinearColor(0.0f, 1.0f, 0.0f, 1.0f),
 		0.55f,
 		static_cast<int32>(SubmissionOrderForPhysicalIndex(Order, 0)),
-		-25.0f);
+		700.0f,
+		1300.0f);
 
 	CreateManualQuad(
 		SceneActor,
@@ -776,7 +898,8 @@ void FAVBOITFoundationManualReproCommands::SpawnTransparentSortingScene(const TA
 		FLinearColor(0.0f, 0.75f, 1.0f, 1.0f),
 		0.55f,
 		static_cast<int32>(SubmissionOrderForPhysicalIndex(Order, 1)),
-		25.0f);
+		1300.0f,
+		700.0f);
 
 	ACameraActor* CameraActor = World->SpawnActor<ACameraActor>(FVector(0.0f, 0.0f, 650.0f), FRotator(0.0f, 0.0f, 0.0f), SpawnParams);
 	if (CameraActor)
@@ -801,10 +924,12 @@ void FAVBOITFoundationManualReproCommands::SpawnTransparentSortingScene(const TA
 
 	WriteManualReproManifest(
 		World,
-		FString::Printf(TEXT("AVBOIT.Foundation.SpawnTransparentSortingScene order=%s mode=%s root=%s"), *OrderArg, *ModeArg, *EvidenceRoot),
+		FString::Printf(TEXT("AVBOIT.Foundation.SpawnTransparentSortingScene order=%s mode=%s downsample=%d numslices=%d root=%s"), *OrderArg, *ModeArg, DownsampleFactor, NumSlices, *EvidenceRoot),
 		EvidenceRoot,
 		Mode,
 		Order,
+		DownsampleFactor,
+		NumSlices,
 		CountManualActors(World),
 		CountManualComponents(World));
 
@@ -902,13 +1027,37 @@ void FAVBOITFoundationManualReproCommands::ValidateTransparentSortingSceneAndExi
 	IFileManager::Get().MakeDirectory(*FPaths::GetPath(ScreenshotPath), true);
 
 	TArray<FString> SpawnArgs = Args;
+	if (FindArgValue(SpawnArgs, TEXT("mode=")).IsEmpty())
+	{
+		const int32 CurrentMode = GetIntCVar(TEXT("r.AVBOIT.Foundation.Mode"), 3);
+		SpawnArgs.Add(FString::Printf(TEXT("mode=%d"), CurrentMode == 0 ? 3 : CurrentMode));
+	}
+	if (FindArgValue(SpawnArgs, TEXT("order=")).IsEmpty())
+	{
+		SpawnArgs.Add(FString::Printf(TEXT("order=%d"), GetIntCVar(TEXT("r.AVBOIT.Foundation.SubmissionOrder"), 0)));
+	}
 	SpawnArgs.AddUnique(FString::Printf(TEXT("root=%s"), *Root));
 	SpawnTransparentSortingScene(SpawnArgs);
+
+	const FString DebugXArg = FindArgValue(Args, TEXT("debugx="));
+	const FString DebugYArg = FindArgValue(Args, TEXT("debugy="));
+	const int32 DebugX = DebugXArg.IsEmpty() ? GetIntCVar(TEXT("r.AVBOIT.Foundation.DebugPixelX"), 640) : FCString::Atoi(*DebugXArg);
+	const int32 DebugY = DebugYArg.IsEmpty() ? GetIntCVar(TEXT("r.AVBOIT.Foundation.DebugPixelY"), 360) : FCString::Atoi(*DebugYArg);
+#if WITH_EDITOR || WITH_DEV_AUTOMATION_TESTS
+	if (GAVBOITRasterProbe)
+	{
+		GManualDebugPayload = FAVBOITRasterDebugPayload();
+		GAVBOITRasterProbe->ReadbackPayload = &GManualDebugPayload;
+		GAVBOITRasterProbe->RequestedDebugPixel = FIntPoint(DebugX, DebugY);
+		GAVBOITRasterProbe->bReadbackReady = false;
+	}
+#endif
 
 	GManualValidationRoot = FPaths::ConvertRelativePathToFull(Root);
 	GManualValidationScreenshotPath = ScreenshotPath;
 	GManualValidationStartTime = FPlatformTime::Seconds();
 	bManualValidationExitAfter = true;
+	bManualValidationRequireDebugReadback = GetIntCVar(TEXT("r.AVBOIT.Foundation.Mode"), 3) == 3;
 
 	if (GManualValidationTickerHandle.IsValid())
 	{

@@ -16,6 +16,10 @@ struct FAVBOITRasterDebugPixelData
 	float NormalizedDepth;
 	uint32 Slice;
 	uint32 WriteFlag;
+	uint32 HitCount;
+	float LastLinearViewDepth;
+	float LastNormalizedDepth;
+	uint32 LastSlice;
 };
 
 class FAVBOITRasterSplatVS : public FGlobalShader
@@ -192,6 +196,10 @@ struct FAVBOITRasterDebugHeader
 	float LinearViewDepth;
 	float NormalizedDepth;
 	uint32 Slice;
+	uint32 DebugPixelHitCount;
+	float LastLinearViewDepth;
+	float LastNormalizedDepth;
+	uint32 LastSlice;
 	uint32 FragmentCoverageCount;
 	uint32 NumSlices;
 	uint32 OverflowCount;

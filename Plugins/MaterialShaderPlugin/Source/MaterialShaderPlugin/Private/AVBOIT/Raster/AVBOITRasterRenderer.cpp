@@ -442,6 +442,14 @@ FAVBOITRasterPassOutputs FAVBOITRasterRenderer::AddCorePasses(
 	FRDGBufferUAVRef DummyDebugPixelUAV = GraphBuilder.CreateUAV(DummyDebugPixel);
 	AddClearUAVPass(GraphBuilder, DummyCoverageUAV, 0);
 	AddClearUAVPass(GraphBuilder, DummyDebugPixelUAV, 0);
+	if (Inputs.FragmentCoverageCounter != nullptr)
+	{
+		AddClearUAVPass(GraphBuilder, GraphBuilder.CreateUAV(Inputs.FragmentCoverageCounter, PF_R32_UINT), 0);
+	}
+	if (Inputs.RasterDebugPixelBuffer != nullptr)
+	{
+		AddClearUAVPass(GraphBuilder, GraphBuilder.CreateUAV(Inputs.RasterDebugPixelBuffer), 0);
+	}
 	if (!DummyCoverageUAV || !DummyDebugPixelUAV)
 	{
 		UE_LOG(LogTemp, Fatal, TEXT("AVBOIT: Dummy UAVs are NULL!"));
@@ -544,12 +552,6 @@ FAVBOITRasterPassOutputs FAVBOITRasterRenderer::AddCorePasses(
 			SplatVSParams.Add(VSParams);
 		}
 
-		auto* PassParameters = GraphBuilder.AllocParameters<FAVBOITRasterSplatPS::FParameters>();
-		if (SplatPSParams.Num() > 0)
-		{
-			*PassParameters = *SplatPSParams[0]; // For RDG dependency tracking
-		}
-
 		bool bTestCoverage = Inputs.FragmentCoverageCounter != nullptr;
 		TArray<FAVBOITRasterDrawData> DrawDataArray = Inputs.DrawData;
 
@@ -557,8 +559,6 @@ FAVBOITRasterPassOutputs FAVBOITRasterRenderer::AddCorePasses(
 		FAVBOITRasterSplatPS::FPermutationDomain PermutationVector;
 		PermutationVector.Set<FAVBOITRasterSplatPS::FTestCoverageDim>(bTestCoverage);
 		TShaderMapRef<FAVBOITRasterSplatPS> PixelShader(GetGlobalShaderMap(GMaxRHIFeatureLevel), PermutationVector);
-
-		ClearUnusedGraphResources(PixelShader, PassParameters);
 
 		FRDGTextureDesc DummyDesc = FRDGTextureDesc::Create2D(
 			Outputs.ColorAccumulation->Desc.Extent,
@@ -568,41 +568,44 @@ FAVBOITRasterPassOutputs FAVBOITRasterRenderer::AddCorePasses(
 		);
 		FRDGTextureRef DummyRT = GraphBuilder.CreateTexture(DummyDesc, TEXT("AVBOIT.DummySplatRT"));
 
-		PassParameters->RenderTargets[0] = FRenderTargetBinding(DummyRT, ERenderTargetLoadAction::ENoAction);
-		PassParameters->RenderTargets.DepthStencil = FDepthStencilBinding(SceneDepthTexture, ERenderTargetLoadAction::ELoad, FExclusiveDepthStencil::DepthRead_StencilNop);
-
-		GraphBuilder.AddPass(
-			RDG_EVENT_NAME("AVBOIT.Foundation.Splat"),
-			PassParameters,
-			ERDGPassFlags::Raster,
-			[SplatVSParams, SplatPSParams, ViewRect, DrawDataArray, bTestCoverage, VertexShader, PixelShader](FRHICommandList& RHICmdList)
+		for (int32 DrawIndex = 0; DrawIndex < DrawDataArray.Num(); ++DrawIndex)
 		{
-			RHICmdList.SetViewport(ViewRect.Min.X, ViewRect.Min.Y, 0.0f, ViewRect.Max.X, ViewRect.Max.Y, 1.0f);
+			FAVBOITRasterSplatPS::FParameters* PassParameters = SplatPSParams[DrawIndex];
+			PassParameters->RenderTargets[0] = FRenderTargetBinding(DummyRT, ERenderTargetLoadAction::ENoAction);
+			PassParameters->RenderTargets.DepthStencil = FDepthStencilBinding(SceneDepthTexture, ERenderTargetLoadAction::ELoad, FExclusiveDepthStencil::DepthRead_StencilNop);
+			ClearUnusedGraphResources(PixelShader, PassParameters);
 
-			FGraphicsPipelineStateInitializer GraphicsPSOInit;
-			RHICmdList.ApplyCachedRenderTargets(GraphicsPSOInit);
-
-			GraphicsPSOInit.BlendState = TStaticBlendState<CW_NONE>::GetRHI();
-			GraphicsPSOInit.RasterizerState = TStaticRasterizerState<FM_Solid, CM_None>::GetRHI();
-			// Depth Test Enabled, Write Disabled. Reverse-Z means GreaterEqual.
-			GraphicsPSOInit.DepthStencilState = TStaticDepthStencilState<false, CF_DepthNearOrEqual>::GetRHI();
-
-			for (int32 i = 0; i < DrawDataArray.Num(); ++i)
+			FAVBOITRasterSplatVS::FParameters* VSParams = SplatVSParams[DrawIndex];
+			const FAVBOITRasterDrawData DrawData = DrawDataArray[DrawIndex];
+			GraphBuilder.AddPass(
+				RDG_EVENT_NAME("AVBOIT.Foundation.Splat[%d]", DrawIndex),
+				PassParameters,
+				ERDGPassFlags::Raster,
+				[VSParams, PassParameters, ViewRect, DrawData, VertexShader, PixelShader](FRHICommandList& RHICmdList)
 			{
-				GraphicsPSOInit.BoundShaderState.VertexDeclarationRHI = DrawDataArray[i].VertexDeclaration;
+				RHICmdList.SetViewport(ViewRect.Min.X, ViewRect.Min.Y, 0.0f, ViewRect.Max.X, ViewRect.Max.Y, 1.0f);
+
+				FGraphicsPipelineStateInitializer GraphicsPSOInit;
+				RHICmdList.ApplyCachedRenderTargets(GraphicsPSOInit);
+
+				GraphicsPSOInit.BlendState = TStaticBlendState<CW_NONE>::GetRHI();
+				GraphicsPSOInit.RasterizerState = TStaticRasterizerState<FM_Solid, CM_None>::GetRHI();
+				// Depth Test Enabled, Write Disabled. Reverse-Z means GreaterEqual.
+				GraphicsPSOInit.DepthStencilState = TStaticDepthStencilState<false, CF_DepthNearOrEqual>::GetRHI();
+				GraphicsPSOInit.BoundShaderState.VertexDeclarationRHI = DrawData.VertexDeclaration;
 				GraphicsPSOInit.BoundShaderState.VertexShaderRHI = VertexShader.GetVertexShader();
 				GraphicsPSOInit.BoundShaderState.PixelShaderRHI = PixelShader.GetPixelShader();
 				GraphicsPSOInit.PrimitiveType = PT_TriangleList;
 
 				SetGraphicsPipelineState(RHICmdList, GraphicsPSOInit, 0);
 
-				SetShaderParameters(RHICmdList, VertexShader, VertexShader.GetVertexShader(), *SplatVSParams[i]);
-				SetShaderParameters(RHICmdList, PixelShader, PixelShader.GetPixelShader(), *SplatPSParams[i]);
+				SetShaderParameters(RHICmdList, VertexShader, VertexShader.GetVertexShader(), *VSParams);
+				SetShaderParameters(RHICmdList, PixelShader, PixelShader.GetPixelShader(), *PassParameters);
 
-				RHICmdList.SetStreamSource(0, DrawDataArray[i].VertexBufferRHI, 0);
-				RHICmdList.DrawIndexedPrimitive(DrawDataArray[i].IndexBufferRHI, 0, 0, DrawDataArray[i].VertexCount, 0, DrawDataArray[i].PrimitiveCount, 1);
-			}
-		});
+				RHICmdList.SetStreamSource(0, DrawData.VertexBufferRHI, 0);
+				RHICmdList.DrawIndexedPrimitive(DrawData.IndexBufferRHI, 0, 0, DrawData.VertexCount, 0, DrawData.PrimitiveCount, 1);
+			});
+		}
 	}
 
 	// Pass 3: Integrate
@@ -688,54 +691,49 @@ FAVBOITRasterPassOutputs FAVBOITRasterRenderer::AddCorePasses(
 			ForwardVSParams.Add(VSParams);
 		}
 
-		auto* PassParameters = GraphBuilder.AllocParameters<FAVBOITRasterForwardPS::FParameters>();
-		if (ForwardPSParams.Num() > 0)
-		{
-			*PassParameters = *ForwardPSParams[0]; // For RDG dependency tracking
-		}
-
 		TArray<FAVBOITRasterDrawData> DrawDataArray = Inputs.DrawData;
 		
 		TShaderMapRef<FAVBOITRasterForwardVS> VertexShader(GetGlobalShaderMap(GMaxRHIFeatureLevel));
 		TShaderMapRef<FAVBOITRasterForwardPS> PixelShader(GetGlobalShaderMap(GMaxRHIFeatureLevel));
-		
-		ClearUnusedGraphResources(PixelShader, PassParameters);
 
-		PassParameters->RenderTargets[0] = FRenderTargetBinding(Outputs.ColorAccumulation, ERenderTargetLoadAction::ELoad);
-		PassParameters->RenderTargets.DepthStencil = FDepthStencilBinding(SceneDepthTexture, ERenderTargetLoadAction::ELoad, FExclusiveDepthStencil::DepthRead_StencilNop);
-
-		GraphBuilder.AddPass(
-			RDG_EVENT_NAME("AVBOIT.Foundation.ForwardUnlit"),
-			PassParameters,
-			ERDGPassFlags::Raster,
-			[ForwardVSParams, ForwardPSParams, ViewRect, DrawDataArray, VertexShader, PixelShader](FRHICommandList& RHICmdList)
+		for (int32 DrawIndex = 0; DrawIndex < DrawDataArray.Num(); ++DrawIndex)
 		{
-			RHICmdList.SetViewport(ViewRect.Min.X, ViewRect.Min.Y, 0.0f, ViewRect.Max.X, ViewRect.Max.Y, 1.0f);
+			FAVBOITRasterForwardPS::FParameters* PassParameters = ForwardPSParams[DrawIndex];
+			PassParameters->RenderTargets[0] = FRenderTargetBinding(Outputs.ColorAccumulation, ERenderTargetLoadAction::ELoad);
+			PassParameters->RenderTargets.DepthStencil = FDepthStencilBinding(SceneDepthTexture, ERenderTargetLoadAction::ELoad, FExclusiveDepthStencil::DepthRead_StencilNop);
+			ClearUnusedGraphResources(PixelShader, PassParameters);
 
-			FGraphicsPipelineStateInitializer GraphicsPSOInit;
-			RHICmdList.ApplyCachedRenderTargets(GraphicsPSOInit);
-
-			// Additive Blend
-			GraphicsPSOInit.BlendState = TStaticBlendState<CW_RGB, BO_Add, BF_One, BF_One, BO_Add, BF_One, BF_One>::GetRHI();
-			GraphicsPSOInit.RasterizerState = TStaticRasterizerState<FM_Solid, CM_None>::GetRHI();
-			GraphicsPSOInit.DepthStencilState = TStaticDepthStencilState<false, CF_DepthNearOrEqual>::GetRHI();
-
-			for (int32 i = 0; i < DrawDataArray.Num(); ++i)
+			FAVBOITRasterForwardVS::FParameters* VSParams = ForwardVSParams[DrawIndex];
+			const FAVBOITRasterDrawData DrawData = DrawDataArray[DrawIndex];
+			GraphBuilder.AddPass(
+				RDG_EVENT_NAME("AVBOIT.Foundation.ForwardUnlit[%d]", DrawIndex),
+				PassParameters,
+				ERDGPassFlags::Raster,
+				[VSParams, PassParameters, ViewRect, DrawData, VertexShader, PixelShader](FRHICommandList& RHICmdList)
 			{
-				GraphicsPSOInit.BoundShaderState.VertexDeclarationRHI = DrawDataArray[i].VertexDeclaration;
+				RHICmdList.SetViewport(ViewRect.Min.X, ViewRect.Min.Y, 0.0f, ViewRect.Max.X, ViewRect.Max.Y, 1.0f);
+
+				FGraphicsPipelineStateInitializer GraphicsPSOInit;
+				RHICmdList.ApplyCachedRenderTargets(GraphicsPSOInit);
+
+				// Additive Blend
+				GraphicsPSOInit.BlendState = TStaticBlendState<CW_RGB, BO_Add, BF_One, BF_One, BO_Add, BF_One, BF_One>::GetRHI();
+				GraphicsPSOInit.RasterizerState = TStaticRasterizerState<FM_Solid, CM_None>::GetRHI();
+				GraphicsPSOInit.DepthStencilState = TStaticDepthStencilState<false, CF_DepthNearOrEqual>::GetRHI();
+				GraphicsPSOInit.BoundShaderState.VertexDeclarationRHI = DrawData.VertexDeclaration;
 				GraphicsPSOInit.BoundShaderState.VertexShaderRHI = VertexShader.GetVertexShader();
 				GraphicsPSOInit.BoundShaderState.PixelShaderRHI = PixelShader.GetPixelShader();
 				GraphicsPSOInit.PrimitiveType = PT_TriangleList;
 
 				SetGraphicsPipelineState(RHICmdList, GraphicsPSOInit, 0);
 
-				SetShaderParameters(RHICmdList, VertexShader, VertexShader.GetVertexShader(), *ForwardVSParams[i]);
-				SetShaderParameters(RHICmdList, PixelShader, PixelShader.GetPixelShader(), *ForwardPSParams[i]);
+				SetShaderParameters(RHICmdList, VertexShader, VertexShader.GetVertexShader(), *VSParams);
+				SetShaderParameters(RHICmdList, PixelShader, PixelShader.GetPixelShader(), *PassParameters);
 
-				RHICmdList.SetStreamSource(0, DrawDataArray[i].VertexBufferRHI, 0);
-				RHICmdList.DrawIndexedPrimitive(DrawDataArray[i].IndexBufferRHI, 0, 0, DrawDataArray[i].VertexCount, 0, DrawDataArray[i].PrimitiveCount, 1);
-			}
-		});
+				RHICmdList.SetStreamSource(0, DrawData.VertexBufferRHI, 0);
+				RHICmdList.DrawIndexedPrimitive(DrawData.IndexBufferRHI, 0, 0, DrawData.VertexCount, 0, DrawData.PrimitiveCount, 1);
+			});
+		}
 	}
 
 #if WITH_EDITOR || WITH_DEV_AUTOMATION_TESTS
